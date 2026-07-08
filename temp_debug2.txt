@@ -1,0 +1,100 @@
+﻿    "@genkit-ai/firebase": "^1.28.0",
+    "@genkit-ai/googleai": "^1.28.0",
+    "@genkit-ai/vertexai": "^1.28.0",
+    "dotenv": "^17.3.1",
+    "firebase-admin": "^12.0.0",
+    "firebase-functions": "^5.0.0",
+    "genkit": "^1.28.0"
+  },
+  "devDependencies": {
+    "firebase-functions-test": "^3.1.0",
+    "genkit-cli": "^1.29.0"
+  },
+  "private": true
+}
+[debug] [2026-03-30T22:26:12.648Z] Building nodejs source
+[debug] [2026-03-30T22:26:12.653Z] Failed to find version of module node: reached end of search path C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules
+[warn] !  functions: Your requested "node" version "20" doesn't match your global version "24". Using node@24 from host. 
+[info] i  functions: Loaded environment variables from .env. 
+[debug] [2026-03-30T22:26:12.685Z] Could not find functions.yaml. Must use http discovery
+[debug] [2026-03-30T22:26:12.734Z] Found firebase-functions binary at 'C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\.bin\firebase-functions'
+[info] Serving at port 8425
+
+[info] PitchLab: Cloud Functions v1.0.4 Loaded
+
+[debug] [2026-03-30T22:26:17.998Z] Got response from /__/functions.yaml {"endpoints":{"pitchLabEvaluation":{"availableMemoryMb":null,"timeoutSeconds":300,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","region":["us-central1"],"labels":{},"callableTrigger":{},"entryPoint":"pitchLabEvaluation"}},"specVersion":"v1alpha1","requiredAPIs":[],"extensions":{}}
+[warn] !  functions: Application Default Credentials detected. Non-emulated services will access production using these credentials. Be careful! {"metadata":{"emulator":{"name":"functions"},"message":"Application Default Credentials detected. Non-emulated services will access production using these credentials. Be careful!"}}
+[info] +  functions: Loaded functions definitions from source: pitchLabEvaluation. {"metadata":{"emulator":{"name":"functions"},"message":"Loaded functions definitions from source: pitchLabEvaluation."}}
+[info] +  functions[us-central1-pitchLabEvaluation]: http function initialized (http://127.0.0.1:5001/antigravity-pitchlab/us-central1/pitchLabEvaluation). {"metadata":{"emulator":{"name":"functions"},"message":"\u001b[1mhttp\u001b[22m function initialized (http://127.0.0.1:5001/antigravity-pitchlab/us-central1/pitchLabEvaluation)."}}
+[debug] [2026-03-30T22:26:22.260Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
+[info] 
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚ âœ”  All emulators ready! It is now safe to connect your app. â”‚
+â”‚ i  View Emulator UI at http://127.0.0.1:4000/               â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚ Emulator       â”‚ Host:Port    â”‚ View in Emulator UI              â”‚
+â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+â”‚ Authentication â”‚ 0.0.0.0:9099 â”‚ http://127.0.0.1:4000/auth       â”‚
+â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+â”‚ Functions      â”‚ 0.0.0.0:5001 â”‚ http://127.0.0.1:4000/functions  â”‚
+â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+â”‚ Firestore      â”‚ 0.0.0.0:8080 â”‚ http://127.0.0.1:4000/firestore  â”‚
+â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+â”‚ Storage        â”‚ 0.0.0.0:9199 â”‚ http://127.0.0.1:4000/storage    â”‚
+â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+â”‚ Extensions     â”‚ 0.0.0.0:5001 â”‚ http://127.0.0.1:4000/extensions â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+  Emulator Hub host: 127.0.0.1 port: 4400
+  Other reserved ports: 4500, 9150
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚ Extension Instance Name â”‚ Extension Ref â”‚ View in Emulator UI â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+Issues? Report them at https://github.com/firebase/firebase-tools/issues and attach the *-debug.log files.
+ 
+[debug] [2026-03-30T22:27:22.060Z] >>> [apiv2][query] POST http://127.0.0.1:5001/functions/projects/antigravity-pitchlab/trigger_multicast [none]
+[debug] [2026-03-30T22:27:22.061Z] >>> [apiv2][body] POST http://127.0.0.1:5001/functions/projects/antigravity-pitchlab/trigger_multicast {"eventId":"43450a06-1678-4482-b0c6-297776e815c9","eventType":"providers/firebase.auth/eventTypes/user.create","resource":{"name":"projects/antigravity-pitchlab","service":"firebaseauth.googleapis.com"},"params":{},"timestamp":"2026-03-30T22:27:22.059Z","data":{"uid":"8svzp4xz1t7jzionakMpq4W0NDRh","metadata":{"creationTime":"2026-03-30T22:27:22.056Z","lastSignInTime":"2026-03-30T22:27:22.056Z"},"customClaims":{}}}
+[debug] [2026-03-30T22:27:22.112Z] <<< [apiv2][status] POST http://127.0.0.1:5001/functions/projects/antigravity-pitchlab/trigger_multicast 200
+[debug] [2026-03-30T22:27:22.112Z] <<< [apiv2][body] POST http://127.0.0.1:5001/functions/projects/antigravity-pitchlab/trigger_multicast {"status":"multicast_acknowledged"}
+[debug] [2026-03-30T22:27:24.902Z] Mar 31, 2026 11:27:24 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+INFO: Detected non-HTTP/2 connection.
+ {"metadata":{"emulator":{"name":"firestore"},"message":"Mar 31, 2026 11:27:24 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\r\nINFO: Detected non-HTTP/2 connection.\r\n"}}
+[debug] [2026-03-30T22:27:38.506Z] Mar 31, 2026 11:27:38 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+INFO: Detected non-HTTP/2 connection.
+ {"metadata":{"emulator":{"name":"firestore"},"message":"Mar 31, 2026 11:27:38 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\r\nINFO: Detected non-HTTP/2 connection.\r\n"}}
+[debug] [2026-03-30T22:27:38.510Z] Mar 31, 2026 11:27:38 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+INFO: Detected non-HTTP/2 connection.
+ {"metadata":{"emulator":{"name":"firestore"},"message":"Mar 31, 2026 11:27:38 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\r\nINFO: Detected non-HTTP/2 connection.\r\n"}}
+[debug] [2026-03-30T22:27:59.392Z] Mar 31, 2026 11:27:59 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+INFO: Detected non-HTTP/2 connection.
+ {"metadata":{"emulator":{"name":"firestore"},"message":"Mar 31, 2026 11:27:59 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\r\nINFO: Detected non-HTTP/2 connection.\r\n"}}
+[debug] [2026-03-30T22:27:59.430Z] Mar 31, 2026 11:27:59 AM com.google.cloud.datastore.emulator.firestore.webchannel.FirestoreV1WebChannelAdapter$FirestoreListenHandler onClose
+INFO: channel closed
+ {"metadata":{"emulator":{"name":"firestore"},"message":"Mar 31, 2026 11:27:59 AM com.google.cloud.datastore.emulator.firestore.webchannel.FirestoreV1WebChannelAdapter$FirestoreListenHandler onClose\r\nINFO: channel closed\r\n"}}
+[debug] [2026-03-30T22:27:59.736Z] [work-queue] {"queuedWork":["/antigravity-pitchlab/us-central1/pitchLabEvaluation-2026-03-30T22:27:59.735Z"],"queueLength":1,"runningWork":[],"workRunningCount":0}
+[debug] [2026-03-30T22:27:59.738Z] [work-queue] {"queuedWork":[],"queueLength":0,"runningWork":["/antigravity-pitchlab/us-central1/pitchLabEvaluation-2026-03-30T22:27:59.735Z"],"workRunningCount":1}
+[debug] [2026-03-30T22:27:59.743Z] Accepted request OPTIONS /antigravity-pitchlab/us-central1/pitchLabEvaluation --> us-central1-pitchLabEvaluation
+[debug] [2026-03-30T22:27:59.753Z] [functions] Runtime ready! Sending request! {"metadata":{"emulator":{"name":"functions"},"message":"[functions] Runtime ready! Sending request!"}}
+[debug] [2026-03-30T22:27:59.755Z] [functions] Got req.url=/antigravity-pitchlab/us-central1/pitchLabEvaluation, mapping to path=/ {"metadata":{"emulator":{"name":"functions"},"message":"[functions] Got req.url=/antigravity-pitchlab/us-central1/pitchLabEvaluation, mapping to path=/"}}
+[info] i  functions: Loaded environment variables from .env. 
+[debug] [2026-03-30T22:27:59.980Z] [worker-pool] addWorker(us-central1-pitchLabEvaluation) {"metadata":{"emulator":{"name":"functions"},"message":"[worker-pool] addWorker(us-central1-pitchLabEvaluation)"}}
+[debug] [2026-03-30T22:27:59.986Z] [worker-pool] Adding worker with key us-central1-pitchLabEvaluation, total=1 {"metadata":{"emulator":{"name":"functions"},"message":"[worker-pool] Adding worker with key us-central1-pitchLabEvaluation, total=1"}}
+[info] >  (node:15616) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead. {"user":"(node:15616) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.","metadata":{"emulator":{"name":"functions"},"function":{"name":"us-central1-pitchLabEvaluation"},"extension":{},"message":"\u001b[90m> \u001b[39m (node:15616) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead."}}
+[info] >  (Use `node --trace-deprecation ...` to show where the warning was created) {"user":"(Use `node --trace-deprecation ...` to show where the warning was created)","metadata":{"emulator":{"name":"functions"},"function":{"name":"us-central1-pitchLabEvaluation"},"extension":{},"message":"\u001b[90m> \u001b[39m (Use `node --trace-deprecation ...` to show where the warning was created)"}}
+[debug] [2026-03-30T22:28:08.793Z] [runtime-status] [15616] Resolved module firebase-admin {"declared":true,"installed":true,"version":"12.7.0","resolution":"C:\\Users\\petet\\.gemini\\antigravity\\scratch\\Pitchlab-AntiGravity\\functions\\node_modules\\firebase-admin\\lib\\index.js"} {"metadata":{"emulator":{"name":"functions"},"function":{"name":"us-central1-pitchLabEvaluation"},"extension":{},"message":"[runtime-status] [15616] Resolved module firebase-admin {\"declared\":true,\"installed\":true,\"version\":\"12.7.0\",\"resolution\":\"C:\\\\Users\\\\petet\\\\.gemini\\\\antigravity\\\\scratch\\\\Pitchlab-AntiGravity\\\\functions\\\\node_modules\\\\firebase-admin\\\\lib\\\\index.js\"}"}}
+[debug] [2026-03-30T22:28:08.810Z] [runtime-status] [15616] Resolved module firebase-functions {"declared":true,"installed":true,"version":"5.1.1","resolution":"C:\\Users\\petet\\.gemini\\antigravity\\scratch\\Pitchlab-AntiGravity\\functions\\node_modules\\firebase-functions\\lib\\v1\\index.js"} {"metadata":{"emulator":{"name":"functions"},"function":{"name":"us-central1-pitchLabEvaluation"},"extension":{},"message":"[runtime-status] [15616] Resolved module firebase-functions {\"declared\":true,\"installed\":true,\"version\":\"5.1.1\",\"resolution\":\"C:\\\\Users\\\\petet\\\\.gemini\\\\antigravity\\\\scratch\\\\Pitchlab-AntiGravity\\\\functions\\\\node_modules\\\\firebase-functions\\\\lib\\\\v1\\\\index.js\"}"}}
+[debug] [2026-03-30T22:28:08.812Z] [runtime-status] [15616] Outgoing network have been stubbed. [{"name":"http","status":"mocked"},{"name":"http","status":"mocked"},{"name":"https","status":"mocked"},{"name":"https","status":"mocked"},{"name":"net","status":"mocked"}] {"metadata":{"emulator":{"name":"functions"},"function":{"name":"us-central1-pitchLabEvaluation"},"extension":{},"message":"[runtime-status] [15616] Outgoing network have been stubbed. [{\"name\":\"http\",\"status\":\"mocked\"},{\"name\":\"http\",\"status\":\"mocked\"},{\"name\":\"https\",\"status\":\"mocked\"},{\"name\":\"https\",\"status\":\"mocked\"},{\"name\":\"net\",\"status\":\"mocked\"}]"}}
+[debug] [2026-03-30T22:28:08.824Z] [runtime-status] [15616] Resolved module firebase-functions {"declared":true,"installed":true,"version":"5.1.1","resolution":"C:\\Users\\petet\\.gemini\\antigravity\\scratch\\Pitchlab-AntiGravity\\functions\\node_modules\\firebase-functions\\lib\\v1\\index.js"} {"metadata":{"emulator":{"name":"functions"},"function":{"name":"us-central1-pitchLabEvaluation"},"extension":{},"message":"[runtime-status] [15616] Resolved module firebase-functions {\"declared\":true,\"installed\":true,\"version\":\"5.1.1\",\"resolution\":\"C:\\\\Users\\\\petet\\\\.gemini\\\\antigravity\\\\scratch\\\\Pitchlab-AntiGravity\\\\functions\\\\node_modules\\\\firebase-functions\\\\lib\\\\v1\\\\index.js\"}"}}
+[debug] [2026-03-30T22:28:24.276Z] [runtime-status] [15616] Resolved module firebase-admin {"declared":true,"installed":true,"version":"12.7.0","resolution":"C:\\Users\\petet\\.gemini\\antigravity\\scratch\\Pitchlab-AntiGravity\\functions\\node_modules\\firebase-admin\\lib\\index.js"} {"metadata":{"emulator":{"name":"functions"},"function":{"name":"us-central1-pitchLabEvaluation"},"extension":{},"message":"[runtime-status] [15616] Resolved module firebase-admin {\"declared\":true,\"installed\":true,\"version\":\"12.7.0\",\"resolution\":\"C:\\\\Users\\\\petet\\\\.gemini\\\\antigravity\\\\scratch\\\\Pitchlab-AntiGravity\\\\functions\\\\node_modules\\\\firebase-admin\\\\lib\\\\index.js\"}"}}
+[debug] [2026-03-30T22:28:24.499Z] [runtime-status] [15616] Resolved module firebase-functions {"declared":true,"installed":true,"version":"5.1.1","resolution":"C:\\Users\\petet\\.gemini\\antigravity\\scratch\\Pitchlab-AntiGravity\\functions\\node_modules\\firebase-functions\\lib\\v1\\index.js"} {"metadata":{"emulator":{"name":"functions"},"function":{"name":"us-central1-pitchLabEvaluation"},"extension":{},"message":"[runtime-status] [15616] Resolved module firebase-functions {\"declared\":true,\"installed\":true,\"version\":\"5.1.1\",\"resolution\":\"C:\\\\Users\\\\petet\\\\.gemini\\\\antigravity\\\\scratch\\\\Pitchlab-AntiGravity\\\\functions\\\\node_modules\\\\firebase-functions\\\\lib\\\\v1\\\\index.js\"}"}}
+[error] !!  functions: Failed to handle request for function us-central1-pitchLabEvaluation {"metadata":{"emulator":{"name":"functions"},"message":"Failed to handle request for function us-central1-pitchLabEvaluation"}}
+[error] !!  functions: Failed to start functions in C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions: FirebaseError: Failed to load function. {"metadata":{"emulator":{"name":"functions"},"message":"Failed to start functions in C:\\Users\\petet\\.gemini\\antigravity\\scratch\\Pitchlab-AntiGravity\\functions: FirebaseError: Failed to load function."}}
+[debug] [2026-03-30T22:28:30.075Z] [work-queue] {"queuedWork":[],"queueLength":0,"runningWork":[],"workRunningCount":0}
+[debug] [2026-03-30T22:28:30.118Z] [runtime-status] [15616] firebase-admin has been stubbed. {"adminResolution":{"declared":true,"installed":true,"version":"12.7.0","resolution":"C:\\Users\\petet\\.gemini\\antigravity\\scratch\\Pitchlab-AntiGravity\\functions\\node_modules\\firebase-admin\\lib\\index.js"}} {"metadata":{"emulator":{"name":"functions"},"function":{"name":"us-central1-pitchLabEvaluation"},"extension":{},"message":"[runtime-status] [15616] firebase-admin has been stubbed. {\"adminResolution\":{\"declared\":true,\"installed\":true,\"version\":\"12.7.0\",\"resolution\":\"C:\\\\Users\\\\petet\\\\.gemini\\\\antigravity\\\\scratch\\\\Pitchlab-AntiGravity\\\\functions\\\\node_modules\\\\firebase-admin\\\\lib\\\\index.js\"}}"}}
+[info] >  PitchLab: Cloud Functions v1.0.4 Loaded {"user":"PitchLab: Cloud Functions v1.0.4 Loaded","metadata":{"emulator":{"name":"functions"},"function":{"name":"us-central1-pitchLabEvaluation"},"extension":{},"message":"\u001b[90m> \u001b[39m PitchLab: Cloud Functions v1.0.4 Loaded"}}
+[debug] [2026-03-30T22:28:30.475Z] [runtime-status] [15616] Functions runtime initialized. {"cwd":"C:\\Users\\petet\\.gemini\\antigravity\\scratch\\Pitchlab-AntiGravity\\functions","node_version":"24.13.1"} {"metadata":{"emulator":{"name":"functions"},"function":{"name":"us-central1-pitchLabEvaluation"},"extension":{},"message":"[runtime-status] [15616] Functions runtime initialized. {\"cwd\":\"C:\\\\Users\\\\petet\\\\.gemini\\\\antigravity\\\\scratch\\\\Pitchlab-AntiGravity\\\\functions\",\"node_version\":\"24.13.1\"}"}}
+[debug] [2026-03-30T22:28:30.482Z] [runtime-status] [15616] Listening to port: \\?\pipe\fire_emu_436156bc4df3234e {"metadata":{"emulator":{"name":"functions"},"function":{"name":"us-central1-pitchLabEvaluation"},"extension":{},"message":"[runtime-status] [15616] Listening to port: \\\\?\\pipe\\fire_emu_436156bc4df3234e"}}
+[debug] [2026-03-30T23:17:05.983Z] Mar 31, 2026 12:17:05 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+INFO: Detected non-HTTP/2 connection.
+ {"metadata":{"emulator":{"name":"firestore"},"message":"Mar 31, 2026 12:17:05 PM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\r\nINFO: Detected non-HTTP/2 connection.\r\n"}}

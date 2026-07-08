@@ -1,0 +1,49 @@
+{
+    "validation_principles": [
+        {
+            "category": "Problem-Solution Fit",
+            "principles": [
+                {
+                    "title": "Hair on Fire Problem",
+                    "description": "Focus on problems that are urgent and painful enough that users are already seeking or hacking together solutions.",
+                    "priority": "High"
+                },
+                {
+                    "title": "Avoid 'Nice-to-Haves'",
+                    "description": "Startups failing to find market fit often solve problems that are mild inconveniences rather than critical blockers.",
+                    "priority": "Critical"
+                }
+            ]
+        },
+        {
+            "category": "Customer Discovery",
+            "principles": [
+                {
+                    "title": "Get Out of the Building",
+                    "description": "Iterate based on raw conversation data from at least 30-50 potential users before finalizing your MVP spec.",
+                    "priority": "High"
+                },
+                {
+                    "title": "Validate via Behavior, Not Words",
+                    "description": "Don't ask 'would you use this?'. Ask 'how do you currently solve this?' and look for existing spend.",
+                    "priority": "Critical"
+                }
+            ]
+        },
+        {
+            "category": "Execution & Budgeting",
+            "principles": [
+                {
+                    "title": "The $5k Constraint",
+                    "description": "Force innovation through scarcity. If an MVP cannot be built for $5k, the scope is likely too broad for a first iteration.",
+                    "priority": "High"
+                },
+                {
+                    "title": "Time-to-Feedback",
+                    "description": "Minimize the gap between code commit and user feedback. Speed is the only advantage for a startup.",
+                    "priority": "Critical"
+                }
+            ]
+        }
+    ]
+}

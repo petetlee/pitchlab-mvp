@@ -1,0 +1,53 @@
+﻿[dotenv@17.3.1] injecting env (1) from .env -- tip: ΓÜÖ∩╕Å  suppress all logs with { quiet: true }
+TESTING: vertexai/gemini-1.5-flash
+node : (node:3936) 
+[DEP0040] 
+DeprecationWarning: The 
+`punycode` module is 
+deprecated. Please use a 
+userland alternative 
+instead.
+At line:1 char:1
++ node 
+test_vertex_dynamic.js > 
+test_out_vertex.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~
+    + CategoryInfo        
+      : NotSpecified: ((  
+  node:3936) [DE...nati   
+ ve instead.:String) [    
+], RemoteException
+    + FullyQualifiedError 
+   Id : NativeCommandErr  
+  or
+ 
+(Use `node 
+--trace-deprecation ...` 
+to show where the warning 
+was created)
+FAILED [vertexai/gemini-1.
+5-flash]: 
+[VertexAI.ClientError]: 
+got status: 404 Not 
+Found. {"error":{"code":40
+4,"message":"Publisher 
+Model `projects/3945097332
+21/locations/us-central1/p
+ublishers/google/models/ge
+mini-1.5-flash` was not 
+found or your project 
+does not have access to 
+it. Please ensure you are 
+using a valid model 
+version. For more 
+information, see: https://
+cloud.google.com/vertex-ai
+/generative-ai/docs/learn/
+model-versions","status":"
+NOT_FOUND"}}
+-----------------------
+TESTING: vertexai/gemini-2.5-flash
+SUCCESS [vertexai/gemini-2.5-flash]: Hello!
+-----------------------

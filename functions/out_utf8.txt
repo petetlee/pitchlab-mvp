@@ -1,0 +1,105 @@
+﻿[dotenv@17.3.1] injecting env (1) from .env -- tip: ≡ƒñû agentic secret storage: https://dotenvx.com/as2
+Testing Genkit Google AI fallback with gemini20Flash...
+node : FALLBACK FAILED: 
+[GoogleGenerativeAI 
+Error]: Error fetching 
+from https://generativelan
+guage.googleapis.com/v1bet
+a/models/gemini-2.0-flash:
+generateContent: [404 Not 
+Found] This model 
+models/gemini-2.0-flash 
+is no longer available to 
+new users. Please update 
+your code to use a newer 
+model for the latest 
+features and improvements.
+At line:1 char:1
++ node test_google_ai.js 
+> out_test.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~
+    + CategoryInfo        
+      : NotSpecified: (F  
+  ALLBACK FAILED...d im   
+ provements.:String) [    
+], RemoteException
+    + FullyQualifiedError 
+   Id : NativeCommandErr  
+  or
+ 
+Error: 
+[GoogleGenerativeAI 
+Error]: Error fetching 
+from https://generativelan
+guage.googleapis.com/v1bet
+a/models/gemini-2.0-flash:
+generateContent: [404 Not 
+Found] This model 
+models/gemini-2.0-flash 
+is no longer available to 
+new users. Please update 
+your code to use a newer 
+model for the latest 
+features and improvements.
+    at 
+handleResponseNotOk (C:\Us
+ers\petet\.gemini\antigrav
+ity\scratch\Pitchlab-AntiG
+ravity\functions\node_modu
+les\@google\generative-ai\
+dist\index.js:434:11)
+    at process.processTick
+sAndRejections (node:inter
+nal/process/task_queues:10
+3:5)
+    at async makeRequest (
+C:\Users\petet\.gemini\ant
+igravity\scratch\Pitchlab-
+AntiGravity\functions\node
+_modules\@google\generativ
+e-ai\dist\index.js:403:9)
+    at async 
+generateContent (C:\Users\
+petet\.gemini\antigravity\
+scratch\Pitchlab-AntiGravi
+ty\functions\node_modules\
+@google\generative-ai\dist
+\index.js:867:22)
+    at async 
+ChatSession.sendMessage (C
+:\Users\petet\.gemini\anti
+gravity\scratch\Pitchlab-A
+ntiGravity\functions\node_
+modules\@google\generative
+-ai\dist\index.js:1210:9)
+    at async callGemini (C
+:\Users\petet\.gemini\anti
+gravity\scratch\Pitchlab-A
+ntiGravity\functions\node_
+modules\@genkit-ai\googlea
+i\lib\gemini.js:1111:26)
+    at async C:\Users\pete
+t\.gemini\antigravity\scra
+tch\Pitchlab-AntiGravity\f
+unctions\node_modules\@gen
+kit-ai\googleai\lib\gemini
+.js:1159:11
+    at async C:\Users\pete
+t\.gemini\antigravity\scra
+tch\Pitchlab-AntiGravity\f
+unctions\node_modules\@gen
+kit-ai\core\lib\action.js:
+228:12
+    at async C:\Users\pete
+t\.gemini\antigravity\scra
+tch\Pitchlab-AntiGravity\f
+unctions\node_modules\@gen
+kit-ai\core\lib\action.js:
+148:27
+    at async C:\Users\pete
+t\.gemini\antigravity\scra
+tch\Pitchlab-AntiGravity\f
+unctions\node_modules\@gen
+kit-ai\core\lib\tracing\in
+strumentation.js:91:24

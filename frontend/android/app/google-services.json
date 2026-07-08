@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "394509733221",
+    "project_id": "antigravity-pitchlab",
+    "storage_bucket": "antigravity-pitchlab.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:394509733221:android:e74d8682b823c7e7f5e58c",
+        "android_client_info": {
+          "package_name": "com.pitchlab.antigravity.frontend"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAjrNxHs2x5SQ0Nj1vFX5Tg2XmajBtHQvA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

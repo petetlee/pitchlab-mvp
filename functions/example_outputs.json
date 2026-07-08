@@ -1,0 +1,61 @@
+[
+  {
+    "category": "SaaS",
+    "idea": "AI-powered CRM for local coffee shops in NZ.",
+    "output": {
+      "scores": { "theme": 85, "execution": 70, "analysis": 65, "readiness": 90, "overall": 76 },
+      "tearDetails": {
+        "theme": "Hyper-local automation for low-margin retail.",
+        "evidence": "NZ coffee industry has high churn; digital loyalty programs show 20% increase in retention.",
+        "analysis": "Low technical risk but high churn risk if integration is hard.",
+        "recommendation": "GO: Build a simple WhatsApp-integrated MVP."
+      },
+      "mvpFeasibility": { "under5k": true, "rationale": "Simple landing page + Bubble.io/Flutterflow build will cost <$2k." },
+      "actionPlan": [
+        "Day 1: Interview 5 local cafe owners.",
+        "Day 2: Create a Figma mock of the dashboard.",
+        "Day 3: Set up a landing page with a waitlist.",
+        "...",
+        "Day 14: Demo to first 3 interested cafes."
+      ]
+    }
+  },
+  {
+    "category": "Hardware",
+    "idea": "Smart compost bin that tracks nutrient output.",
+    "output": {
+      "scores": { "theme": 60, "execution": 40, "analysis": 55, "readiness": 30, "overall": 47 },
+      "tearDetails": {
+        "theme": "IoT for home sustainability.",
+        "evidence": "Home composting is growing, but sensor accuracy at low cost is a common failure point.",
+        "analysis": "BOM (Bill of Materials) exceeds $5k for custom sensors.",
+        "recommendation": "KILL: Too expensive for a $5k constraint. Pivot to a software tracker."
+      },
+      "mvpFeasibility": { "under5k": false, "rationale": "Custom PCB and manufacturing will exceed $10k initial investment." },
+       "actionPlan": [
+        "Day 1: Audit sensor costs on Alibaba/Mouser.",
+        "Day 2: Identify software-only alternatives.",
+        "..."
+      ]
+    }
+  },
+  {
+    "category": "Marketplace",
+    "idea": "Rent-my-tools platform for Auckland suburbs.",
+    "output": {
+      "scores": { "theme": 75, "execution": 65, "analysis": 80, "readiness": 85, "overall": 76 },
+      "tearDetails": {
+        "theme": "Sustainable neighborhood tool sharing.",
+        "evidence": "Similar platforms in the US (e.g., Fat Llama) show high activity in affluent suburbs.",
+        "analysis": "Trust and insurance are the primary hurdles.",
+        "recommendation": "GO: Start with a private Facebook group as a 'concierge MVP'."
+      },
+      "mvpFeasibility": { "under5k": true, "rationale": "Platform is peer-to-peer; only need basic coordination tool." },
+       "actionPlan": [
+        "Day 1: Join 10 neighborhood Facebook groups.",
+        "Day 2: Post a Tool Inventory list to gauge interest.",
+        "..."
+      ]
+    }
+  }
+]

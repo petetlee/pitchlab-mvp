@@ -1,0 +1,10 @@
+failure_reason,percentage,impact_severity,mitigation_strategy
+"No Market Need",42,Critical,"Rigorous problem validation before MVP"
+"Ran Out of Cash",29,High,"Lean operations and $5k constraint"
+"Not the Right Team",23,Medium,"Founder matching and skill assessment"
+"Got Outcompeted",19,High,"Niche focus and clear USP"
+"Pricing/Cost Issues",18,Medium,"Early monetization testing"
+"User Unfriendly Product",17,High,"Iterative UX/UI testing with users"
+"Product Without a Business Model",17,Critical,"Unit economic analysis early on"
+"Poor Marketing",14,Medium,"Organic growth and referral focus"
+"Ignored Customers",14,High,"Active feedback loops and user interviews"

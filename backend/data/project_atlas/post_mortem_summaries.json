@@ -1,0 +1,28 @@
+{
+    "post_mortem_patterns": [
+        {
+            "pattern_id": "PM-001",
+            "name": "The Technical Debt Trap",
+            "summary": "Startups that over-engineered their MVP for months only to find the core assumption was wrong.",
+            "key_lesson": "Built to scale before building to sell. Technical simplicity in the early days is a feature, not a bug."
+        },
+        {
+            "pattern_id": "PM-002",
+            "name": "The Echo Chamber",
+            "summary": "Founders who only interviewed friends and family, resulting in false positive validation.",
+            "key_lesson": "Validation requires critical feedback from cold leads who have no social obligation to be polite."
+        },
+        {
+            "pattern_id": "PM-003",
+            "name": "Scaling on Sub-zero Unit Economics",
+            "summary": "Startups that used heavy discounting or subsidized growth without a clear path to profitability.",
+            "key_lesson": "If you lose money on every transaction, you can't make it up in volume."
+        },
+        {
+            "pattern_id": "PM-004",
+            "name": "Solving a Symptom, Not a Cause",
+            "summary": "Products that addressed the visible irritation rather than the underlying structural problem.",
+            "key_lesson": "Dig deeper. If users aren't willing to pay to fix the 'symptom', it's not a burning problem."
+        }
+    ]
+}

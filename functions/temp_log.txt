@@ -1,0 +1,50 @@
+﻿ERROR: User must be authenticated.
+STATUS: unauthenticated
+STACK: Error: User must be authenticated.
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:105:13
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\firebase-functions\lib\common\onInit.js:33:16
+    at fixedLen (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\firebase-functions\lib\v2\providers\https.js:135:62)
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\firebase-functions\lib\common\providers\https.js:467:32
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async runFunction (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:399:9)
+    at async runHTTPS (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:424:5)
+    at async C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:585:21
+============================================================
+
+============================================================
+[2026-03-30T20:14:15.412Z] VERTEX AI FAILED
+USER: jaIlMipCDOJGHhfOFYFW5OXA0nXn
+INPUT IDEA: Smart Tax is a tax compliance tool that helps businesses automatically set aside GST and other tax obligations before the money is spent. The goal is to improve cash flow discipline and reduce the risk of falling behind with IRD.
+
+ERROR: [VertexAI.ClientError]: got status: 404 Not Found. {"error":{"code":404,"message":"Publisher Model `projects/394509733221/locations/us-central1/publishers/google/models/gemini-1.5-pro` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions","status":"NOT_FOUND"}}
+STATUS: N/A
+STACK: ClientError: [VertexAI.ClientError]: got status: 404 Not Found. {"error":{"code":404,"message":"Publisher Model `projects/394509733221/locations/us-central1/publishers/google/models/gemini-1.5-pro` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions","status":"NOT_FOUND"}}
+    at throwErrorIfNotOK (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\vertexai\build\src\functions\post_fetch_processing.js:32:27)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async generateContent (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\vertexai\build\src\functions\generate_content.js:59:5)
+    at async ChatSessionPreview.sendMessage (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\vertexai\build\src\models\chat_session.js:242:39)
+    at async callGemini (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\vertexai\lib\gemini.js:984:26)
+    at async C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\vertexai\lib\gemini.js:1030:11
+    at async C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\core\lib\action.js:228:12
+    at async C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\core\lib\action.js:148:27
+    at async C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\core\lib\tracing\instrumentation.js:91:24
+    at async runInNewSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\core\lib\tracing\instrumentation.js:63:10)
+============================================================
+
+============================================================
+[2026-03-30T21:23:04.377Z] SUBMISSION TOP-LEVEL ERROR
+USER: unknown
+INPUT IDEA: Smart Tax is a tax compliance tool that helps businesses automatically set aside GST and other tax obligations before the money is spent. The goal is to improve cash flow discipline and reduce the risk of falling behind with IRD.
+
+ERROR: User must be authenticated.
+STATUS: unauthenticated
+STACK: Error: User must be authenticated.
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:105:13
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\firebase-functions\lib\common\onInit.js:33:16
+    at fixedLen (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\firebase-functions\lib\v2\providers\https.js:135:62)
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\firebase-functions\lib\common\providers\https.js:467:32
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async runFunction (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:399:9)
+    at async runHTTPS (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:424:5)
+    at async C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:585:21
+============================================================

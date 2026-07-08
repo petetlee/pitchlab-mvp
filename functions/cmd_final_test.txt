@@ -1,0 +1,7 @@
+PitchLab: Cloud Functions v1.0.3 Loaded
+PitchLab Evaluation started for user: test-uid-123
+PitchLab: Raw request data: {"idea":"A SaaS platform for independent drivers to manage expenses.","problem":"Independent drivers struggle to track their daily expenses and tax liabilities accurately.","targetMarket":"Independent rideshare and delivery drivers globally.","category":"B2B SaaS","budget":"$2000","experience":"High","capacity":"Full-time","network":"Strong business network across New Zealand and Samoa through accounting, consulting, transport, construction, tourism, and community work. Access to SME owners, potential pilot customers, business advisers, and referral channels, plus growing links to investors, grant bodies, and strategic partners relevant to early validation."}
+Storing raw inputs in IdeaInputs...
+(node:6216) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+^C

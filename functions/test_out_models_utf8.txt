@@ -1,0 +1,40 @@
+﻿[dotenv@17.3.1] injecting env (1) from .env -- tip: ≡ƒ¢í∩╕Å auth for agents: https://vestauth.com
+TESTING: googleai/gemini-2.5-flash
+SUCCESS [googleai/gemini-2.5-flash]: Hello!
+-----------------------
+TESTING: googleai/gemini-flash-latest
+SUCCESS [googleai/gemini-flash-latest]: Hello! How can I help you today?
+-----------------------
+TESTING: googleai/gemini-2.0-flash
+node : FAILED [googleai/ge
+mini-2.0-flash]: 
+[GoogleGenerativeAI 
+Error]: Error fetching 
+from https://generativelan
+guage.googleapis.com/v1bet
+a/models/gemini-2.0-flash:
+generateContent: [404 Not 
+Found] This model 
+models/gemini-2.0-flash 
+is no longer available to 
+new users. Please update 
+your code to use a newer 
+model for the latest 
+features and improvements.
+At line:1 char:1
++ node 
+test_dynamic_model.js > 
+test_out_models.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~
+    + CategoryInfo        
+      : NotSpecified: (F  
+  AILED [googlea...d im   
+ provements.:String) [    
+], RemoteException
+    + FullyQualifiedError 
+   Id : NativeCommandErr  
+  or
+ 
+-----------------------

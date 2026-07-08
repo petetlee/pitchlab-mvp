@@ -1,0 +1,20 @@
+﻿[info] i  functions: Finished "us-central1-pitchLabEvaluation" in 6084.8618ms {"metadata":{"emulator":{"name":"functions"},"function":{"name":"us-central1-pitchLabEvaluation"},"extension":{},"message":"Finished \"us-central1-pitchLabEvaluation\" in 6084.8618ms"}}
+[debug] [2026-03-30T21:50:29.204Z] [worker-us-central1-pitchLabEvaluation-44ed3f13-185a-40b6-9a43-46851501feaf]: IDLE {"metadata":{"emulator":{"name":"functions"},"function":{"name":"us-central1-pitchLabEvaluation"},"extension":{},"message":"[worker-us-central1-pitchLabEvaluation-44ed3f13-185a-40b6-9a43-46851501feaf]: IDLE"}}
+[debug] [2026-03-30T21:50:29.205Z] Finishing up request with event=finish {"metadata":{"emulator":{"name":"functions"},"function":{"name":"us-central1-pitchLabEvaluation"},"extension":{},"message":"Finishing up request with event=finish"}}
+[debug] [2026-03-30T21:50:29.206Z] Finishing up request with event=close {"metadata":{"emulator":{"name":"functions"},"function":{"name":"us-central1-pitchLabEvaluation"},"extension":{},"message":"Finishing up request with event=close"}}
+[debug] [2026-03-30T21:50:29.209Z] [work-queue] {"queuedWork":[],"queueLength":0,"runningWork":[],"workRunningCount":0}
+[debug] [2026-03-30T22:00:57.888Z] Mar 31, 2026 11:00:57 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+INFO: Detected non-HTTP/2 connection.
+ {"metadata":{"emulator":{"name":"firestore"},"message":"Mar 31, 2026 11:00:57 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\r\nINFO: Detected non-HTTP/2 connection.\r\n"}}
+[debug] [2026-03-30T22:00:59.952Z] Mar 31, 2026 11:00:59 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+INFO: Detected non-HTTP/2 connection.
+ {"metadata":{"emulator":{"name":"firestore"},"message":"Mar 31, 2026 11:00:59 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\r\nINFO: Detected non-HTTP/2 connection.\r\n"}}
+[debug] [2026-03-30T22:01:00.169Z] Mar 31, 2026 11:01:00 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+INFO: Detected non-HTTP/2 connection.
+ {"metadata":{"emulator":{"name":"firestore"},"message":"Mar 31, 2026 11:01:00 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\r\nINFO: Detected non-HTTP/2 connection.\r\n"}}
+[debug] [2026-03-30T22:02:00.169Z] Mar 31, 2026 11:02:00 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead
+INFO: Detected non-HTTP/2 connection.
+ {"metadata":{"emulator":{"name":"firestore"},"message":"Mar 31, 2026 11:02:00 AM io.gapi.emulators.netty.HttpVersionRoutingHandler channelRead\r\nINFO: Detected non-HTTP/2 connection.\r\n"}}
+[debug] [2026-03-30T22:02:00.189Z] Mar 31, 2026 11:02:00 AM com.google.cloud.datastore.emulator.firestore.webchannel.FirestoreV1WebChannelAdapter$FirestoreListenHandler onClose
+INFO: channel closed
+ {"metadata":{"emulator":{"name":"firestore"},"message":"Mar 31, 2026 11:02:00 AM com.google.cloud.datastore.emulator.firestore.webchannel.FirestoreV1WebChannelAdapter$FirestoreListenHandler onClose\r\nINFO: channel closed\r\n"}}

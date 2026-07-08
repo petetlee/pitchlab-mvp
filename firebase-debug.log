@@ -1,0 +1,211 @@
+[debug] [2026-07-07T23:18:19.149Z] ----------------------------------------------------------------------
+[debug] [2026-07-07T23:18:19.171Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js emulators:start --project=demo-antigravity-pitchlab --import=firebase_export --export-on-exit
+[debug] [2026-07-07T23:18:19.173Z] CLI Version:   15.6.0
+[debug] [2026-07-07T23:18:19.174Z] Platform:      win32
+[debug] [2026-07-07T23:18:19.174Z] Node Version:  v24.13.1
+[debug] [2026-07-07T23:18:19.175Z] Time:          Wed Jul 08 2026 11:18:19 GMT+1200 (New Zealand Standard Time)
+[debug] [2026-07-07T23:18:19.176Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-07-07T23:18:19.208Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2026-07-07T23:18:41.021Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-07-07T23:18:41.023Z] > authorizing via signed-in user (peter@pnc.co.nz)
+[debug] [2026-07-07T23:18:41.929Z] *** [apiv2] error from fetch(https://firebase-public.firebaseio.com/cli.json, {"headers":{},"method":"GET"}): FetchError: request to https://firebase-public.firebaseio.com/cli.json failed, reason: unable to verify the first certificate; if the root CA is installed locally, try running Node.js with --use-system-ca
+[warn] !  Unable to fetch the CLI MOTD and remote config. This is not a fatal error, but may indicate an issue with your network connection. 
+[debug] [2026-07-07T23:18:41.935Z] Failed to fetch MOTD FirebaseError: Failed to make request to https://firebase-public.firebaseio.com/cli.json
+[debug] [2026-07-07T23:18:42.332Z] openjdk version "21.0.10" 2026-01-20 LTS
+
+[debug] [2026-07-07T23:18:42.350Z] OpenJDK Runtime Environment Microsoft-13106404 (build 21.0.10+7-LTS)
+
+[debug] [2026-07-07T23:18:42.352Z] OpenJDK 64-Bit Server VM Microsoft-13106404 (build 21.0.10+7-LTS, mixed mode, sharing)
+
+[debug] [2026-07-07T23:18:42.573Z] Parsed Java major version: 21
+[info] i  emulators: Starting emulators: auth, functions, firestore, hosting, storage, extensions {"metadata":{"emulator":{"name":"hub"},"message":"Starting emulators: auth, functions, firestore, hosting, storage, extensions"}}
+[info] i  emulators: Detected demo project ID "demo-antigravity-pitchlab", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail. {"metadata":{"emulator":{"name":"hub"},"message":"Detected demo project ID \"demo-antigravity-pitchlab\", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail."}}
+[debug] [2026-07-07T23:18:42.873Z] [logging] Logging Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-07-07T23:18:42.875Z] [hosting] Hosting Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-07-07T23:18:42.887Z] assigned listening specs for emulators {"user":{"auth":[{"address":"0.0.0.0","family":"IPv4","port":9099}],"firestore":[{"address":"0.0.0.0","family":"IPv4","port":8080}],"firestore.websocket":[{"address":"0.0.0.0","family":"IPv4","port":9150}],"storage":[{"address":"0.0.0.0","family":"IPv4","port":9199}],"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"ui":[{"address":"127.0.0.1","family":"IPv4","port":4000},{"address":"::1","family":"IPv6","port":4000}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}],"hosting":[{"address":"127.0.0.1","family":"IPv4","port":5000}]},"metadata":{"message":"assigned listening specs for emulators"}}
+[debug] [2026-07-07T23:18:42.951Z] Write emulator hub locator at C:\Users\petet\AppData\Local\Temp\hub-demo-antigravity-pitchlab.json
+[warn] !  emulators: Could not find import/export metadata file, skipping data import! {"metadata":{"emulator":{"name":"hub"},"message":"Could not find import/export metadata file, \u001b[1mskipping data import!\u001b[22m"}}
+[debug] [2026-07-07T23:18:43.105Z] [Extensions] Started Extensions emulator, this is a noop.
+[debug] [2026-07-07T23:18:43.202Z] [eventarc] Eventarc Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-07-07T23:18:43.203Z] [tasks] Cloud Tasks Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-07-07T23:18:43.204Z] late-assigned ports for functions and eventarc emulators {"user":{"auth":[{"address":"0.0.0.0","family":"IPv4","port":9099}],"firestore":[{"address":"0.0.0.0","family":"IPv4","port":8080}],"firestore.websocket":[{"address":"0.0.0.0","family":"IPv4","port":9150}],"storage":[{"address":"0.0.0.0","family":"IPv4","port":9199}],"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"ui":[{"address":"127.0.0.1","family":"IPv4","port":4000},{"address":"::1","family":"IPv6","port":4000}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}],"hosting":[{"address":"127.0.0.1","family":"IPv4","port":5000}],"functions":[{"address":"0.0.0.0","family":"IPv4","port":5001}],"eventarc":[{"address":"127.0.0.1","family":"IPv4","port":9299}],"tasks":[{"address":"127.0.0.1","family":"IPv4","port":9499}]},"metadata":{"message":"late-assigned ports for functions and eventarc emulators"}}
+[warn] !  functions: Application Default Credentials detected. Non-emulated services will access production using these credentials. Be careful! {"metadata":{"emulator":{"name":"functions"},"message":"Application Default Credentials detected. Non-emulated services will access production using these credentials. Be careful!"}}
+[debug] [2026-07-07T23:19:26.414Z] Ignoring unsupported arg: auto_download {"metadata":{"emulator":{"name":"firestore"},"message":"Ignoring unsupported arg: auto_download"}}
+[debug] [2026-07-07T23:19:26.416Z] Ignoring unsupported arg: single_project_mode_error {"metadata":{"emulator":{"name":"firestore"},"message":"Ignoring unsupported arg: single_project_mode_error"}}
+[debug] [2026-07-07T23:19:26.417Z] Starting Firestore Emulator with command {"binary":"java","args":["-Dgoogle.cloud_firestore.debug_log_level=FINE","-Duser.language=en","-jar","C:\\Users\\petet\\.cache\\firebase\\emulators\\cloud-firestore-emulator-v1.20.2.jar","--host","0.0.0.0","--port",8080,"--websocket_port",9150,"--project_id","demo-antigravity-pitchlab","--rules","C:\\Users\\petet\\.gemini\\antigravity\\scratch\\Pitchlab-AntiGravity\\firestore.rules","--single_project_mode",true,"--functions_emulator","127.0.0.1:5001"],"optionalArgs":["port","webchannel_port","host","rules","websocket_port","functions_emulator","seed_from_export","project_id","single_project_mode"],"joinArgs":false,"shell":false,"port":8080} {"metadata":{"emulator":{"name":"firestore"},"message":"Starting Firestore Emulator with command {\"binary\":\"java\",\"args\":[\"-Dgoogle.cloud_firestore.debug_log_level=FINE\",\"-Duser.language=en\",\"-jar\",\"C:\\\\Users\\\\petet\\\\.cache\\\\firebase\\\\emulators\\\\cloud-firestore-emulator-v1.20.2.jar\",\"--host\",\"0.0.0.0\",\"--port\",8080,\"--websocket_port\",9150,\"--project_id\",\"demo-antigravity-pitchlab\",\"--rules\",\"C:\\\\Users\\\\petet\\\\.gemini\\\\antigravity\\\\scratch\\\\Pitchlab-AntiGravity\\\\firestore.rules\",\"--single_project_mode\",true,\"--functions_emulator\",\"127.0.0.1:5001\"],\"optionalArgs\":[\"port\",\"webchannel_port\",\"host\",\"rules\",\"websocket_port\",\"functions_emulator\",\"seed_from_export\",\"project_id\",\"single_project_mode\"],\"joinArgs\":false,\"shell\":false,\"port\":8080}"}}
+[info] i  firestore: Firestore Emulator logging to firestore-debug.log {"metadata":{"emulator":{"name":"firestore"},"message":"Firestore Emulator logging to \u001b[1mfirestore-debug.log\u001b[22m"}}
+[debug] [2026-07-07T23:19:46.030Z] Jul 08, 2026 11:19:45 AM com.google.cloud.datastore.emulator.firestore.websocket.WebSocketServer start
+INFO: Started WebSocket server on ws://0.0.0.0:9150
+ {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 08, 2026 11:19:45 AM com.google.cloud.datastore.emulator.firestore.websocket.WebSocketServer start\r\nINFO: Started WebSocket server on ws://0.0.0.0:9150\r\n"}}
+[debug] [2026-07-07T23:19:46.617Z] API endpoint: http:// {"metadata":{"emulator":{"name":"firestore"},"message":"API endpoint: http://"}}
+[debug] [2026-07-07T23:19:46.618Z] 0.0.0.0:8080
+If you are using a library that supports the FIRESTORE_EMULATOR_HOST environment variable, run:
+
+   export FIRESTORE_EMULATOR_HOST=0.0.0.0:8080
+
+If you are running a Firestore in Datastore Mode project, run:
+
+   export DATASTORE_EMULATOR_HOST= {"metadata":{"emulator":{"name":"firestore"},"message":"0.0.0.0:8080\nIf you are using a library that supports the FIRESTORE_EMULATOR_HOST environment variable, run:\r\n\n   export FIRESTORE_EMULATOR_HOST=0.0.0.0:8080\n\nIf you are running a Firestore in Datastore Mode project, run:\r\n\n   export DATASTORE_EMULATOR_HOST="}}
+[debug] [2026-07-07T23:19:46.619Z] 0.0.0.0:8080
+
+Note: Support for Datastore Mode is in preview. If you encounter any bugs please file at https://github.com/firebase/firebase-tools/issues.
+Dev App Server is now running.
+
+ {"metadata":{"emulator":{"name":"firestore"},"message":"0.0.0.0:8080\n\nNote: Support for Datastore Mode is in preview. If you encounter any bugs please file at https://github.com/firebase/firebase-tools/issues.\r\nDev App Server is now running.\n\r\n"}}
+[info] +  firestore: Firestore Emulator UI websocket is running on 9150. {"metadata":{"emulator":{"name":"firestore"},"message":"Firestore Emulator UI websocket is running on 9150."}}
+[debug] [2026-07-07T23:21:28.184Z] Ignoring unsupported arg: port {"metadata":{"emulator":{"name":"storage"},"message":"Ignoring unsupported arg: port"}}
+[debug] [2026-07-07T23:21:43.145Z] Temp file directory for storage emulator: C:\Users\petet\AppData\Local\Temp/firebase/storage/blobs {"metadata":{"emulator":{"name":"storage"},"message":"Temp file directory for storage emulator: C:\\Users\\petet\\AppData\\Local\\Temp/firebase/storage/blobs"}}
+[debug] [2026-07-07T23:21:43.202Z] Checked if tokens are valid: false, expires at: 1782346027990
+[debug] [2026-07-07T23:21:43.203Z] Checked if tokens are valid: false, expires at: 1782346027990
+[debug] [2026-07-07T23:21:43.205Z] > refreshing access token with scopes: []
+[debug] [2026-07-07T23:21:43.223Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-07-07T23:21:43.224Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-07-07T23:21:43.529Z] *** [apiv2] error from fetch(https://www.googleapis.com/oauth2/v3/token, {"headers":{},"method":"POST","body":{"_overheadLength":545,"_valueLength":212,"_valuesToMeasure":[],"writable":false,"readable":true,"dataSize":0,"maxDataSize":2097152,"pauseStreams":true,"_released":true,"_streams":[],"_currentStream":null,"_insideLoop":false,"_pendingNext":false,"_boundary":"--------------------------5f8b51a65cc9613f4b65f26e","_events":{},"_eventsCount":1}}): FetchError: request to https://www.googleapis.com/oauth2/v3/token failed, reason: unable to verify the first certificate; if the root CA is installed locally, try running Node.js with --use-system-ca
+[error] Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+[debug] [2026-07-07T23:21:43.532Z] Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+[info] i  hosting[demo-antigravity-pitchlab]: Serving hosting files from: frontend/build/web {"metadata":{"emulator":{"name":"hosting"},"message":"Serving hosting files from: \u001b[1mfrontend/build/web\u001b[22m"}}
+[info] +  hosting[demo-antigravity-pitchlab]: Local server: http://127.0.0.1:5000 {"metadata":{"emulator":{"name":"hosting"},"message":"Local server: \u001b[4m\u001b[1mhttp://127.0.0.1:5000\u001b[22m\u001b[24m"}}
+[debug] [2026-07-07T23:21:43.941Z] [Extensions] Connecting Extensions emulator, this is a noop.
+[info] i  functions: Watching "C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions" for Cloud Functions... {"metadata":{"emulator":{"name":"functions"},"message":"Watching \"C:\\Users\\petet\\.gemini\\antigravity\\scratch\\Pitchlab-AntiGravity\\functions\" for Cloud Functions..."}}
+[debug] [2026-07-07T23:21:44.034Z] Validating nodejs source
+[debug] [2026-07-07T23:21:54.226Z] checkFunctionsSDKVersion was unable to fetch information from NPM Error: spawnSync C:\WINDOWS\system32\cmd.exe ETIMEDOUT
+    at Object.spawnSync (node:internal/child_process:1120:20)
+    at Object.spawnSync (node:child_process:911:24)
+    at spawn.spawnSync [as sync] (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\node_modules\cross-spawn\index.js:26:23)
+    at Object.getLatestSDKVersion (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\versioning.js:55:25)
+    at Object.checkFunctionsSDKVersion (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\versioning.js:74:32)
+    at Delegate.validate (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:88:20)
+    at FunctionsEmulator.discoverTriggers (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulator.js:321:35)
+    at async FunctionsEmulator.loadTriggers (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulator.js:367:34)
+    at async FunctionsEmulator.connect (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulator.js:283:13)
+    at async Object.startAll (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\controller.js:683:13)
+[debug] [2026-07-07T23:21:54.228Z] > [functions] package.json contents: {
+  "name": "functions",
+  "description": "Cloud Functions for Firebase",
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "shell": "firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "@genkit-ai/firebase": "^1.28.0",
+    "@genkit-ai/googleai": "^1.28.0",
+    "@genkit-ai/vertexai": "^1.28.0",
+    "dotenv": "^17.3.1",
+    "firebase-admin": "^12.0.0",
+    "firebase-functions": "^5.0.0",
+    "genkit": "^1.28.0",
+    "nodemailer": "^8.0.10"
+  },
+  "devDependencies": {
+    "firebase-functions-test": "^3.1.0",
+    "genkit-cli": "^1.29.0"
+  },
+  "private": true
+}
+[debug] [2026-07-07T23:21:54.229Z] Building nodejs source
+[debug] [2026-07-07T23:21:54.231Z] Failed to find version of module node: reached end of search path C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules
+[warn] !  functions: Your requested "node" version "20" doesn't match your global version "24". Using node@24 from host. 
+[info] i  functions: Loaded environment variables from .env. 
+[debug] [2026-07-07T23:21:54.252Z] Could not find functions.yaml. Must use http discovery
+[debug] [2026-07-07T23:21:54.402Z] Found firebase-functions binary at 'C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\.bin\firebase-functions'
+[info] Serving at port 8263
+
+[error] PitchLab Warning: TLS/SSL certificate validation disabled to bypass local proxy/CA errors.
+
+[info] PitchLab: Cloud Functions v1.3.0 Loaded — MVP Version 5 (Final Refinement)
+
+[error] !!  functions: Failed to load function definition from source: FirebaseError: User code failed to load. Cannot determine backend specification. Timeout after 10000. See https://firebase.google.com/docs/functions/tips#avoid_deployment_timeouts_during_initialization' {"metadata":{"emulator":{"name":"functions"},"message":"Failed to load function definition from source: FirebaseError: User code failed to load. Cannot determine backend specification. Timeout after 10000. See https://firebase.google.com/docs/functions/tips#avoid_deployment_timeouts_during_initialization'"}}
+[debug] [2026-07-07T23:22:10.711Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
+[info] 
+┌─────────────────────────────────────────────────────────────┐
+│ ✔  All emulators ready! It is now safe to connect your app. │
+│ i  View Emulator UI at http://127.0.0.1:4000/               │
+└─────────────────────────────────────────────────────────────┘
+
+┌────────────────┬────────────────┬──────────────────────────────────┐
+│ Emulator       │ Host:Port      │ View in Emulator UI              │
+├────────────────┼────────────────┼──────────────────────────────────┤
+│ Authentication │ 0.0.0.0:9099   │ http://127.0.0.1:4000/auth       │
+├────────────────┼────────────────┼──────────────────────────────────┤
+│ Functions      │ 0.0.0.0:5001   │ http://127.0.0.1:4000/functions  │
+├────────────────┼────────────────┼──────────────────────────────────┤
+│ Firestore      │ 0.0.0.0:8080   │ http://127.0.0.1:4000/firestore  │
+├────────────────┼────────────────┼──────────────────────────────────┤
+│ Hosting        │ 127.0.0.1:5000 │ n/a                              │
+├────────────────┼────────────────┼──────────────────────────────────┤
+│ Storage        │ 0.0.0.0:9199   │ http://127.0.0.1:4000/storage    │
+├────────────────┼────────────────┼──────────────────────────────────┤
+│ Extensions     │ 0.0.0.0:5001   │ http://127.0.0.1:4000/extensions │
+└────────────────┴────────────────┴──────────────────────────────────┘
+  Emulator Hub host: 127.0.0.1 port: 4400
+  Other reserved ports: 4500, 9150
+┌─────────────────────────┬───────────────┬─────────────────────┐
+│ Extension Instance Name │ Extension Ref │ View in Emulator UI │
+└─────────────────────────┴───────────────┴─────────────────────┘
+Issues? Report them at https://github.com/firebase/firebase-tools/issues and attach the *-debug.log files.
+ 
+[debug] [2026-07-08T04:11:17.142Z] Jul 08, 2026 4:11:17 PM com.google.cloud.datastore.emulator.firestore.websocket.WebSocketChannelHandler initChannel
+INFO: Connected to new websocket client
+ {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 08, 2026 4:11:17 PM com.google.cloud.datastore.emulator.firestore.websocket.WebSocketChannelHandler initChannel\r\nINFO: Connected to new websocket client\r\n"}}
+[debug] [2026-07-08T04:42:22.109Z] Jul 08, 2026 4:42:22 PM com.google.cloud.datastore.emulator.firestore.websocket.WebSocketChannelHandler channelClosed
+INFO: Websocket client disconnected
+ {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 08, 2026 4:42:22 PM com.google.cloud.datastore.emulator.firestore.websocket.WebSocketChannelHandler channelClosed\r\nINFO: Websocket client disconnected\r\n"}}
+[debug] [2026-07-08T07:07:31.202Z] Jul 08, 2026 7:07:31 PM com.google.cloud.datastore.emulator.firestore.websocket.WebSocketChannelHandler initChannel
+INFO: Connected to new websocket client
+ {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 08, 2026 7:07:31 PM com.google.cloud.datastore.emulator.firestore.websocket.WebSocketChannelHandler initChannel\r\nINFO: Connected to new websocket client\r\n"}}
+[debug] [2026-07-08T07:14:59.695Z] Jul 08, 2026 7:14:59 PM com.google.cloud.datastore.emulator.firestore.websocket.WebSocketChannelHandler channelClosed
+INFO: Websocket client disconnected
+ {"metadata":{"emulator":{"name":"firestore"},"message":"Jul 08, 2026 7:14:59 PM com.google.cloud.datastore.emulator.firestore.websocket.WebSocketChannelHandler channelClosed\r\nINFO: Websocket client disconnected\r\n"}}
+[debug] [2026-07-08T07:22:03.138Z] ----------------------------------------------------------------------
+[debug] [2026-07-08T07:22:03.156Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only hosting
+[debug] [2026-07-08T07:22:03.157Z] CLI Version:   15.6.0
+[debug] [2026-07-08T07:22:03.157Z] Platform:      win32
+[debug] [2026-07-08T07:22:03.158Z] Node Version:  v24.13.1
+[debug] [2026-07-08T07:22:03.158Z] Time:          Wed Jul 08 2026 19:22:03 GMT+1200 (New Zealand Standard Time)
+[debug] [2026-07-08T07:22:03.158Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-07-08T07:22:03.163Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2026-07-08T07:22:09.340Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-07-08T07:22:09.341Z] > authorizing via signed-in user (peter@pnc.co.nz)
+[debug] [2026-07-08T07:22:09.342Z] [iam] checking project antigravity-pitchlab for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2026-07-08T07:22:09.343Z] Checked if tokens are valid: false, expires at: 1782346027990
+[debug] [2026-07-08T07:22:09.344Z] Checked if tokens are valid: false, expires at: 1782346027990
+[debug] [2026-07-08T07:22:09.344Z] > refreshing access token with scopes: []
+[debug] [2026-07-08T07:22:09.347Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-07-08T07:22:09.348Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-07-08T07:22:09.608Z] *** [apiv2] error from fetch(https://www.googleapis.com/oauth2/v3/token, {"headers":{},"method":"POST","body":{"_overheadLength":545,"_valueLength":212,"_valuesToMeasure":[],"writable":false,"readable":true,"dataSize":0,"maxDataSize":2097152,"pauseStreams":true,"_released":true,"_streams":[],"_currentStream":null,"_insideLoop":false,"_pendingNext":false,"_boundary":"--------------------------114192cc9659885eba584ddb","_events":{},"_eventsCount":1}}): FetchError: request to https://www.googleapis.com/oauth2/v3/token failed, reason: unable to verify the first certificate; if the root CA is installed locally, try running Node.js with --use-system-ca
+[error] Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+[debug] [2026-07-08T07:22:09.611Z] [iam] error while checking permissions, command may fail: Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+[debug] [2026-07-08T07:22:09.613Z] Checked if tokens are valid: false, expires at: 1782346027990
+[debug] [2026-07-08T07:22:09.614Z] Checked if tokens are valid: false, expires at: 1782346027990
+[debug] [2026-07-08T07:22:09.614Z] > refreshing access token with scopes: []
+[debug] [2026-07-08T07:22:09.617Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-07-08T07:22:09.617Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-07-08T07:22:09.700Z] *** [apiv2] error from fetch(https://firebase-public.firebaseio.com/cli.json, {"headers":{},"method":"GET"}): FetchError: request to https://firebase-public.firebaseio.com/cli.json failed, reason: unable to verify the first certificate; if the root CA is installed locally, try running Node.js with --use-system-ca
+[warn] !  Unable to fetch the CLI MOTD and remote config. This is not a fatal error, but may indicate an issue with your network connection. 
+[debug] [2026-07-08T07:22:09.701Z] Failed to fetch MOTD FirebaseError: Failed to make request to https://firebase-public.firebaseio.com/cli.json
+[debug] [2026-07-08T07:22:10.280Z] *** [apiv2] error from fetch(https://www.googleapis.com/oauth2/v3/token, {"headers":{},"method":"POST","body":{"_overheadLength":545,"_valueLength":212,"_valuesToMeasure":[],"writable":false,"readable":true,"dataSize":0,"maxDataSize":2097152,"pauseStreams":true,"_released":true,"_streams":[],"_currentStream":null,"_insideLoop":false,"_pendingNext":false,"_boundary":"--------------------------0533aee760715222dfdfc4a9","_events":{},"_eventsCount":1}}): FetchError: request to https://www.googleapis.com/oauth2/v3/token failed, reason: unable to verify the first certificate; if the root CA is installed locally, try running Node.js with --use-system-ca
+[error] Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+[debug] [2026-07-08T07:22:10.283Z] Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+[error] 
+[error] Error: Assertion failed: resolving hosting target of a site with no site name or target name. This should have caused an error earlier
