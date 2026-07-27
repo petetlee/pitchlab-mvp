@@ -146,10 +146,20 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
                     Text('${result.conceptSummary} • ${result.assessmentDate} • Baseline Assessment', style: GoogleFonts.inter(fontSize: 13, color: Colors.white70)),
                   ],
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(color: const Color(0xFF0071E3), borderRadius: BorderRadius.circular(20)),
-                  child: Text(result.scoreBandName, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white)),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(color: const Color(0xFF0071E3), borderRadius: BorderRadius.circular(20)),
+                      child: Text('Current Stage: ${result.scoreBandName}', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white30)),
+                      child: Text(result.masterRecommendation, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF64D2FF))),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -161,7 +171,7 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
               children: [
                 // Score Box
                 Container(
-                  width: 140,
+                  width: 160,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white12)),
                   child: Column(
@@ -170,7 +180,9 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
                       const SizedBox(height: 4),
                       Text('${result.overallScore}/100', style: GoogleFonts.inter(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
                       const SizedBox(height: 4),
-                      Text(result.scoreBandName, textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFF34C759))),
+                      Text('Current Stage:\n${result.scoreBandName}', textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFF34C759))),
+                      const SizedBox(height: 6),
+                      Text('Confidence: ${result.assessmentConfidence}', style: GoogleFonts.inter(fontSize: 9, color: Colors.white70, fontStyle: FontStyle.italic)),
                     ],
                   ),
                 ),

@@ -207,7 +207,7 @@ exports.pitchLabEvaluation = onCall({
     const evaluationSchema = z.object({
       summaryBlock: z.object({
         overallReadinessScore: z.number(),
-        decisionStatus: z.string().describe("Ruthless Advisor Labels: Proceed, Validate First, Pivot or Refine, or Pause"),
+        decisionStatus: z.string().describe("Master Recommendations: Proceed, Proceed with Controlled Validation, Validate Before Building, Refine the Concept, Pivot Toward a Stronger Opportunity, Pause Pending Further Evidence, or Stop Before Further Investment"),
         biggestRiskToThisIdea: z.string().describe("One-line statement of the single make-or-break issue."),
         doThisBeforeBuildingMore: z.string().describe("One specific, non-negotiable low-cost action."),
         topStrengths: z.array(z.string()).describe("3 short, punchy strengths."),
@@ -219,15 +219,15 @@ exports.pitchLabEvaluation = onCall({
         mainDragOnScore: z.string().describe("Primary bottleneck holding back the score. 1 sentence."),
         fastestWayToImprove: z.string()
       }),
-      executiveSummary: z.string().describe("4-6 sentences ONLY. Sharp commercial overview. No repetition."),
+      executiveSummary: z.string().describe("150-250 words ONLY. Sharp commercial overview. No repetition."),
       scores: z.object({
-        ideaClarity: z.object({ score: z.number(), assessment: z.string().describe("1-3 sentences."), improvementAction: z.string().describe("Exactly 1 direct sentence.") }),
-        problemStrength: z.object({ score: z.number(), assessment: z.string().describe("1-3 sentences."), improvementAction: z.string().describe("Exactly 1 direct sentence.") }),
-        founderFit: z.object({ score: z.number(), assessment: z.string().describe("1-3 sentences."), improvementAction: z.string().describe("Exactly 1 direct sentence.") }),
-        marketAttractiveness: z.object({ score: z.number(), assessment: z.string().describe("1-3 sentences."), improvementAction: z.string().describe("Exactly 1 direct sentence.") }),
-        mvpFeasibility: z.object({ score: z.number(), assessment: z.string().describe("1-3 sentences."), improvementAction: z.string().describe("Exactly 1 direct sentence.") }),
-        executionReadiness: z.object({ score: z.number(), assessment: z.string().describe("1-3 sentences."), improvementAction: z.string().describe("Exactly 1 direct sentence.") }),
-        validationReadiness: z.object({ score: z.number(), assessment: z.string().describe("1-3 sentences."), improvementAction: z.string().describe("Exactly 1 direct sentence.") }),
+        problemCustomerClarity: z.object({ score: z.number(), evidenceLevel: z.string(), assessment: z.string().describe("1-3 sentences."), improvementAction: z.string().describe("Exactly 1 direct sentence.") }),
+        founderCapabilityFit: z.object({ score: z.number(), evidenceLevel: z.string(), assessment: z.string().describe("1-3 sentences."), improvementAction: z.string().describe("Exactly 1 direct sentence.") }),
+        customerValidation: z.object({ score: z.number(), evidenceLevel: z.string(), assessment: z.string().describe("1-3 sentences."), improvementAction: z.string().describe("Exactly 1 direct sentence.") }),
+        marketCommercialOpportunity: z.object({ score: z.number(), evidenceLevel: z.string(), assessment: z.string().describe("1-3 sentences."), improvementAction: z.string().describe("Exactly 1 direct sentence.") }),
+        businessModelWillingnessToPay: z.object({ score: z.number(), evidenceLevel: z.string(), assessment: z.string().describe("1-3 sentences."), improvementAction: z.string().describe("Exactly 1 direct sentence.") }),
+        competitivePosition: z.object({ score: z.number(), evidenceLevel: z.string(), assessment: z.string().describe("1-3 sentences."), improvementAction: z.string().describe("Exactly 1 direct sentence.") }),
+        executionReadiness: z.object({ score: z.number(), evidenceLevel: z.string(), assessment: z.string().describe("1-3 sentences."), improvementAction: z.string().describe("Exactly 1 direct sentence.") }),
       }),
       decisionStatus: z.object({
         state: z.string(),
@@ -276,7 +276,7 @@ exports.pitchLabEvaluation = onCall({
         week4: z.object({ objective: z.string(), tasks: z.array(z.string()), expectedResult: z.string() })
       }),
       finalRecommendation: z.object({
-        recommendation: z.string().describe("Supportive but blunt Advisor Verdic Label."),
+        recommendation: z.string().describe("Supportive but blunt Advisor Verdict Label."),
         why: z.string(),
         biggestIssue: z.string().describe("Single biggest unresolved issue."),
         pathForward: z.string().describe("Clearest low-cost next move."),
@@ -329,12 +329,13 @@ exports.pitchLabEvaluation = onCall({
 
     const evaluationData = result.output;
 
-    // 9. Reconcile 7-Category Scores & Band Mapping (Master Redesign)
+    // 9. Reconcile 7-Category Scores & Band Mapping (Master Fix)
     const rawScores = evaluationData.scorecard || evaluationData.scores || {};
-    const reconciled = reconcileScores(rawScores);
+    const reconciled = reconcileScores(rawScores, reqData);
 
     evaluationData.overallScore = reconciled.overallScore;
     evaluationData.scoreBand = reconciled.scoreBand;
+    evaluationData.masterRecommendation = reconciled.masterRecommendation;
     evaluationData.scorecard = reconciled.categoryScores;
 
     // Maintain backward-compatibility fields for legacy UI listeners if any

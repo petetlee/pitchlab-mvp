@@ -27,98 +27,118 @@ class PdfService {
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Text(_cleanPdfText('PitchLab Founder Commercial Assessment'), style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: PdfColors.blueGrey900)),
-                      pw.Text(_cleanPdfText('Independent Assessment of Your Business Idea & Commercial Next Steps'), style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600)),
+                      pw.Text(_cleanPdfText('PitchLab Founder Commercial Assessment'), style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: PdfColors.blueGrey900)),
+                      pw.Text(_cleanPdfText('Independent Commercial Assessment & Staged Action Roadmap'), style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600)),
                     ],
                   ),
                   pw.Container(
                     padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: const pw.BoxDecoration(color: PdfColors.blue900, borderRadius: pw.BorderRadius.all(pw.Radius.circular(6))),
-                    child: pw.Text(_cleanPdfText(res.scoreBandName.toUpperCase()), style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.white)),
+                    decoration: const pw.BoxDecoration(color: PdfColors.blueGrey900, borderRadius: pw.BorderRadius.all(pw.Radius.circular(6))),
+                    child: pw.Text(_cleanPdfText('Current Stage: ${res.scoreBandName}'), style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColors.white)),
                   ),
                 ],
               ),
             ),
-            pw.SizedBox(height: 16),
+            pw.SizedBox(height: 14),
 
-            // Score & Verdict Row
-            pw.Row(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Expanded(
-                  flex: 1,
-                  child: pw.Container(
-                    padding: const pw.EdgeInsets.all(16),
-                    decoration: const pw.BoxDecoration(color: PdfColors.blueGrey900, borderRadius: pw.BorderRadius.all(pw.Radius.circular(12))),
+            // Score & Master Recommendation Card
+            pw.Container(
+              padding: const pw.EdgeInsets.all(12),
+              decoration: const pw.BoxDecoration(
+                color: PdfColors.grey100,
+                borderRadius: pw.BorderRadius.all(pw.Radius.circular(8)),
+                border: pw.Border(left: pw.BorderSide(color: PdfColors.blueGrey900, width: 4))
+              ),
+              child: pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Container(
+                    width: 100,
+                    padding: const pw.EdgeInsets.all(10),
+                    decoration: const pw.BoxDecoration(color: PdfColors.blueGrey900, borderRadius: pw.BorderRadius.all(pw.Radius.circular(8))),
                     child: pw.Column(
                       children: [
-                        pw.Text(_cleanPdfText('READINESS SCORE'), style: pw.TextStyle(fontSize: 8, color: PdfColors.blueGrey100, fontWeight: pw.FontWeight.bold)),
-                        pw.Text('${res.overallScore}/100', style: pw.TextStyle(fontSize: 32, fontWeight: pw.FontWeight.bold, color: PdfColors.white)),
-                        pw.SizedBox(height: 4),
-                        pw.Text(_cleanPdfText(res.scoreBandName), textAlign: pw.TextAlign.center, style: pw.TextStyle(fontSize: 10, color: PdfColors.green300, fontWeight: pw.FontWeight.bold)),
+                        pw.Text(_cleanPdfText('COMMERCIAL READINESS'), style: pw.TextStyle(fontSize: 7, color: PdfColors.blueGrey100, fontWeight: pw.FontWeight.bold)),
+                        pw.SizedBox(height: 2),
+                        pw.Text('${res.overallScore}/100', style: pw.TextStyle(fontSize: 26, fontWeight: pw.FontWeight.bold, color: PdfColors.white)),
+                        pw.SizedBox(height: 2),
+                        pw.Text(_cleanPdfText(res.scoreBandName), textAlign: pw.TextAlign.center, style: pw.TextStyle(fontSize: 8, color: PdfColors.teal200, fontWeight: pw.FontWeight.bold)),
                       ],
                     ),
                   ),
-                ),
-                pw.SizedBox(width: 16),
-                pw.Expanded(
-                  flex: 2,
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text(_cleanPdfText('PitchLab Verdict:'), style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blueGrey900)),
-                      pw.SizedBox(height: 4),
-                      pw.Text(_cleanPdfText(res.pitchLabVerdict), style: const pw.TextStyle(fontSize: 9, lineSpacing: 1.3)),
-                    ],
+                  pw.SizedBox(width: 14),
+                  pw.Expanded(
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text(_cleanPdfText('Master Recommendation: ${res.masterRecommendation}'), style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blueGrey900)),
+                            pw.Text(_cleanPdfText('Confidence: ${res.assessmentConfidence}'), style: pw.TextStyle(fontSize: 8, fontStyle: pw.FontStyle.italic, color: PdfColors.grey700)),
+                          ],
+                        ),
+                        pw.SizedBox(height: 4),
+                        pw.Text(_cleanPdfText('PitchLab Verdict: ${res.pitchLabVerdict}'), style: const pw.TextStyle(fontSize: 8.5, lineSpacing: 1.3)),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-            pw.SizedBox(height: 16),
+            pw.SizedBox(height: 14),
 
             // 3 Priority Actions
-            _buildSectionHeaderPDF('Three Priority Actions'),
+            _buildSectionHeaderPDF('Three Immediate Priority Actions'),
             ...res.threePriorityActions.map((act) => pw.Padding(
-              padding: const pw.EdgeInsets.only(bottom: 6),
+              padding: const pw.EdgeInsets.only(bottom: 5),
               child: pw.Bullet(
                 text: _cleanPdfText('${act['heading']}: ${act['explanation']} (Outcome: ${act['outcome']})'),
-                style: const pw.TextStyle(fontSize: 9),
+                style: const pw.TextStyle(fontSize: 8.5),
               ),
             )),
-            pw.SizedBox(height: 16),
+            pw.SizedBox(height: 14),
 
             // Executive Summary
             _buildSectionHeaderPDF('Executive Summary'),
-            pw.Text(_cleanPdfText(res.executiveSummary), style: const pw.TextStyle(fontSize: 9, lineSpacing: 1.4)),
-            pw.Divider(height: 32, color: PdfColors.grey300, thickness: 0.5),
+            pw.Text(_cleanPdfText(res.executiveSummary), style: const pw.TextStyle(fontSize: 8.5, lineSpacing: 1.35)),
+            pw.SizedBox(height: 8),
+            pw.Text(_cleanPdfText('Note: This assessment reflects the current level of commercial evidence, not a permanent judgment on the founder or business idea.'), style: pw.TextStyle(fontSize: 7.5, fontStyle: pw.FontStyle.italic, color: PdfColors.grey700)),
+            pw.Divider(height: 24, color: PdfColors.grey300, thickness: 0.5),
 
             // ================= PAGE 2: SCORECARD =================
             _buildSectionHeaderPDF('PitchLab Reconciled Scorecard (7 Categories)'),
             pw.Table(
               border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+              columnWidths: const {
+                0: pw.FlexColumnWidth(2.5),
+                1: pw.FixedColumnWidth(55),
+                2: pw.FlexColumnWidth(2.0),
+                3: pw.FlexColumnWidth(4.0),
+              },
               children: [
                 pw.TableRow(
                   decoration: const pw.BoxDecoration(color: PdfColors.grey100),
                   children: [
-                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text(_cleanPdfText('Scoring Category'), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
-                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text(_cleanPdfText('Score'), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
-                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text(_cleanPdfText('Evidence Level'), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
-                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text(_cleanPdfText('Missing Evidence & Improvement Action'), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text(_cleanPdfText('Scoring Category'), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text(_cleanPdfText('Score'), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text(_cleanPdfText('Evidence Level'), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text(_cleanPdfText('Missing Evidence & Improvement Action'), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
                   ],
                 ),
                 ...res.scorecardCategories.map((cat) => pw.TableRow(
                   children: [
-                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text(_cleanPdfText(cat.label), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
-                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('${cat.scoreAchieved}/${cat.maxScore}', style: const pw.TextStyle(fontSize: 8))),
-                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text(_cleanPdfText(cat.evidenceLevel), style: const pw.TextStyle(fontSize: 8))),
-                    pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text(_cleanPdfText('${cat.missingEvidence} ${cat.howToImprove}'), style: const pw.TextStyle(fontSize: 8))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text(_cleanPdfText(cat.label), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text('${cat.scoreAchieved} / ${cat.maxScore}', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text(_cleanPdfText(cat.evidenceLevel), style: const pw.TextStyle(fontSize: 8))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(5), child: pw.Text(_cleanPdfText('${cat.missingEvidence} ${cat.howToImprove}'), style: const pw.TextStyle(fontSize: 7.5))),
                   ],
                 )),
               ],
             ),
             pw.SizedBox(height: 8),
-            pw.Text(_cleanPdfText('Total Score Reconciliation: Sum of categories = ${res.overallScore}/100.'), style: pw.TextStyle(fontSize: 8, fontStyle: pw.FontStyle.italic, color: PdfColors.grey700)),
-            pw.Divider(height: 32, color: PdfColors.grey300, thickness: 0.5),
+            pw.Text(_cleanPdfText('Total Score Reconciliation: Sum of categories = ${res.overallScore}/100.'), style: pw.TextStyle(fontSize: 8, fontStyle: pw.FontStyle.italic, color: PdfColors.grey800, fontWeight: pw.FontWeight.bold)),
+            pw.Divider(height: 24, color: PdfColors.grey300, thickness: 0.5),
 
             // ================= PAGE 3: SWOT ANALYSIS =================
             _buildSectionHeaderPDF('SWOT Analysis & Commercial Synthesis'),
@@ -136,8 +156,8 @@ class PdfService {
               ],
             ),
             pw.SizedBox(height: 8),
-            pw.Text(_cleanPdfText('SWOT Interpretation: ${res.swotInterpretation}'), style: const pw.TextStyle(fontSize: 9, lineSpacing: 1.3)),
-            pw.Divider(height: 32, color: PdfColors.grey300, thickness: 0.5),
+            pw.Text(_cleanPdfText('Commercial Synthesis Interpretation: ${res.swotInterpretation}'), style: const pw.TextStyle(fontSize: 8.5, lineSpacing: 1.3)),
+            pw.Divider(height: 24, color: PdfColors.grey300, thickness: 0.5),
 
             // ================= PAGE 4: LEAN CANVAS =================
             _buildSectionHeaderPDF('Lean Canvas Architecture'),
@@ -214,36 +234,121 @@ class PdfService {
 
             // ================= PAGE 11: COMMERCIAL ADVISER OPINION =================
             _buildSectionHeaderPDF('Commercial Adviser Opinion'),
-            pw.Text(_cleanPdfText('What is encouraging: Strong problem definition and domain background.'), style: const pw.TextStyle(fontSize: 9)),
-            pw.Text(_cleanPdfText('What requires caution: Ensure non-essential features are delayed until customer willingness to pay is tested.'), style: const pw.TextStyle(fontSize: 9)),
-            pw.Text(_cleanPdfText('Current Recommendation: ${res.executiveSnapshot['recommendation']}'), style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-            pw.Divider(height: 32, color: PdfColors.grey300, thickness: 0.5),
+            pw.Text(_cleanPdfText('What is encouraging: Strong problem definition, domain experience, and capital discipline.'), style: const pw.TextStyle(fontSize: 8.5)),
+            pw.SizedBox(height: 3),
+            pw.Text(_cleanPdfText('What requires caution: Ensure non-essential features are delayed until customer willingness to pay is tested.'), style: const pw.TextStyle(fontSize: 8.5)),
+            pw.SizedBox(height: 3),
+            pw.Text(_cleanPdfText('What has not yet been proven: Repeat paid demand and scalable customer acquisition channels.'), style: const pw.TextStyle(fontSize: 8.5)),
+            pw.SizedBox(height: 3),
+            pw.Text(_cleanPdfText('Master Recommendation: ${res.masterRecommendation}'), style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold, color: PdfColors.blueGrey900)),
+            pw.Divider(height: 24, color: PdfColors.grey300, thickness: 0.5),
 
-            // ================= PAGE 12+: 90-DAY ROADMAP =================
-            _buildSectionHeaderPDF('90-Day Validation Roadmap'),
-            pw.Text(_cleanPdfText('Phase 1: Days 1-30 - Understand the Problem'), style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-            pw.Bullet(text: _cleanPdfText('Goal: Confirm whether the problem is frequent and painful enough to seek a better solution.'), style: const pw.TextStyle(fontSize: 8)),
-            pw.SizedBox(height: 8),
-            pw.Text(_cleanPdfText('Phase 2: Days 31-60 - Test the Solution'), style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-            pw.Bullet(text: _cleanPdfText('Goal: Determine whether target customers consider the proposed solution valuable enough to trial.'), style: const pw.TextStyle(fontSize: 8)),
-            pw.SizedBox(height: 8),
-            pw.Text(_cleanPdfText('Phase 3: Days 61-90 - Validate Demand'), style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-            pw.Bullet(text: _cleanPdfText('Goal: Gather sufficient evidence to decide whether further build investment is commercially justified.'), style: const pw.TextStyle(fontSize: 8)),
-            pw.Divider(height: 32, color: PdfColors.grey300, thickness: 0.5),
+            // ================= PAGE 12+: 90-DAY WEEKLY ROADMAP =================
+            _buildSectionHeaderPDF('90-Day Weekly Implementation Roadmap'),
+            pw.Table(
+              border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+              columnWidths: const {
+                0: pw.FixedColumnWidth(40),
+                1: pw.FlexColumnWidth(2.5),
+                2: pw.FlexColumnWidth(3.5),
+                3: pw.FixedColumnWidth(45),
+                4: pw.FlexColumnWidth(2.5),
+              },
+              children: [
+                pw.TableRow(
+                  decoration: const pw.BoxDecoration(color: PdfColors.grey100),
+                  children: [
+                    pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text(_cleanPdfText('Week'), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text(_cleanPdfText('Objective'), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text(_cleanPdfText('Key Tasks'), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text(_cleanPdfText('Hours'), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
+                    pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text(_cleanPdfText('Evidence Produced'), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
+                  ],
+                ),
+                pw.TableRow(children: [
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('W 1-2', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Problem Discovery', style: const pw.TextStyle(fontSize: 7))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Draft interview guide; reach out to 10 target prospects', style: const pw.TextStyle(fontSize: 7))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('5 hrs/wk', style: const pw.TextStyle(fontSize: 7))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Target outreach log', style: const pw.TextStyle(fontSize: 7))),
+                ]),
+                pw.TableRow(children: [
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('W 3-4', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Customer Interviews', style: const pw.TextStyle(fontSize: 7))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Conduct 6 structured interviews; record pain points', style: const pw.TextStyle(fontSize: 7))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('5 hrs/wk', style: const pw.TextStyle(fontSize: 7))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('6 interview transcripts', style: const pw.TextStyle(fontSize: 7))),
+                ]),
+                pw.TableRow(children: [
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('W 5-6', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Concierge MVP Test', style: const pw.TextStyle(fontSize: 7))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Design manual workflow; run prototype with 3 users', style: const pw.TextStyle(fontSize: 7))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('5 hrs/wk', style: const pw.TextStyle(fontSize: 7))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Pilot feedback logs', style: const pw.TextStyle(fontSize: 7))),
+                ]),
+                pw.TableRow(children: [
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('W 7-8', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Price & Offer Test', style: const pw.TextStyle(fontSize: 7))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Present pricing terms to 5 prospective customers', style: const pw.TextStyle(fontSize: 7))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('5 hrs/wk', style: const pw.TextStyle(fontSize: 7))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('2 signed LOIs / deposits', style: const pw.TextStyle(fontSize: 7))),
+                ]),
+                pw.TableRow(children: [
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('W 9-10', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Pilot Evaluation', style: const pw.TextStyle(fontSize: 7))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Measure retention, manual effort, and customer NPS', style: const pw.TextStyle(fontSize: 7))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('5 hrs/wk', style: const pw.TextStyle(fontSize: 7))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Pilot metrics report', style: const pw.TextStyle(fontSize: 7))),
+                ]),
+                pw.TableRow(children: [
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('W 11-12', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Commercial Decision', style: const pw.TextStyle(fontSize: 7))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Reassess evidence; decide whether to Build, Pivot, or Stop', style: const pw.TextStyle(fontSize: 7))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('5 hrs/wk', style: const pw.TextStyle(fontSize: 7))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('PitchLab Reassessment', style: const pw.TextStyle(fontSize: 7))),
+                ]),
+              ],
+            ),
+            pw.Divider(height: 24, color: PdfColors.grey300, thickness: 0.5),
 
-            // ================= FINAL PAGE: ACTION PLAN =================
-            _buildSectionHeaderPDF('Your PitchLab Action Plan'),
-            pw.Text(_cleanPdfText('Current Recommendation: ${res.executiveSnapshot['recommendation']}'), style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.indigo900)),
-            pw.SizedBox(height: 8),
-            pw.Text(_cleanPdfText('Top 5 Commercial Priorities:'), style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
-            ...res.topFivePriorities.map((p) => pw.Bullet(
-              text: _cleanPdfText('${p['priority']}: ${p['action']} (Target: ${p['metric']})'),
-              style: const pw.TextStyle(fontSize: 8),
+            // ================= FINAL PAGE: ACTION PLAN & CTA =================
+            _buildSectionHeaderPDF('Your PitchLab Action Plan & Next Steps'),
+            pw.Container(
+              padding: const pw.EdgeInsets.all(10),
+              decoration: const pw.BoxDecoration(color: PdfColors.blueGrey900, borderRadius: pw.BorderRadius.all(pw.Radius.circular(6))),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(_cleanPdfText('Master Recommendation: ${res.masterRecommendation}'), style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.white)),
+                  pw.SizedBox(height: 3),
+                  pw.Text(_cleanPdfText('Immediate 7-Day Action: ${res.nextSevenDaysAction}'), style: pw.TextStyle(fontSize: 8.5, color: PdfColors.teal200, fontWeight: pw.FontWeight.bold)),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 10),
+            pw.Text(_cleanPdfText('Top 5 Commercial Priorities:'), style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: PdfColors.blueGrey900)),
+            ...res.topFivePriorities.map((p) => pw.Padding(
+              padding: const pw.EdgeInsets.only(bottom: 3),
+              child: pw.Bullet(
+                text: _cleanPdfText('${p['priority']}: ${p['action']} (Success Metric: ${p['metric']})'),
+                style: const pw.TextStyle(fontSize: 8),
+              ),
             )),
+            pw.SizedBox(height: 10),
+            pw.Container(
+              padding: const pw.EdgeInsets.all(8),
+              decoration: const pw.BoxDecoration(color: PdfColors.grey100, borderRadius: pw.BorderRadius.all(pw.Radius.circular(6))),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(_cleanPdfText('When to Return for Reassessment:'), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.blueGrey900)),
+                  pw.SizedBox(height: 2),
+                  pw.Text(_cleanPdfText('Return to PitchLab after completing 6 customer interviews or 3 concierge pilot tests to update your evidence level and unlock your updated Commercial Readiness Score.'), style: const pw.TextStyle(fontSize: 7.5)),
+                ],
+              ),
+            ),
             pw.SizedBox(height: 12),
-            pw.Text(_cleanPdfText('Your Next 7 Days: ${res.nextSevenDaysAction}'), style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-            pw.SizedBox(height: 16),
-            pw.Text(_cleanPdfText('Your PitchLab score is a measure of current commercial readiness, not a permanent grade on you or your business idea.'), style: pw.TextStyle(fontSize: 8, fontStyle: pw.FontStyle.italic, color: PdfColors.grey700)),
+            pw.Text(_cleanPdfText('Your PitchLab score reflects your current level of commercial readiness. It is not a permanent grade on you or your business idea.'), style: pw.TextStyle(fontSize: 8, fontStyle: pw.FontStyle.italic, color: PdfColors.grey700)),
           ];
         },
       ),

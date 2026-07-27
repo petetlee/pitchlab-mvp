@@ -44,8 +44,26 @@ class EvaluationResult {
     return _getBandMeaningFromScore(overallScore);
   }
 
+  String get masterRecommendation {
+    final rec = raw['masterRecommendation'] ?? raw['finalRecommendation']?['recommendation'] ?? summaryBlock['decisionStatus'];
+    if (rec is String && rec.trim().isNotEmpty && rec != 'N/A') {
+      return rec.trim();
+    }
+    final score = overallScore;
+    if (score >= 85) return 'Proceed';
+    if (score >= 70) return 'Proceed with Controlled Validation';
+    if (score >= 40) return 'Validate Before Building';
+    return 'Validate Before Building';
+  }
+
+  String get assessmentConfidence {
+    final conf = raw['assessmentConfidence'];
+    if (conf is String && conf.isNotEmpty) return conf;
+    return 'Moderate Confidence';
+  }
+
   String get pitchLabVerdict => _str(
-      summaryBlock['pitchLabVerdict'] ?? raw['finalRecommendation']?['recommendation'],
+      summaryBlock['pitchLabVerdict'] ?? raw['finalRecommendation']?['why'],
       fallback: 'This idea addresses a credible problem and benefits from relevant founder expertise, but its commercial potential depends on validating real customer demand before further development.');
 
   List<Map<String, String>> get threePriorityActions {
