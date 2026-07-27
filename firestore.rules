@@ -10,6 +10,16 @@ service cloud.firestore {
       allow read, write: if request.auth != null && (request.auth.uid == userId || isAdmin());
     }
     
+    // Founder Profiles
+    match /FounderProfiles/{profileId} {
+      allow create, read, update, delete: if request.auth != null && (request.auth.uid == profileId || resource == null || resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // Founder CV Metadata
+    match /FounderCVMetadata/{userId} {
+      allow create, read, update, delete: if request.auth != null && (request.auth.uid == userId || isAdmin());
+    }
+    
     // Users can only read/write their own idea inputs
     match /IdeaInputs/{inputId} {
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;

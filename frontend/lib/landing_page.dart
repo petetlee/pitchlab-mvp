@@ -179,49 +179,12 @@ class _LandingPageState extends State<LandingPage> {
     );
 
     try {
-      final query = await FirebaseFirestore.instance
-          .collection('IdeaInputs')
-          .where('userId', isEqualTo: user.uid)
-          .limit(1)
-          .get();
-
       if (context.mounted) {
         Navigator.pop(context); // Dismiss loading spinner
-      }
-
-      if (query.docs.isNotEmpty) {
-        if (context.mounted) {
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: Text('Evaluation Limit Reached', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-              content: const Text('You have already submitted a business idea for evaluation. Each standard user account is limited to one business idea.'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('OK'),
-                ),
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const HistoryView()),
-                    );
-                  },
-                  child: const Text('View History'),
-                ),
-              ],
-            ),
-          );
-        }
-      } else {
-        if (context.mounted) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const EvaluationWizard()),
-          );
-        }
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const EvaluationWizard()),
+        );
       }
     } catch (e) {
       if (context.mounted) {

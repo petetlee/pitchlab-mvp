@@ -7,11 +7,16 @@ const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
 const fs = require("fs");
 const path = require("path");
-const { calculateFRI, calculateOverallScore } = require("./scoring_logic");
+const { calculateFRI, reconcileScores, getScoreBand } = require("./scoring_logic");
 
 console.log("PitchLab: Cloud Functions v1.3.0 Loaded — MVP Version 5 (Final Refinement)");
 initializeApp();
 const db = getFirestore();
+try {
+  db.settings({ ignoreUndefinedProperties: true });
+} catch (e) {
+  // Already initialized settings
+}
 
 const ERROR_LOG_PATH = path.join(__dirname, "submission_errors.log");
 
@@ -75,27 +80,25 @@ exports.pitchLabEvaluation = onCall({
   console.log("!!! PITCHLAB EVALUATION FUNCTION INVOKED AT TOP !!!");
   console.log("PitchLab Evaluation started for user:", request.auth?.uid);
 
-  const {
-    idea,
-    problem,
-    budget,
-    experience,
-    capacity,
-    network,
-    targetMarket,
-    category
-  } = request.data;
+  const reqData = request.data || {};
+  const idea = reqData.idea || "";
+  const problem = reqData.problem || "";
+  const targetMarket = reqData.targetMarket || reqData.market || "";
+  const category = reqData.category || "General Startup";
+  const budget = reqData.budget || reqData.investmentCommitment || "";
+  const experience = reqData.experience || reqData.founderExperience || "";
+  const capacity = reqData.capacity || reqData.timeCommitment || "";
+  const network = reqData.network || reqData.customerValidation || "";
 
   let userId = request.auth?.uid || 'unknown';
 
   try {
     // 1. Authenticate user
-    if (!request.auth) {
-      console.error("Unauthenticated request");
-      throw new HttpsError("unauthenticated", "User must be authenticated.");
+    userId = request.auth?.uid;
+    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
+      console.error("PitchLab: Unauthenticated request - missing valid user ID");
+      throw new HttpsError("unauthenticated", "User must be authenticated with a valid UID.");
     }
-
-    userId = request.auth.uid;
 
     // 2. Validate inputs
     console.log("PitchLab: Raw request data:", JSON.stringify(request.data));
@@ -104,10 +107,15 @@ exports.pitchLabEvaluation = onCall({
       throw new HttpsError("invalid-argument", "Missing required fields.");
     }
 
-    // 2.5 Enforce one-idea limit (excluding admins)
-    const userDoc = await db.collection("Users").doc(userId).get();
-    const role = userDoc.exists ? userDoc.data()?.role : 'user';
-    if (role !== 'admin') {
+    // 2.5 Enforce one-idea limit (excluding admins and local testing emulator)
+    let role = 'user';
+    if (userId && typeof userId === 'string' && userId.trim().length > 0) {
+      const userDoc = await db.collection("Users").doc(userId).get();
+      role = userDoc.exists ? userDoc.data()?.role : 'user';
+    }
+
+    const isEmulator = process.env.FUNCTIONS_EMULATOR === 'true' || process.env.NODE_ENV === 'development';
+    if (role !== 'admin' && !isEmulator) {
       const existingSnapshot = await db.collection("IdeaInputs").where("userId", "==", userId).limit(1).get();
       if (!existingSnapshot.empty) {
         console.error(`PitchLab: User ${userId} blocked from multiple submissions.`);
@@ -118,14 +126,15 @@ exports.pitchLabEvaluation = onCall({
     // 3. Store raw inputs
     console.log("Storing raw inputs in IdeaInputs...");
     const inputRef = await db.collection("IdeaInputs").add({
-      userId,
-      idea,
-      problem,
-      budget,
-      experience,
-      capacity,
-      network,
-      targetMarket,
+      userId: userId || "",
+      idea: idea || "",
+      problem: problem || "",
+      budget: budget || "",
+      experience: experience || "",
+      capacity: capacity || "",
+      network: network || "",
+      targetMarket: targetMarket || "",
+      category: category || "General Startup",
       createdAt: FieldValue.serverTimestamp(),
     });
 
@@ -195,10 +204,6 @@ exports.pitchLabEvaluation = onCall({
     `;
 
     // 7. Build the evaluation schema.
-    // IMPORTANT: Each score field MUST be a fully inlined z.object() — no shared variables.
-    // Vertex AI and Google AI reject JSON Schemas containing "$ref" references,
-    // which Zod generates when the same sub-schema object is reused across fields.
-    // Inlining ensures the serialized schema is flat with no $ref nodes.
     const evaluationSchema = z.object({
       summaryBlock: z.object({
         overallReadinessScore: z.number(),
@@ -232,7 +237,7 @@ exports.pitchLabEvaluation = onCall({
       tearDetails: z.object({
         theme: z.string().describe("Concise strategic framing."),
         evidence: z.string().describe("Foundational support signals."),
-        analysis: pw.string().describe("Advisor-style friction analysis."),
+        analysis: z.string().describe("Advisor-style friction analysis."),
         recommendation: z.string().describe("Next move based on strategic logic.")
       }),
       founderMetrics: z.object({
@@ -258,13 +263,6 @@ exports.pitchLabEvaluation = onCall({
         })).describe("1-3 relevant failure or struggle patterns."),
         marketInterpretation: z.string().describe("Does this idea follow a success or failure pattern? What must be avoided?")
       }),
-      mvpFeasibility: z.object({
-        verdict: z.string().describe("Feasible, Partially Feasible, or Not Feasible under NZD $5k"),
-        suggestedFormat: z.string(),
-        indicativeComponents: z.array(z.string()),
-        whatToExclude: z.array(z.string()).describe("Protects founder from overbuilding."),
-        estimatedCostCommentary: z.string()
-      }),
       keyRisks: z.array(z.object({
         name: z.string(),
         whyItMatters: z.string(),
@@ -272,10 +270,10 @@ exports.pitchLabEvaluation = onCall({
       })).describe("Top 5 ruthless commercial risks only."),
       whatNotToBuild: z.array(z.string()).describe("3-7 waste-reduction items."),
       thirtyDayPlan: z.object({
-        week1: z.object({ objective: z.string(), tasks: pw.array(z.string()), expectedResult: z.string() }),
-        week2: z.object({ objective: z.string(), tasks: pw.array(z.string()), expectedResult: z.string() }),
-        week3: z.object({ objective: z.string(), tasks: pw.array(z.string()), expectedResult: z.string() }),
-        week4: z.object({ objective: z.string(), tasks: pw.array(z.string()), expectedResult: z.string() })
+        week1: z.object({ objective: z.string(), tasks: z.array(z.string()), expectedResult: z.string() }),
+        week2: z.object({ objective: z.string(), tasks: z.array(z.string()), expectedResult: z.string() }),
+        week3: z.object({ objective: z.string(), tasks: z.array(z.string()), expectedResult: z.string() }),
+        week4: z.object({ objective: z.string(), tasks: z.array(z.string()), expectedResult: z.string() })
       }),
       finalRecommendation: z.object({
         recommendation: z.string().describe("Supportive but blunt Advisor Verdic Label."),
@@ -331,14 +329,20 @@ exports.pitchLabEvaluation = onCall({
 
     const evaluationData = result.output;
 
-    // 9. Calculate Overall Score directly
-    const s = evaluationData.scores;
-    const computedOverall = s.ideaClarity.score + s.problemStrength.score + s.founderFit.score + 
-                            s.marketAttractiveness.score + s.mvpFeasibility.score + 
-                            s.executionReadiness.score + s.validationReadiness.score;
-                            
-    evaluationData.scores.overall = Math.max(0, Math.min(100, computedOverall));
-    evaluationData.founderReadinessIndex = s.founderFit.score * 5; // Simplified mapping using the new score.
+    // 9. Reconcile 7-Category Scores & Band Mapping (Master Redesign)
+    const rawScores = evaluationData.scorecard || evaluationData.scores || {};
+    const reconciled = reconcileScores(rawScores);
+
+    evaluationData.overallScore = reconciled.overallScore;
+    evaluationData.scoreBand = reconciled.scoreBand;
+    evaluationData.scorecard = reconciled.categoryScores;
+
+    // Maintain backward-compatibility fields for legacy UI listeners if any
+    evaluationData.scores = {
+      overall: reconciled.overallScore,
+      ...reconciled.categoryScores
+    };
+    evaluationData.founderReadinessIndex = reconciled.overallScore;
 
     // 10. Store Evaluation
     await db.collection("EvaluationScore").add({

@@ -46,8 +46,12 @@ Future<void> _initializeServices() async {
     }
     print('🚀 PitchLab: Firebase App: ${app.name}');
 
-    if (kDebugMode) {
-      print('🚀 PitchLab: Connecting to emulators at 127.0.0.1...');
+    final bool isLocalhost = kDebugMode ||
+        (kIsWeb && Uri.base.host == 'localhost') ||
+        (kIsWeb && Uri.base.host == '127.0.0.1');
+
+    if (isLocalhost) {
+      print('🚀 PitchLab: Localhost/Debug mode detected. Connecting to emulators at 127.0.0.1...');
       print('🚀 PitchLab: Configured API Key: ${app.options.apiKey.substring(0, 5)}...');
       print('🚀 PitchLab: Configured Project ID: ${app.options.projectId}');
       
