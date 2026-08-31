@@ -40,5 +40,11 @@ service cloud.firestore {
       allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedAt']);
       allow read, write, delete: if isAdmin();
     }
+
+    // Beta Feedback collection rules
+    match /BetaFeedback/{feedbackId} {
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read, delete, update: if isAdmin();
+    }
   }
 }

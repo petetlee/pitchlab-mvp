@@ -9,7 +9,19 @@ PitchLab is a startup validation platform built with Flutter, Firebase, and Goog
 - **Database**: Firestore
 - **State**: **MVP Version 2 (Restored & Verified)**
 
-## Getting Started
+## 🚀 Quick Startup Process (1-Click)
+
+To launch the full PitchLab stack (Firebase Auth, Functions, Firestore Emulators + Frontend Web Server):
+
+**Simply double-click `start_pitchlab.bat` (or run `.\start_pitchlab.ps1` in PowerShell). It automatically:**
+1. Sets `NODE_TLS_REJECT_UNAUTHORIZED=0` to bypass local proxy/SSL errors.
+2. Launches Firebase Emulators (Auth, Functions, Firestore).
+3. Launches the Frontend Web App on `http://localhost:8082`.
+4. Opens **http://localhost:8082** directly in your default browser.
+
+---
+
+## Getting Started (Manual Steps)
 
 ### 1. Prerequisites
 - Flutter SDK (^3.11.0)

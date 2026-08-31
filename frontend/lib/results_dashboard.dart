@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'models/evaluation_result.dart';
 import 'pdf_service.dart';
 
@@ -16,11 +17,21 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
   late EvaluationResult result;
   late TabController _tabController;
 
+  String? _selectedViewChanged;
+  String? _selectedFinalDecision;
+  bool _isSavingDecision = false;
+
   @override
   void initState() {
     super.initState();
     result = EvaluationResult.fromMap(widget.evaluation);
     _tabController = TabController(length: 8, vsync: this);
+
+    final decisionMap = result.postAssessmentDecision;
+    if (decisionMap != null) {
+      _selectedViewChanged = decisionMap['viewChanged']?.toString();
+      _selectedFinalDecision = decisionMap['finalDecision']?.toString();
+    }
   }
 
   @override
@@ -182,7 +193,7 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
                       const SizedBox(height: 4),
                       Text('Current Stage:\n${result.scoreBandName}', textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFF34C759))),
                       const SizedBox(height: 6),
-                      Text('Confidence: ${result.assessmentConfidence}', style: GoogleFonts.inter(fontSize: 9, color: Colors.white70, fontStyle: FontStyle.italic)),
+                      Text('Assessment Confidence: ${result.assessmentConfidence}', style: GoogleFonts.inter(fontSize: 9, color: Colors.white70, fontStyle: FontStyle.italic)),
                     ],
                   ),
                 ),
@@ -263,6 +274,115 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
     );
   }
 
+  Widget _buildPortfolioCard(BuildContext context) {
+    Color badgeBg;
+    final dec = result.decisionState.toUpperCase();
+
+    if (dec.contains('PURSUE')) {
+      badgeBg = const Color(0xFF34C759);
+    } else if (dec.contains('INVESTIGATE')) {
+      badgeBg = const Color(0xFF0071E3);
+    } else if (dec.contains('REFRAME')) {
+      badgeBg = const Color(0xFFFF9500);
+    } else if (dec.contains('STOP')) {
+      badgeBg = const Color(0xFFFF3B30);
+    } else {
+      badgeBg = const Color(0xFF8E8E93);
+    }
+
+    return _buildCard(
+      'Idea Portfolio & Decision Gateway',
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(6)),
+                child: Text('PORTFOLIO DECISION: ${result.decisionState}', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.grey.shade300)),
+                child: Text('STAGE: ${result.ventureStage}', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade800)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: Colors.blue.shade50.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('PRESERVED PROBLEM STATEMENT', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+                      const SizedBox(height: 4),
+                      Text(result.underlyingProblem, style: GoogleFonts.inter(fontSize: 12, height: 1.3, color: Colors.black87)),
+                      const SizedBox(height: 4),
+                      Text('Status: ${result.problemStatus}', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.blue.shade800)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: Colors.amber.shade50.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade200)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('CURRENT PROPOSED SOLUTION', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+                      const SizedBox(height: 4),
+                      Text(result.currentProposedSolution, style: GoogleFonts.inter(fontSize: 12, height: 1.3, color: Colors.black87)),
+                      const SizedBox(height: 4),
+                      Text('Status: ${result.solutionStatus}', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.amber.shade900)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.flag_rounded, size: 16, color: Color(0xFF0071E3)),
+                    const SizedBox(width: 6),
+                    Text('NEXT EVIDENCE GATEWAY', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF1D1D1F))),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(result.nextEvidenceGateway, style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: Colors.black87)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(Icons.autorenew_rounded, size: 16, color: Color(0xFF34C759)),
+                    const SizedBox(width: 6),
+                    Text('REASSESSMENT TRIGGER', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF1D1D1F))),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(result.reassessmentTrigger, style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: Colors.black87)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // TAB 1: OVERVIEW
   Widget _buildOverviewTab(BuildContext context) {
     final snap = result.executiveSnapshot;
@@ -274,6 +394,10 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildCard('Executive Summary', Text(result.executiveSummary, style: GoogleFonts.inter(fontSize: 14, height: 1.6, color: const Color(0xFF1D1D1F)))),
+            const SizedBox(height: 20),
+
+            // P.A.R.A.-Inspired Idea Portfolio & Decision Gateway Card (Fix 14)
+            _buildPortfolioCard(context),
             const SizedBox(height: 20),
 
             _buildCard('Executive Snapshot Table', Table(
@@ -290,28 +414,38 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
             )),
             const SizedBox(height: 20),
 
-            _buildCard('SWOT Preview', Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+
+            _buildCard('Business Model Snapshot', Table(
+              border: TableBorder.all(color: Colors.grey.shade300, width: 1),
+              columnWidths: const {
+                0: FlexColumnWidth(1),
+                1: FlexColumnWidth(2.2),
+              },
               children: [
-                Expanded(child: _buildSwotBox('Strengths', result.swotStrengths, Colors.teal)),
-                const SizedBox(width: 12),
-                Expanded(child: _buildSwotBox('Weaknesses', result.swotWeaknesses, Colors.orange)),
-                const SizedBox(width: 12),
-                Expanded(child: _buildSwotBox('Opportunities', result.swotOpportunities, Colors.blue)),
-                const SizedBox(width: 12),
-                Expanded(child: _buildSwotBox('Threats', result.swotThreats, Colors.red)),
+                TableRow(
+                  decoration: BoxDecoration(color: Colors.grey.shade100),
+                  children: [
+                    Padding(padding: const EdgeInsets.all(8), child: Text('Business Model Snapshot', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12))),
+                    Padding(padding: const EdgeInsets.all(8), child: Text('Assessment', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12))),
+                  ],
+                ),
+                _buildTableRow('Target Customer', result.bmTargetCustomer),
+                _buildTableRow('Core Offering', result.bmCoreOffering),
+                _buildTableRow('Customer Problem', result.bmCustomerProblem),
+                _buildTableRow('Value Proposition', result.bmValueProposition),
+                _buildTableRow('Revenue Model', result.bmRevenueModel),
+                _buildTableRow('Customer Acquisition', result.bmCustomerAcquisition),
+                _buildTableRow('Key Costs', result.bmKeyCosts),
+                _buildTableRow('Commercial Assessment', result.bmCommercialAssessment),
               ],
             )),
             const SizedBox(height: 20),
 
-            _buildCard('KISS Review Summary', Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Keep It Simple and Start Small', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1D1D1F))),
-                const SizedBox(height: 8),
-                Text('Smallest Testable Version: ${result.kissSmallestTestableVersion}', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF0071E3))),
-              ],
-            )),
+            _buildWouldInvestorsBiteCard(result),
+            const SizedBox(height: 20),
+
+            _buildPostAssessmentDecisionCard(),
+            const SizedBox(height: 20),
           ],
         ),
       ),
@@ -384,42 +518,31 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Lean Canvas & Business Architecture', style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold)),
+            Text('Business Model & Commercial Strategy', style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
 
-            // Lean Canvas Grid
-            GridView.count(
-              crossAxisCount: MediaQuery.of(context).size.width > 800 ? 3 : 1,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.5,
-              children: [
-                _buildGridBox('1. Problem', result.lcProblem),
-                _buildGridBox('2. Customer Segments', result.lcCustomerSegments),
-                _buildGridBox('3. Unique Value Proposition', [result.lcUniqueValueProp]),
-                _buildGridBox('4. Proposed Solution', result.lcProposedSolution),
-                _buildGridBox('5. Channels', result.lcChannels),
-                _buildGridBox('6. Revenue Streams', result.lcRevenueStreams),
-                _buildGridBox('7. Cost Structure', result.lcCostStructure),
-                _buildGridBox('8. Key Metrics', result.lcKeyMetrics),
-                _buildGridBox('9. Unfair Advantage', [result.lcUnfairAdvantage]),
-              ],
-            ),
-            const SizedBox(height: 24),
 
-            _buildCard('MVP Feasibility & Test Plan', Column(
+
+
+
+            _buildCard('Market Insights', Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Format: ${result.mvpFormat}', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14)),
-                Text('Validation Budget: ${result.mvpBudget}', style: GoogleFonts.inter(fontSize: 13, color: Colors.grey.shade700)),
-                const SizedBox(height: 12),
-                Text('What to Include:', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
-                ...result.mvpInclude.map((i) => Text('• $i', style: GoogleFonts.inter(fontSize: 12))),
-                const SizedBox(height: 8),
-                Text('What to Exclude:', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.red.shade700)),
-                ...result.mvpExclude.map((i) => Text('• $i', style: GoogleFonts.inter(fontSize: 12))),
+                Row(
+                  children: [
+                    const Icon(Icons.insights, color: Color(0xFF0071E3), size: 20),
+                    const SizedBox(width: 8),
+                    Text('Commercial Market Adviser Briefing', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14)),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                ...result.marketInsightsParagraphs.map((para) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    para,
+                    style: GoogleFonts.inter(fontSize: 13, height: 1.5, color: const Color(0xFF1D1D1F)),
+                  ),
+                )),
               ],
             )),
           ],
@@ -436,14 +559,178 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildCard('Founder Time & Capital Reality', Column(
+            if (result.founderBackgroundNarrative.isNotEmpty) ...[
+              _buildCard('Founder Capability Summary & Advisory Insights', Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.history_edu, color: Color(0xFF0071E3), size: 20),
+                      const SizedBox(width: 8),
+                      Text("Synthesized Founder Input & Capability Insights", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    result.founderBackgroundSummary,
+                    style: GoogleFonts.inter(fontSize: 13, height: 1.5, color: const Color(0xFF1D1D1F)),
+                  ),
+                ],
+              )),
+              const SizedBox(height: 16),
+            ],
+            _buildCard('Founder Capability & Fit Assessment Breakdown', Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildDetailRow('Weekly Availability', result.timeAvailable),
-                _buildDetailRow('Capital Available', result.capitalAvailable),
-                _buildDetailRow('Initial Risk Capital', result.riskCapital),
+                Row(
+                  children: [
+                    const Icon(Icons.psychology_outlined, color: Color(0xFF0071E3), size: 20),
+                    const SizedBox(width: 8),
+                    Text('Detailed Score & Evidence Breakdown', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text('Evidence Relied On:', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: const Color(0xFF0071E3))),
+                const SizedBox(height: 4),
+                Text(result.evidenceReliedOn, style: GoogleFonts.inter(fontSize: 12.5, color: Colors.grey.shade800, height: 1.4)),
+                const SizedBox(height: 14),
+                Text('Why This Score Was Awarded:', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.green.shade800)),
+                const SizedBox(height: 4),
+                Text(result.whyThisScoreWasAwarded, style: GoogleFonts.inter(fontSize: 12.5, color: Colors.grey.shade800, height: 1.4)),
+                const SizedBox(height: 14),
+                Text('Identified Capability Gaps:', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.orange.shade900)),
+                const SizedBox(height: 6),
+                ...result.capabilityGaps.map((gap) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('• ', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+                      Expanded(child: Text(gap, style: GoogleFonts.inter(fontSize: 12, color: Colors.grey.shade800))),
+                    ],
+                  ),
+                )),
+                const SizedBox(height: 14),
+                Text('Recommended Response to Gaps:', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: const Color(0xFF1D1D1F))),
+                const SizedBox(height: 6),
+                ...result.recommendedGapResponses.map((rec) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.arrow_forward, size: 14, color: Color(0xFF0071E3)),
+                      const SizedBox(width: 6),
+                      Expanded(child: Text(rec, style: GoogleFonts.inter(fontSize: 12, color: Colors.grey.shade800))),
+                    ],
+                  ),
+                )),
+              ],
+            )),
+            const SizedBox(height: 16),
+            _buildCard('CV Analysis & Founder Credentials', Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.badge_outlined, color: Color(0xFF0071E3), size: 20),
+                    const SizedBox(width: 8),
+                    Text('Extracted Qualifications & Domain Experience', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14)),
+                  ],
+                ),
                 const SizedBox(height: 12),
-                Text('Many founders begin while balancing employment or existing commitments. Consistent weekly validation is key.', style: GoogleFonts.inter(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.grey.shade700)),
+                ...result.cvCredentials.map((c) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle_outline, color: Colors.green, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(c, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500))),
+                    ],
+                  ),
+                )),
+                const Divider(height: 24),
+                Text('Synthesized Founder Strengths:', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 4),
+                Text(result.cvStrengths, style: GoogleFonts.inter(fontSize: 12, color: Colors.grey.shade800)),
+                const SizedBox(height: 12),
+                Text('Alignment with Business Idea:', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 4),
+                Text(result.cvAlignment, style: GoogleFonts.inter(fontSize: 12, color: Colors.grey.shade800)),
+              ],
+            )),
+            const SizedBox(height: 16),
+            _buildCard('Founder Positioning, Time & Capital Reality', Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF2F8FF),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFF0071E3).withValues(alpha: 0.2)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Founder Positioning: ${result.founderPositionSummary}', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14, color: const Color(0xFF0071E3))),
+                      const SizedBox(height: 4),
+                      Text(result.founderMetricsAnalysis, style: GoogleFonts.inter(fontSize: 12.5, color: const Color(0xFF1D1D1F), height: 1.4)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                _buildDetailRow('Weekly Available Time', '${result.timeAvailable} (${result.timeRealitySummary})'),
+                _buildDetailRow('Capital Available Now', '${result.capitalAvailable} (${result.capitalRealitySummary})'),
+                _buildDetailRow('Initial Risk Capital', result.riskCapital),
+                Padding(
+                  padding: const EdgeInsets.only(left: 12, top: 2, bottom: 8),
+                  child: Text('Explanation: ${result.riskCapitalExplanation}', style: GoogleFonts.inter(fontSize: 11.5, fontStyle: FontStyle.italic, color: Colors.grey.shade700)),
+                ),
+                _buildDetailRow('Likely Validation Requirement', result.likelyValidationCapitalRequired),
+
+                const Divider(height: 24),
+                Text('What This Means:', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: const Color(0xFF1D1D1F))),
+                const SizedBox(height: 4),
+                Text(result.timeImplication, style: GoogleFonts.inter(fontSize: 12.5, color: Colors.grey.shade800, height: 1.4)),
+
+                const SizedBox(height: 16),
+                Text('What Matters Now:', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.orange.shade900)),
+                const SizedBox(height: 4),
+                ...result.whatMattersNow.map((wm) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('• ', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Expanded(child: Text(wm, style: GoogleFonts.inter(fontSize: 12, color: Colors.grey.shade900))),
+                    ],
+                  ),
+                )),
+
+                const SizedBox(height: 16),
+                Text('Recommended Founder Approach:', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: const Color(0xFF0071E3))),
+                const SizedBox(height: 4),
+                ...result.recommendedApproach.map((rec) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('• ', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Expanded(child: Text(rec, style: GoogleFonts.inter(fontSize: 12, color: Colors.grey.shade900))),
+                    ],
+                  ),
+                )),
+
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(result.founderRealityFooter, style: GoogleFonts.inter(fontSize: 11.5, fontStyle: FontStyle.italic, color: Colors.grey.shade800)),
+                ),
               ],
             )),
           ],
@@ -496,11 +783,80 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildCard('Business Theme & Commercial Position', Column(
+            _buildCard('Business Theme & Strategic Positioning', Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildDetailRow('Primary Theme', result.primaryTheme),
-                _buildDetailRow('Secondary Theme', result.secondaryTheme),
+                _buildDetailRow('Primary Theme', result.primaryTheme, isTag: true, color: const Color(0xFF0071E3)),
+                _buildDetailRow('Secondary Theme', result.secondaryTheme, isTag: true),
+                const SizedBox(height: 12),
+                Text('Strategic Positioning Analysis:', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: const Color(0xFF1D1D1F))),
+                const SizedBox(height: 4),
+                Text(result.strategicPositioning, style: GoogleFonts.inter(fontSize: 12, height: 1.45, color: Colors.grey.shade800)),
+                const SizedBox(height: 12),
+                Text('Market Category Dynamics:', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: const Color(0xFF1D1D1F))),
+                const SizedBox(height: 4),
+                Text(result.marketCategoryDynamics, style: GoogleFonts.inter(fontSize: 12, height: 1.45, color: Colors.grey.shade800)),
+                const SizedBox(height: 12),
+                Text('Strategic Moat & Long-Term Defensibility:', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: const Color(0xFF1D1D1F))),
+                const SizedBox(height: 4),
+                Text(result.strategicMoat, style: GoogleFonts.inter(fontSize: 12, height: 1.45, color: Colors.grey.shade800)),
+              ],
+            )),
+            const SizedBox(height: 20),
+
+            _buildCard('📰 Local Business News & Regional Economic Signals', Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.newspaper, color: Color(0xFF0071E3), size: 20),
+                    const SizedBox(width: 8),
+                    Text('Regional Commercial Climate & Business News Analysis', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  result.localBusinessNews,
+                  style: GoogleFonts.inter(fontSize: 13, height: 1.5, color: const Color(0xFF1D1D1F)),
+                ),
+              ],
+            )),
+            const SizedBox(height: 20),
+
+            _buildCard('💬 Customer Review Trends & User Sentiment', Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.rate_review_outlined, color: Color(0xFF0071E3), size: 20),
+                    const SizedBox(width: 8),
+                    Text('Market Reviews, Dissatisfaction & Workaround Sentiment', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  result.customerReviewTrends,
+                  style: GoogleFonts.inter(fontSize: 13, height: 1.5, color: const Color(0xFF1D1D1F)),
+                ),
+              ],
+            )),
+            const SizedBox(height: 20),
+
+            _buildCard('🏛️ Government Policies & Statutory Regulatory Frameworks', Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.gavel_outlined, color: Color(0xFF0071E3), size: 20),
+                    const SizedBox(width: 8),
+                    Text('Local Council Regulations, Planning Laws & Policy Influence', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  result.governmentPolicyInfluence,
+                  style: GoogleFonts.inter(fontSize: 13, height: 1.5, color: const Color(0xFF1D1D1F)),
+                ),
               ],
             )),
           ],
@@ -650,6 +1006,399 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
         ],
       ),
     );
+  }
+
+  Widget _buildWouldInvestorsBiteCard(EvaluationResult result) {
+    final scorecard = result.ibScorecard;
+    final questions = result.ibInvestorQuestions;
+    final improvements = result.ibImprovements;
+
+    Color potentialColor = Colors.orange;
+    if (result.ibInvestmentPotential.toLowerCase() == 'high') potentialColor = Colors.green;
+    if (result.ibInvestmentPotential.toLowerCase() == 'medium') potentialColor = Colors.blue;
+
+    Color recColor = Colors.orange;
+    if (result.ibPitchLabRecommendation.toLowerCase().contains('ready')) recColor = Colors.green;
+    if (result.ibPitchLabRecommendation.toLowerCase().contains('almost')) recColor = Colors.blue;
+
+    return _buildCard(
+      'Commercial Readiness Assessment',
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Text(
+              result.ibIntro,
+              style: GoogleFonts.inter(fontSize: 13, color: Colors.grey.shade800, height: 1.45),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Investor Assessment Scorecard',
+            style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1D1D1F)),
+          ),
+          const SizedBox(height: 8),
+          Table(
+            border: TableBorder.all(color: Colors.grey.shade300, width: 1),
+            columnWidths: const {
+              0: FlexColumnWidth(1.2),
+              1: FixedColumnWidth(110),
+              2: FlexColumnWidth(2.5),
+            },
+            children: [
+              TableRow(
+                decoration: BoxDecoration(color: Colors.grey.shade100),
+                children: [
+                  Padding(padding: const EdgeInsets.all(8), child: Text('Assessment Area', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12))),
+                  Padding(padding: const EdgeInsets.all(8), child: Text('Rating (1-5)', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12))),
+                  Padding(padding: const EdgeInsets.all(8), child: Text('Commentary', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12))),
+                ],
+              ),
+              ...scorecard.map((item) {
+                final area = item['area']?.toString() ?? 'Area';
+                final rating = (item['rating'] as num? ?? 3).toInt().clamp(1, 5);
+                final comm = item['commentary']?.toString() ?? '';
+                return TableRow(
+                  children: [
+                    Padding(padding: const EdgeInsets.all(8), child: Text(area, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12))),
+                    Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF8E1),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFFFB300)),
+                          ),
+                          child: Text(
+                            '★  $rating / 5',
+                            style: GoogleFonts.inter(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                              color: const Color(0xFFB78103),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Padding(padding: const EdgeInsets.all(8), child: Text(comm, style: GoogleFonts.inter(fontSize: 12))),
+                  ],
+                );
+              }),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5F5F7),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Overall Investor Interest', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1D1D1F))),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: potentialColor.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: potentialColor),
+                      ),
+                      child: Text(
+                        'Potential: ${result.ibInvestmentPotential}',
+                        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: potentialColor),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '${result.ibOverallInterestScore} / 100',
+                  style: GoogleFonts.inter(fontSize: 26, fontWeight: FontWeight.w800, color: const Color(0xFF0071E3)),
+                ),
+                const SizedBox(height: 6),
+                Text(result.ibOverallInterestExplanation, style: GoogleFonts.inter(fontSize: 12, color: Colors.grey.shade800, height: 1.4)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Investment Verdict', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF0071E3))),
+                const SizedBox(height: 6),
+                Text(result.ibInvestmentVerdict, style: GoogleFonts.inter(fontSize: 12, color: Colors.black87, height: 1.45)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Questions Investors Would Ask',
+            style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1D1D1F)),
+          ),
+          const SizedBox(height: 8),
+          ...questions.map((q) => Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('• ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0071E3))),
+                Expanded(child: Text(q, style: GoogleFonts.inter(fontSize: 12, height: 1.35))),
+              ],
+            ),
+          )),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border(left: BorderSide(color: Colors.green.shade600, width: 4)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Biggest Investment Strength', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade900)),
+                      const SizedBox(height: 4),
+                      Text(result.ibBiggestStrength, style: GoogleFonts.inter(fontSize: 11.5, color: Colors.green.shade900, height: 1.4)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border(left: BorderSide(color: Colors.amber.shade800, width: 4)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Biggest Investment Risk', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+                      const SizedBox(height: 4),
+                      Text(result.ibBiggestRisk, style: GoogleFonts.inter(fontSize: 11.5, color: Colors.amber.shade900, height: 1.4)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'How to Improve Your Investor Appeal',
+            style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: const Color(0xFF1D1D1F)),
+          ),
+          const SizedBox(height: 8),
+          ...improvements.asMap().entries.map((entry) => Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${entry.key + 1}. ', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12, color: const Color(0xFF0071E3))),
+                Expanded(child: Text(entry.value, style: GoogleFonts.inter(fontSize: 12, height: 1.35))),
+              ],
+            ),
+          )),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text('PitchLab Recommendation: ', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1D1D1F))),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: recColor,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        result.ibPitchLabRecommendation,
+                        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(result.ibPitchLabRecommendationExplanation, style: GoogleFonts.inter(fontSize: 12, color: Colors.grey.shade800, height: 1.35)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+
+  Widget _buildPostAssessmentDecisionCard() {
+    final viewOptions = [
+      'Much more positive',
+      'Slightly more positive',
+      'No material change',
+      'Slightly more cautious',
+      'Much more cautious'
+    ];
+
+    final decisionOptions = [
+      {'label': 'Pursue', 'color': Colors.green.shade700, 'icon': Icons.play_arrow_rounded},
+      {'label': 'Investigate', 'color': const Color(0xFF0071E3), 'icon': Icons.search_rounded},
+      {'label': 'Park', 'color': Colors.amber.shade800, 'icon': Icons.pause_rounded},
+      {'label': 'Reject', 'color': Colors.red.shade700, 'icon': Icons.stop_rounded},
+    ];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E5EA)),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.assignment_turned_in_outlined, color: Color(0xFF0071E3), size: 24),
+              const SizedBox(width: 10),
+              Text(
+                'Post-Assessment Decision',
+                style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold, color: const Color(0xFF1D1D1F)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Question 1: Has this assessment changed your view?
+          Text('1. Has this assessment changed your view of the idea?', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1D1D1F))),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: viewOptions.map((opt) {
+              final isSelected = _selectedViewChanged == opt;
+              return ChoiceChip(
+                label: Text(opt, style: GoogleFonts.inter(fontSize: 12, color: isSelected ? Colors.white : const Color(0xFF1D1D1F))),
+                selected: isSelected,
+                selectedColor: const Color(0xFF0071E3),
+                backgroundColor: const Color(0xFFF5F5F7),
+                onSelected: (val) {
+                  if (val) {
+                    setState(() => _selectedViewChanged = opt);
+                    if (_selectedFinalDecision != null) {
+                      _savePostAssessmentDecision(opt, _selectedFinalDecision!);
+                    }
+                  }
+                },
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 20),
+
+          // Question 2: What do you want to do with this idea?
+          Text('2. What do you want to do with this idea?', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1D1D1F))),
+          const SizedBox(height: 8),
+          Row(
+            children: decisionOptions.map((opt) {
+              final label = opt['label'] as String;
+              final color = opt['color'] as Color;
+              final icon = opt['icon'] as IconData;
+              final isSelected = _selectedFinalDecision == label;
+
+              return Expanded(
+                child: Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isSelected ? color : const Color(0xFFF5F5F7),
+                      foregroundColor: isSelected ? Colors.white : const Color(0xFF1D1D1F),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        side: BorderSide(color: isSelected ? color : const Color(0xFFE5E5EA)),
+                      ),
+                    ),
+                    icon: Icon(icon, size: 18),
+                    label: Text(label, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
+                    onPressed: () {
+                      setState(() => _selectedFinalDecision = label);
+                      _savePostAssessmentDecision(_selectedViewChanged ?? 'No material change', label);
+                    },
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          if (_isSavingDecision) ...[
+            const SizedBox(height: 8),
+            const Text('Saving decision...', style: TextStyle(fontSize: 11, color: Colors.grey)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _savePostAssessmentDecision(String viewChanged, String finalDecision) async {
+    setState(() => _isSavingDecision = true);
+    try {
+      final evalId = result.raw['id'] ?? result.raw['inputId'] ?? 'local-eval';
+      print('🚀 PitchLab: Saving decision: viewChanged=$viewChanged, finalDecision=$finalDecision, evalId=$evalId');
+      
+      final callable = FirebaseFunctions.instanceFor(region: "us-central1").httpsCallable('updateIdeaDecision');
+      await callable.call({
+        'evaluationId': evalId,
+        'viewChanged': viewChanged,
+        'finalDecision': finalDecision,
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Decision saved: $finalDecision ($viewChanged)'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      print('⚠️ PitchLab: Decision save warning (local mode active): $e');
+    } finally {
+      if (mounted) setState(() => _isSavingDecision = false);
+    }
   }
 }
 
