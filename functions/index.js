@@ -159,9 +159,6 @@ exports.pitchLabEvaluation = onCall({
         founderBackgroundWordCount: founderBackgroundWordCount,
         founderBackgroundLastUpdated: FieldValue.serverTimestamp(),
         founderCvUploaded: Boolean(cvFileName),
-        founderCvFile: cvFileName,
-        founderCvStorageUrl: reqData.cvStorageUrl || "",
-        founderCvExtractedText: cvText ? cvText.slice(0, 4000) : "",
         capacity: capacity || "",
         network: network || "",
         targetMarket: (targetMarket || "").slice(0, 4000),
@@ -778,13 +775,11 @@ exports.pitchLabEvaluation = onCall({
     evaluationData.timeCommitment = reqData.timeCommitment || capacity;
     evaluationData.investmentCommitment = reqData.investmentCommitment || budget;
     evaluationData.founderBackgroundNarrative = founderBackgroundNarrative;
-    evaluationData.founderCvExtractedText = cvText;
 
     evaluationData.betaCohort = "first50";
     evaluationData.meta = evaluationData.meta || {};
     evaluationData.meta.betaCohort = "first50";
     evaluationData.meta.founderRegion = locationSummary || locationCountry || "Global";
-    evaluationData.founderCvFile = cvFileName;
 
     // Ensure founderMetrics has fallbacks matching user inputs
     evaluationData.founderMetrics = evaluationData.founderMetrics || {};
