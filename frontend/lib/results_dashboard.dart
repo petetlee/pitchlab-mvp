@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'models/evaluation_result.dart';
 import 'pdf_service.dart';
+import 'history_view.dart';
 
 class ResultsDashboard extends StatefulWidget {
   final Map<String, dynamic> evaluation;
@@ -73,11 +74,12 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
             },
           ),
           IconButton(
-            icon: const Icon(Icons.bookmark_outline, color: Colors.white),
-            tooltip: 'Save Assessment',
+            icon: const Icon(Icons.history, color: Colors.white),
+            tooltip: 'My Ideas & Assessment History',
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('✅ Assessment saved to your account history!')),
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const HistoryView()),
               );
             },
           ),
