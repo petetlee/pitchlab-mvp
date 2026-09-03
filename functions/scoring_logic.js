@@ -9,7 +9,7 @@
 const SCORING_CONFIG = {
   CATEGORIES: {
     problemCustomerClarity: {
-      max: 15,
+      max: 14,
       label: "Problem and customer clarity",
       aliases: ["ideaClarity", "problemStrength", "problemCustomerClarity"],
       defaultMissing: "Empirical data quantifying problem frequency, severity, and exact customer persona boundaries.",
@@ -20,7 +20,7 @@ const SCORING_CONFIG = {
         rootCauseVsSymptom: 2,
         frequencySeriousness: 2,
         existingWorkarounds: 2,
-        customerConsequences: 2,
+        customerConsequences: 1,
         scopeFocus: 1
       }
     },
@@ -58,7 +58,7 @@ const SCORING_CONFIG = {
       }
     },
     marketCommercialOpportunity: {
-      max: 15,
+      max: 14,
       label: "Market and commercial opportunity",
       aliases: ["marketAttractiveness", "marketCommercialOpportunity"],
       defaultMissing: "Validated market segment sizing, urgency indicators, and customer channel reachability proof.",
@@ -70,11 +70,11 @@ const SCORING_CONFIG = {
         customerUrgency: 2,
         expansionPotential: 2,
         regulatoryDrivers: 1,
-        marketEvidence: 2
+        marketEvidence: 1
       }
     },
     businessModelWillingnessToPay: {
-      max: 15,
+      max: 14,
       label: "Business model and willingness to pay",
       aliases: ["businessModel", "businessModelWillingnessToPay"],
       defaultMissing: "Tested pricing tiers, unit margin calculations, and explicit customer payment commitments.",
@@ -86,11 +86,11 @@ const SCORING_CONFIG = {
         costToServeLogic: 2,
         recurringPotential: 2,
         grossMarginLogic: 2,
-        willingnessToPayEvidence: 3
+        willingnessToPayEvidence: 2
       }
     },
     competitivePosition: {
-      max: 10,
+      max: 9,
       label: "Competitive position",
       aliases: ["competitivePosition", "competition"],
       defaultMissing: "Detailed feature and workflow benchmarking against existing manual workarounds and alternatives.",
@@ -99,13 +99,13 @@ const SCORING_CONFIG = {
         directCompetitors: 2,
         indirectAlternatives: 2,
         workaroundsIdentified: 2,
-        differentiationArticulated: 2,
+        differentiationArticulated: 1,
         switchingBarriers: 1,
         emergingAdvantage: 1
       }
     },
     executionReadiness: {
-      max: 10,
+      max: 9,
       label: "Execution readiness",
       aliases: ["mvpFeasibility", "executionReadiness"],
       defaultMissing: "A formal 30-day low-cost validation plan with defined weekly milestones and budget boundaries.",
@@ -115,9 +115,23 @@ const SCORING_CONFIG = {
         scopeMatchesTime: 2,
         initialCapitalDefined: 1,
         riskCapitalDefined: 1,
-        lowCostValidationPlan: 2,
+        lowCostValidationPlan: 1,
         capabilityGapsRecognized: 1,
         commitmentConsistency: 1
+      }
+    },
+    futureTrends: {
+      max: 5,
+      label: "Future trends and market direction",
+      aliases: ["futureTrends", "marketDirection", "futureOutlook"],
+      defaultMissing: "Specific empirical signals on 3-10 year structural tailwinds, regulatory shifts, or technology trajectories.",
+      defaultImprove: "Monitor key technology adoption milestones and regulatory policy signals relevant to your target market segment.",
+      subFactorWeights: {
+        marketTrajectory: 1,
+        technologyDirection: 1,
+        customerBehaviourShifts: 1,
+        regulatoryPolicyDirection: 1,
+        longTermRelevance: 1
       }
     }
   },
@@ -837,6 +851,10 @@ function reconcileScores(rawCategories = {}, rawInputs = {}) {
       // SINGLE SOURCE OF TRUTH (Section 11): Founder Capability Fit is ALWAYS calculated deterministically from founderCalc.score.
       // AI LLM raw outputs cannot inflate or override this value.
       finalScore = founderCalc.score;
+    } else if (key === 'futureTrends') {
+      const alignment = Number(rawObj.trendAlignmentScore ?? rawObj.score ?? 7);
+      const calcFromAlignment = Math.round((Math.max(1, Math.min(10, alignment)) / 10) * config.max);
+      finalScore = (isNaN(num) || num === 0) ? calcFromAlignment : Math.min(config.max, Math.round(num));
     } else if (isNaN(num) || num === 0) {
       finalScore = subFactorBaselines[key] || 0;
     } else {
@@ -849,6 +867,7 @@ function reconcileScores(rawCategories = {}, rawInputs = {}) {
       if (key === 'businessModelWillingnessToPay') finalScore = Math.min(finalScore, 2);
       if (key === 'competitivePosition') finalScore = Math.min(finalScore, 2);
       if (key === 'executionReadiness') finalScore = Math.min(finalScore, 1);
+      if (key === 'futureTrends') finalScore = Math.min(finalScore, 1);
     }
 
     let explanation = (rawObj.assessment || rawObj.explanation || `Evaluated based on sub-factors and supplied evidence.`).trim();

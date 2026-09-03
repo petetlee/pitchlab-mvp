@@ -547,8 +547,229 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
                 )),
               ],
             )),
+            const SizedBox(height: 20),
+            _buildFutureTrendsCard(),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildFutureTrendsCard() {
+    final outlook = result.futureOutlook;
+    final alignment = result.trendAlignmentScore;
+    final confidence = result.forecastConfidence;
+
+    Color outlookColor = Colors.green.shade800;
+    if (outlook == 'STRONG') outlookColor = const Color(0xFF34C759);
+    else if (outlook == 'POSITIVE') outlookColor = const Color(0xFF0071E3);
+    else if (outlook == 'NEUTRAL') outlookColor = Colors.orange.shade800;
+    else if (outlook == 'UNCERTAIN') outlookColor = Colors.amber.shade900;
+    else if (outlook == 'NEGATIVE') outlookColor = const Color(0xFFFF3B30);
+
+    return _buildCard(
+      'Future Trends & Market Direction',
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.trending_up, color: Color(0xFF0071E3), size: 22),
+              const SizedBox(width: 8),
+              Text(
+                '3-10 Year Structural Trend Alignment',
+                style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15, color: const Color(0xFF1D1D1F)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: outlookColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: outlookColor.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Future Outlook: ', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey.shade800)),
+                    Text(outlook, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, color: outlookColor)),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0071E3).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF0071E3).withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Trend Alignment: ', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey.shade800)),
+                    Text('$alignment/10', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, color: const Color(0xFF0071E3))),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Forecast Confidence: ', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey.shade800)),
+                    Text(confidence, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12, color: const Color(0xFF1D1D1F))),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Text('Where the Market Is Heading', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: const Color(0xFF0071E3))),
+          const SizedBox(height: 6),
+          Text(
+            result.whereMarketIsHeading,
+            style: GoogleFonts.inter(fontSize: 13, height: 1.5, color: const Color(0xFF1D1D1F)),
+          ),
+          const SizedBox(height: 18),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth > 550;
+              final tailwindsWidget = Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.arrow_upward, color: Colors.green.shade800, size: 16),
+                        const SizedBox(width: 6),
+                        Text('Tailwinds (Strengthening Trends)', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.green.shade900)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ...result.tailwinds.map((t) => Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('• ', style: GoogleFonts.inter(color: Colors.green.shade800, fontWeight: FontWeight.bold)),
+                          Expanded(child: Text(t, style: GoogleFonts.inter(fontSize: 12, height: 1.3, color: Colors.grey.shade900))),
+                        ],
+                      ),
+                    )),
+                  ],
+                ),
+              );
+
+              final headwindsWidget = Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.arrow_downward, color: Colors.orange.shade800, size: 16),
+                        const SizedBox(width: 6),
+                        Text('Headwinds (Disruptive / Complicating Trends)', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.orange.shade900)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ...result.headwinds.map((h) => Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('• ', style: GoogleFonts.inter(color: Colors.orange.shade800, fontWeight: FontWeight.bold)),
+                          Expanded(child: Text(h, style: GoogleFonts.inter(fontSize: 12, height: 1.3, color: Colors.grey.shade900))),
+                        ],
+                      ),
+                    )),
+                  ],
+                ),
+              );
+
+              if (isWide) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: tailwindsWidget),
+                    const SizedBox(width: 14),
+                    Expanded(child: headwindsWidget),
+                  ],
+                );
+              } else {
+                return Column(
+                  children: [
+                    tailwindsWidget,
+                    const SizedBox(height: 12),
+                    headwindsWidget,
+                  ],
+                );
+              }
+            },
+          ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1D1D1F),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.lightbulb_outline, color: Color(0xFF0071E3), size: 18),
+                    const SizedBox(width: 8),
+                    Text('What This Means for the Founder', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  result.futureTrendsDecisionGuidance,
+                  style: GoogleFonts.inter(fontSize: 12.5, height: 1.4, color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
+          if (result.adjacentOpportunities.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            Text('Emerging / Adjacent Opportunities (Max 3)', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: const Color(0xFF1D1D1F))),
+            const SizedBox(height: 8),
+            ...result.adjacentOpportunities.map((adj) => Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  const Icon(Icons.explore_outlined, size: 14, color: Color(0xFF0071E3)),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(adj, style: GoogleFonts.inter(fontSize: 12.5, color: Colors.grey.shade800))),
+                ],
+              ),
+            )),
+          ],
+        ],
       ),
     );
   }

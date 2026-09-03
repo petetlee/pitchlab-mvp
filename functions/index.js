@@ -306,6 +306,24 @@ exports.pitchLabEvaluation = onCall({
         * Operating a commercial nuclear plant in NZ would require explicit parliamentary statutory amendment / legislative reform, extensive environmental consents under the RMA, and high-level radiation safety authorizations.
       - Apply this level of statutory accuracy to all legal, statutory, and policy assessments across all jurisdictions.
 
+      FUTURE TRENDS & MARKET DIRECTION DIRECTIVE:
+      - Assess whether 3-10 year structural trends are moving TOWARD or AWAY FROM this business opportunity across:
+        1. Market Trajectory (rapidly growing, growing, stable, mature, declining, structural disruption).
+        2. Technology Direction (enabling technologies, cost reducers, barriers to entry, substitution risks).
+        3. Customer Behaviour Shifts (convenience, digital adoption, sustainability, affordability, security, health/safety).
+        4. Regulation & Policy Direction (acceleration, compliance burden, subsidies, market restrictions).
+        5. Competitive Direction (entry velocity, incumbent expansion, consolidation, substitutes).
+        6. Long-Term Relevance (5-10 year problem persistence vs risk of commoditisation/obsolescence).
+        7. Emerging / Adjacent Opportunities (Max 3 concise, genuinely relevant adjacent paths).
+      - Provide "futureOutlook": "STRONG" | "POSITIVE" | "NEUTRAL" | "UNCERTAIN" | "NEGATIVE".
+      - Provide "trendAlignmentScore": Number 1-10 reflecting how strongly major structural trends support this specific business idea.
+      - Provide "forecastConfidence": "High" | "Medium" | "Low" reflecting evidence quality and forecast certainty.
+      - Provide "whereMarketIsHeading": 2-3 concise paragraphs explaining structural trends over the next 3-10 years.
+      - Provide "tailwinds": Array of 2-4 important trends strengthening the opportunity.
+      - Provide "headwinds": Array of 2-4 trends weakening, disrupting, or complicating the opportunity.
+      - Provide "founderDecisionGuidance": Commercially focused recommendation (move now, validate quickly, monitor development, design around risk, position ahead, avoid overinvesting).
+      - Provide "adjacentOpportunities": Array of maximum 3 genuinely relevant adjacent opportunities.
+
       FOUNDER INPUTS:
       - Idea: ${idea}
       - Category: ${category || "General Startup"}
@@ -490,6 +508,16 @@ exports.pitchLabEvaluation = onCall({
         pitchLabRecommendationExplanation: z.string().describe("Short explanation for the PitchLab recommendation.")
       }).describe("Proprietary PitchLab Commercial Readiness Assessment framework."),
       executiveSummary: z.string().describe("150-250 words ONLY. Sharp commercial overview. No repetition."),
+      futureTrends: z.object({
+        futureOutlook: z.string().describe("STRONG | POSITIVE | NEUTRAL | UNCERTAIN | NEGATIVE"),
+        trendAlignmentScore: z.number().min(1).max(10).describe("Scale 1-10 indicating how strongly structural 3-10 year trends support this specific business idea."),
+        forecastConfidence: z.string().describe("High | Medium | Low"),
+        whereMarketIsHeading: z.string().describe("2-3 concise paragraphs analyzing major 3-10 year structural trends (macro, technology, customer behaviour, policy, competitive dynamics)."),
+        tailwinds: z.array(z.string()).describe("2-4 important structural trends that strengthen the opportunity."),
+        headwinds: z.array(z.string()).describe("2-4 structural trends that weaken, disrupt, or complicate the opportunity."),
+        founderDecisionGuidance: z.string().describe("Commercially focused recommendation: move now, validate quickly, monitor development, design around risk, position ahead, avoid overinvesting."),
+        adjacentOpportunities: z.array(z.string()).describe("Maximum 3 genuinely relevant adjacent opportunities emerging from this capability or technology.")
+      }).describe("Comprehensive 3-10 year Future Trends & Market Direction analysis."),
       scores: z.object({
         problemCustomerClarity: z.object({ score: z.number(), evidenceLevel: z.string(), assessment: z.string().describe("1-3 concise professional sentences analyzing problem and customer clarity."), missingEvidence: z.string().describe("Identify the specific missing empirical evidence regarding problem frequency, severity, or customer definition (1-2 concise sentences)."), improvementAction: z.string().describe("Specify a concrete, high-impact action the founder must take to validate the problem and customer (1-2 concise sentences).") }),
         founderCapabilityFit: z.object({ score: z.number(), evidenceLevel: z.string(), assessment: z.string().describe("1-3 concise professional sentences analyzing founder capability and fit."), missingEvidence: z.string().describe("Identify specific unevidenced capability areas, technical gaps, or market credibility proof required (1-2 concise sentences)."), improvementAction: z.string().describe("Specify a concrete, practical action to bridge founder capability or advisor support gaps (1-2 concise sentences).") }),
@@ -498,6 +526,7 @@ exports.pitchLabEvaluation = onCall({
         businessModelWillingnessToPay: z.object({ score: z.number(), evidenceLevel: z.string(), assessment: z.string().describe("1-3 concise professional sentences analyzing business model and pricing."), missingEvidence: z.string().describe("Identify missing price-sensitivity data, unit economics, or validated payment commitment (1-2 concise sentences)."), improvementAction: z.string().describe("Specify a practical action to test pricing terms and payment intent with target customers (1-2 concise sentences).") }),
         competitivePosition: z.object({ score: z.number(), evidenceLevel: z.string(), assessment: z.string().describe("1-3 concise professional sentences analyzing competitive position."), missingEvidence: z.string().describe("Identify missing direct competitor analysis, workaround comparisons, or switching barrier proof (1-2 concise sentences)."), improvementAction: z.string().describe("Specify a strategic action to benchmark against existing workarounds and articulate unique advantage (1-2 concise sentences).") }),
         executionReadiness: z.object({ score: z.number(), evidenceLevel: z.string(), assessment: z.string().describe("1-3 concise professional sentences analyzing execution readiness."), missingEvidence: z.string().describe("Identify missing milestone details, resource alignment, or low-cost validation budget boundaries (1-2 concise sentences)."), improvementAction: z.string().describe("Specify a disciplined action to structure a 30-day low-cost validation roadmap (1-2 concise sentences).") }),
+        futureTrends: z.object({ score: z.number(), evidenceLevel: z.string(), assessment: z.string().describe("1-3 concise professional sentences analyzing future trends and market direction."), missingEvidence: z.string().describe("Specific missing structural trend evidence."), improvementAction: z.string().describe("Specific action to position ahead of market trends.") }),
       }),
       decisionStatus: z.object({
         state: z.string(),

@@ -378,7 +378,72 @@ class PdfService {
             pw.Text(_cleanPdfText('Market Category Dynamics: ${res.marketCategoryDynamics}'), style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey800)),
             pw.SizedBox(height: 4),
             pw.Text(_cleanPdfText('Strategic Moat & Defensibility: ${res.strategicMoat}'), style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey800)),
-            pw.Divider(height: 24, color: PdfColors.grey300, thickness: 0.5),
+            pw.Divider(height: 20, color: PdfColors.grey300, thickness: 0.5),
+
+            // ================= FUTURE TRENDS & MARKET DIRECTION =================
+            _buildSectionHeaderPDF('Future Trends & Market Direction (3-10 Year Outlook)'),
+            pw.Container(
+              padding: const pw.EdgeInsets.all(6),
+              decoration: const pw.BoxDecoration(
+                color: PdfColors.blue50,
+                borderRadius: pw.BorderRadius.all(pw.Radius.circular(4)),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text(_cleanPdfText('Future Outlook: ${res.futureOutlook}'), style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                  pw.Text(_cleanPdfText('Trend Alignment: ${res.trendAlignmentScore}/10'), style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColors.green900)),
+                  pw.Text(_cleanPdfText('Forecast Confidence: ${res.forecastConfidence}'), style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: PdfColors.grey900)),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 6),
+            pw.Text(_cleanPdfText('Where the Market Is Heading:'), style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+            pw.SizedBox(height: 2),
+            pw.Text(_cleanPdfText(res.whereMarketIsHeading), style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey900)),
+            pw.SizedBox(height: 6),
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Expanded(
+                  child: pw.Container(
+                    padding: const pw.EdgeInsets.all(6),
+                    decoration: const pw.BoxDecoration(color: PdfColors.green50, borderRadius: pw.BorderRadius.all(pw.Radius.circular(4))),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(_cleanPdfText('Tailwinds (Strengthening Trends):'), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.green900)),
+                        pw.SizedBox(height: 3),
+                        ...res.tailwinds.map((t) => pw.Bullet(text: _cleanPdfText(t), style: const pw.TextStyle(fontSize: 7.5))),
+                      ],
+                    ),
+                  ),
+                ),
+                pw.SizedBox(width: 8),
+                pw.Expanded(
+                  child: pw.Container(
+                    padding: const pw.EdgeInsets.all(6),
+                    decoration: const pw.BoxDecoration(color: PdfColors.orange50, borderRadius: pw.BorderRadius.all(pw.Radius.circular(4))),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(_cleanPdfText('Headwinds (Complicating Trends):'), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.orange900)),
+                        pw.SizedBox(height: 3),
+                        ...res.headwinds.map((h) => pw.Bullet(text: _cleanPdfText(h), style: const pw.TextStyle(fontSize: 7.5))),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 6),
+            pw.Text(_cleanPdfText('What This Means for the Founder: ${res.futureTrendsDecisionGuidance}'), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.blueGrey900)),
+            if (res.adjacentOpportunities.isNotEmpty) ...[
+              pw.SizedBox(height: 4),
+              pw.Text(_cleanPdfText('Emerging / Adjacent Opportunities:'), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.grey900)),
+              ...res.adjacentOpportunities.map((a) => pw.Bullet(text: _cleanPdfText(a), style: const pw.TextStyle(fontSize: 7.5))),
+            ],
+            pw.Divider(height: 20, color: PdfColors.grey300, thickness: 0.5),
 
             // ================= PAGE 6: FOUNDER BACKGROUND & SCORE EXPLANATION =================
             _buildSectionHeaderPDF('Founder Background & Capability Assessment'),
