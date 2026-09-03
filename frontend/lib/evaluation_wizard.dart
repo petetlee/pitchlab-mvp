@@ -11,6 +11,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'results_dashboard.dart';
 import 'cv_picker_helper.dart';
+import 'history_view.dart';
 
 class EvaluationWizard extends StatefulWidget {
   final Map<String, dynamic>? initialData;
@@ -73,9 +74,15 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
     'cvFileName': '',
   };
 
+  // Quota & Submission Limit Management (MVP_IDEA_SUBMISSION_LIMIT = 3)
+  bool _isAdmin = false;
+  int _quotaUsed = 0;
+  bool _quotaLoading = true;
+
   @override
   void initState() {
     super.initState();
+    _checkQuota();
     
     // Initialize form data with initialData if provided
     if (widget.initialData != null) {
@@ -119,6 +126,109 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
         });
       }
     }
+  }
+
+  Future<void> _checkQuota() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+        final isAdmin = userDoc.exists && userDoc.data()?['role'] == 'admin';
+
+        final existingScores = await FirebaseFirestore.instance
+            .collection('EvaluationScore')
+            .where('userId', isEqualTo: user.uid)
+            .get();
+
+        final used = existingScores.docs.length;
+
+        if (mounted) {
+          setState(() {
+            _isAdmin = isAdmin;
+            _quotaUsed = used;
+            _quotaLoading = false;
+          });
+        }
+      } else {
+        if (mounted) setState(() => _quotaLoading = false);
+      }
+    } catch (e) {
+      if (mounted) setState(() => _quotaLoading = false);
+    }
+  }
+
+  void _showLimitReachedDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.lock_clock, color: Colors.orange, size: 24),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                "You've reached your PitchLab MVP limit",
+                style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "You've completed your 3 available idea assessments during the PitchLab testing stage. You can still review and compare your existing ideas and assessments.\n\nThank you for helping us test PitchLab.",
+              style: GoogleFonts.inter(fontSize: 13.5, height: 1.4, color: Colors.black87),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0071E3).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle_outline, color: Color(0xFF0071E3), size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "Your typed idea description has been saved in your form inputs so no work is lost.",
+                      style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF0071E3), fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Close', style: GoogleFonts.inter(color: Colors.grey.shade700)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const HistoryView()),
+              );
+            },
+            icon: const Icon(Icons.folder_special_outlined, size: 16),
+            label: Text('View My Ideas & History', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1D1D1F),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -419,6 +529,12 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
 
     print('🚀 PitchLab: _formData being submitted: $_formData');
     
+    // Front-end Pre-submission Quota Guard
+    if (!_isAdmin && _quotaUsed >= 3) {
+      _showLimitReachedDialog();
+      return;
+    }
+
     try {
       var user = FirebaseAuth.instance.currentUser;
       print('🚀 PitchLab: Submitting evaluation. Current User: ${user?.uid}');
@@ -466,6 +582,12 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
     } catch (e) {
       print('❌ PitchLab SUBMISSION ERROR: $e');
       if (!mounted) return;
+
+      final errStr = e.toString();
+      if (errStr.contains('MVP_LIMIT_EXCEEDED') || errStr.contains('resource-exhausted') || errStr.contains('3 available idea assessments')) {
+        _showLimitReachedDialog();
+        return;
+      }
 
       // Fail-safe recovery: Automatically clear auth state, re-authenticate anonymously, and retry once
       try {
@@ -1139,13 +1261,52 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Step ${index + 1} of ${_questions.length}',
-                        style: GoogleFonts.inter(
-                          color: const Color(0xFF0071E3),
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            'Step ${index + 1} of ${_questions.length}',
+                            style: GoogleFonts.inter(
+                              color: const Color(0xFF0071E3),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _isAdmin
+                                  ? Colors.deepPurple.shade50
+                                  : _quotaUsed >= 3
+                                      ? Colors.red.shade50
+                                      : Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: _isAdmin
+                                    ? Colors.deepPurple.shade200
+                                    : _quotaUsed >= 3
+                                        ? Colors.red.shade200
+                                        : Colors.blue.shade200,
+                              ),
+                            ),
+                            child: Text(
+                              _isAdmin
+                                  ? 'Admin Account • Unlimited'
+                                  : _quotaUsed >= 3
+                                      ? 'MVP Limit: 3 of 3 used (0 remaining)'
+                                      : 'Idea submissions: ${_quotaUsed} of 3 used (${3 - _quotaUsed} remaining)',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: _isAdmin
+                                    ? Colors.deepPurple.shade700
+                                    : _quotaUsed >= 3
+                                        ? Colors.red.shade700
+                                        : const Color(0xFF0071E3),
+                              ),
+                            ),
+                          ),
+                        ],
                       ).animate().fadeIn(),
                       const SizedBox(height: 8),
                       Text(

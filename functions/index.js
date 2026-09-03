@@ -21,6 +21,9 @@ try {
   // Already initialized settings
 }
 
+// Central Configurable MVP Limits
+const MVP_IDEA_SUBMISSION_LIMIT = 3;
+
 const ERROR_LOG_PATH = path.join(__dirname, "submission_errors.log");
 
 function logSubmissionError(label, error, context = {}) {
@@ -135,6 +138,43 @@ exports.pitchLabEvaluation = onCall({
   reqData.locationCity = locationCity;
   reqData.locationSummary = locationSummary;
   let userId = request.auth?.uid || reqData.userId || 'anonymous-user';
+
+  // 0. SERVER-SIDE MVP 3-SUBMISSION LIMIT GUARD (Admin Unlimited, Standard Max 3)
+  let isAdmin = false;
+  let submissionsCount = 0;
+
+  if (userId && userId !== 'anonymous-user') {
+    try {
+      const userDoc = await db.collection("users").doc(userId).get();
+      if (userDoc.exists && userDoc.data()?.role === "admin") {
+        isAdmin = true;
+      }
+      
+      if (!isAdmin) {
+        const existingScores = await db.collection("EvaluationScore")
+          .where("userId", "==", userId)
+          .get();
+        submissionsCount = existingScores.size;
+
+        if (submissionsCount >= MVP_IDEA_SUBMISSION_LIMIT) {
+          console.warn(`PitchLab GUARD: Standard user ${userId} blocked from 4th submission (${submissionsCount}/${MVP_IDEA_SUBMISSION_LIMIT}).`);
+          throw new HttpsError(
+            "resource-exhausted",
+            "You've completed your 3 available idea assessments during the PitchLab testing stage. You can still review and compare your existing ideas and assessments. Thank you for helping us test PitchLab.",
+            {
+              code: "MVP_LIMIT_EXCEEDED",
+              limit: MVP_IDEA_SUBMISSION_LIMIT,
+              used: submissionsCount,
+              isAdmin: false
+            }
+          );
+        }
+      }
+    } catch (guardErr) {
+      if (guardErr instanceof HttpsError) throw guardErr;
+      console.warn("PitchLab GUARD: Quota check warning:", guardErr.message);
+    }
+  }
 
   try {
     // 1. Validate inputs
@@ -1586,6 +1626,41 @@ exports.updateIdeaDecision = onCall({
   }
 
   return { success: true, postAssessmentDecision: decisionObj };
+});
+
+// PitchLab MVP User Submission Quota Callable Endpoint
+exports.getUserSubmissionQuota = onCall({
+  cors: true,
+  region: "us-central1",
+}, async (request) => {
+  const userId = request.auth?.uid;
+  if (!userId) {
+    return {
+      isAdmin: false,
+      limit: MVP_IDEA_SUBMISSION_LIMIT,
+      used: 0,
+      remaining: MVP_IDEA_SUBMISSION_LIMIT,
+      canSubmit: true
+    };
+  }
+
+  const userDoc = await db.collection("users").doc(userId).get();
+  const isAdmin = userDoc.exists && userDoc.data()?.role === "admin";
+
+  const existingScores = await db.collection("EvaluationScore")
+    .where("userId", "==", userId)
+    .get();
+  const used = existingScores.size;
+  const remaining = isAdmin ? 999 : Math.max(0, MVP_IDEA_SUBMISSION_LIMIT - used);
+  const canSubmit = isAdmin || used < MVP_IDEA_SUBMISSION_LIMIT;
+
+  return {
+    isAdmin,
+    limit: MVP_IDEA_SUBMISSION_LIMIT,
+    used,
+    remaining,
+    canSubmit
+  };
 });
 
 exports.isTransportIdea = isTransportIdea;
