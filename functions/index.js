@@ -10,7 +10,7 @@ const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
 const fs = require("fs");
 const path = require("path");
-const { calculateFRI, reconcileScores, getScoreBand, classifyVentureType, detectFeasibilityGates, calculateFounderEvidenceGap } = require("./scoring_logic");
+const { calculateFRI, reconcileScores, getScoreBand, classifyVentureType, detectFeasibilityGates, calculateFounderEvidenceGap, calculate5DimensionFutureTrends, getValidationLadderForContext, getCommercialAdviserOpinion, getPortfolioDecision } = require("./scoring_logic");
 
 console.log("PitchLab: Cloud Functions v1.3.0 Loaded — MVP Version 5 (Final Refinement)");
 initializeApp({ projectId: process.env.GCP_PROJECT || "antigravity-pitchlab" });
@@ -28,21 +28,168 @@ const ERROR_LOG_PATH = path.join(__dirname, "submission_errors.log");
 
 function logSubmissionError(label, error, context = {}) {
   const entry = [
-    `\n${'='.repeat(60)}`,
+    `\n${'=' .repeat(60)}`,
     `[${new Date().toISOString()}] ${label}`,
     `USER: ${context.userId || 'unknown'}`,
-    `INPUT IDEA: ${context.idea || 'N/A'}`,
     `ERROR: ${error?.message || String(error)}`,
     `STATUS: ${error?.status || error?.code || 'N/A'}`,
     `STACK: ${error?.stack || 'N/A'}`,
-    `${'='.repeat(60)}\n`,
+    `${'=' .repeat(60)}\n`,
   ].join('\n');
   try {
     fs.appendFileSync(ERROR_LOG_PATH, entry, 'utf8');
-    console.log(`PitchLab: Error SUCCESSFULLY logged to submission_errors.log at ${ERROR_LOG_PATH}`);
+    console.log(`PitchLab: Error logged to submission_errors.log`);
   } catch (writeErr) {
     console.warn("PitchLab CRITICAL: Could not write to submission_errors.log:", writeErr.message);
   }
+}
+
+/**
+ * Submission Progress Publisher for real-time status updates
+ */
+async function updateSubmissionProgress(submissionId, stageIndex, stageName, percentage, status = "in_progress") {
+  if (!submissionId) return;
+  try {
+    await db.collection("SubmissionProgress").doc(submissionId).set({
+      submissionId,
+      stageIndex,
+      stageName,
+      percentage,
+      status,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    console.log(`PitchLab Progress [${submissionId}]: Stage ${stageIndex} (${stageName}) - ${percentage}%`);
+  } catch (err) {
+    console.warn(`PitchLab Progress update warning for ${submissionId}:`, err.message);
+  }
+}
+
+/**
+ * Contextual Jurisdiction Helper
+ */
+function getJurisdictionName(reqData = {}) {
+  const country = (reqData.locationCountry || reqData.country || "").trim();
+  const region = (reqData.locationRegion || reqData.region || "").trim();
+  const summary = (reqData.locationSummary || "").trim();
+
+  if (country.match(/new zealand|nz\b/i) || summary.match(/new zealand|nz\b/i)) {
+    return "New Zealand";
+  }
+  if (country.match(/united states|usa\b|us\b/i)) {
+    if (region) return `${region} state and US federal`;
+    return "US federal and state";
+  }
+  if (country.match(/australia|au\b/i)) {
+    if (region) return `${region} state and Australian national`;
+    return "Australian national and state";
+  }
+  if (country.match(/canada|ca\b/i)) {
+    if (region) return `${region} provincial and Canadian federal`;
+    return "Canadian federal and provincial";
+  }
+  if (summary) return summary;
+  if (country) return country;
+  return "national and local statutory";
+}
+
+/**
+ * Contextual Semantic Guardrail
+ * Removes generic SaaS/software template terminology when evaluating non-SaaS ventures.
+ */
+function runSemanticGuardrail(data, ventureType = "", gatesInfo = {}, reqData = {}) {
+  if (!data || typeof data !== "object") return data;
+
+  const ideaText = ((reqData.idea || "") + " " + (reqData.category || "") + " " + (data.idea || "")).toLowerCase();
+  const isSaaS = ventureType === "SaaS / Software";
+  const isNuclear = ideaText.includes("nuclear") || ideaText.includes("atomic") || ideaText.includes("power plant");
+  const isHardware = ventureType.includes("Hardware") || ventureType.includes("Manufacturing") || Boolean(ideaText.match(/mooring|device|sensor|hardware/));
+  const isRegulatedOrInfra = isNuclear || ventureType.includes("Energy") || ventureType.includes("Infrastructure") || ventureType.includes("Regulated") || gatesInfo?.hasCriticalGate;
+
+  const jurisdictionName = getJurisdictionName(reqData);
+
+  const scrubString = (str) => {
+    if (typeof str !== "string") return str;
+    let s = str;
+
+    // Fix 6A: Neutralize stakeholder language
+    s = s.replace(/mitigat(e|ing)\s+(their|stakeholder|public)\s+influence/gi, "identifying and engaging transparently with relevant community, public-interest, and regulatory stakeholders");
+    s = s.replace(/mitigat(e|ing)\s+influence/gi, "identifying and engaging transparently with relevant community and public-interest stakeholders");
+
+    // Fix 6B: Professionalize founder CV evidence language
+    s = s.replace(/\bzero mention\b/gi, "supplied materials do not document");
+    s = s.replace(/\bhas zero experience\b/gi, "supplied CV does not evidence direct experience");
+    s = s.replace(/\bzero experience\b/gi, "supplied profile does not document direct experience");
+
+    if (isRegulatedOrInfra || !isSaaS || isHardware) {
+      // Fix 1: Generic startup fallback contamination removal
+      s = s.replace(/Avoid building unnecessary product features or writing extensive code before customer willingness-to-pay is validated\.?/gi, "Prioritise statutory and regulatory feasibility assessment before committing capital to technical or commercial development.");
+      s = s.replace(/Concentrate on testing the highest-risk business assumptions first \(problem severity and customer willingness-to-pay\)\.?/gi, "Concentrate on clearing the primary gating risk (statutory permissibility and regulatory feasibility) before undertaking downstream commercial validation.");
+      s = s.replace(/Specialist technical, manufacturing or domain capability can be sourced via advisors, contractors or partners later; it does not need to be personally solved by the founder prior to customer validation\.?/gi, "Identify which specialist technical, legal, and regulatory capabilities must be recruited, contracted, advised or partnered at each pre-feasibility gateway stage.");
+      s = s.replace(/writing extensive code/gi, isNuclear ? "technical pre-feasibility analysis" : (isHardware ? "hardware engineering" : "system development"));
+      s = s.replace(/building unnecessary product features/gi, isNuclear ? "premature capital commitment" : "unvalidated feature development");
+      s = s.replace(/prior to customer validation/gi, isRegulatedOrInfra ? "prior to establishing statutory permissibility" : "prior to core customer validation");
+      s = s.replace(/customer willingness-to-pay is validated/gi, isRegulatedOrInfra ? "statutory permissibility is established" : "customer willingness-to-pay is validated");
+
+      // Fix 3: Jurisdiction terminology contextual replacement
+      s = s.replace(/under regional law/gi, `under ${jurisdictionName} statutory frameworks`);
+      s = s.replace(/regional statutory frameworks/gi, `${jurisdictionName} statutory frameworks`);
+      s = s.replace(/under regional statutory/gi, `under ${jurisdictionName} statutory`);
+      s = s.replace(/regional statutory/gi, `${jurisdictionName} statutory`);
+      s = s.replace(/underlying regional demand/gi, `underlying national demand`);
+      s = s.replace(/regional demand/gi, `national demand`);
+      s = s.replace(/regional supply/gi, `national supply`);
+      s = s.replace(/regional markets/gi, `domestic markets`);
+
+      // Fix 4: Evidence certainty guardrail calibration
+      s = s.replace(/\bis legally prohibited\b/gi, "appears to face significant statutory and regulatory barriers, subject to specialist legal confirmation");
+      s = s.replace(/\blegally prohibited\b/gi, "constrained by significant statutory and regulatory barriers");
+      s = s.replace(/statutory bans render the accessible commercial market immediately unavailable/gi, "significant statutory and regulatory barriers render the commercially accessible market effectively unavailable without legislative change, subject to specialist legal confirmation");
+      s = s.replace(/statutory bans severely restrict/gi, "significant statutory and regulatory barriers severely constrain, subject to specialist legal confirmation");
+      s = s.replace(/statutory bans remain active/gi, "significant statutory and regulatory barriers remain active, subject to specialist legal confirmation");
+      s = s.replace(/the accessible market is zero/gi, "the commercially accessible market appears effectively unavailable under current regulatory settings, subject to specialist legal confirmation");
+
+      // Generic SaaS term scrubbing
+      s = s.replace(/\blanding page testing\b/gi, isNuclear ? "statutory permissibility assessment" : (isHardware ? "physical prototype testing" : "preliminary market investigation"));
+      s = s.replace(/\blanding pages?\b/gi, isNuclear ? "statutory research & legal opinion" : (isHardware ? "technical spec reviews" : "desktop research & expert outreach"));
+      s = s.replace(/\bwriting code\b/gi, isNuclear ? "technical scoping" : (isHardware ? "CAD prototyping" : "system scoping"));
+      s = s.replace(/\bwrite code\b/gi, isNuclear ? "conduct technical pre-feasibility" : (isHardware ? "build physical prototype" : "conduct technical scoping"));
+      s = s.replace(/\bcustomer NPS\b/gi, "stakeholder & expert feedback");
+      s = s.replace(/\bNPS\b/gi, "satisfaction metrics");
+      s = s.replace(/\bconcierge MVPs?\b/gi, isNuclear ? "pre-feasibility study" : (isHardware ? "proof-of-concept prototype" : "pilot service"));
+      s = s.replace(/\bconcierge MVP test\b/gi, isNuclear ? "technical pre-feasibility assessment" : "prototype trial");
+      s = s.replace(/\bprototype testing with 3 users\b/gi, isNuclear ? "expert technical & statutory review" : "field testing with prospective users");
+      s = s.replace(/\bsigned LOIs\/deposits\b/gi, isNuclear ? "preliminary off-taker interest / regulatory response" : "signed pre-orders / deposits");
+      s = s.replace(/\bsigned LOIs\b/gi, isNuclear ? "preliminary off-taker commitments" : "pre-orders / LOIs");
+      s = s.replace(/\bautomated workflows?\b/gi, "operational & compliance processes");
+      s = s.replace(/\bsoftware-platform competition\b/gi, isNuclear ? "competing generation technologies & incumbents" : "competing products & alternatives");
+      s = s.replace(/\bcustomer-support complaints\b/gi, "stakeholder concerns & operational friction");
+      s = s.replace(/\brapid customer discovery\b/gi, "specialist & stakeholder discovery");
+      s = s.replace(/\bdigital workflow adoption\b/gi, isNuclear ? "modular technology & decarbonisation adoption" : "technology adoption");
+      s = s.replace(/\binput inflation \(\+2\.9%\)\b/gi, "capital & input cost pressures");
+      s = s.replace(/\binput inflation\b/gi, "capital & input cost pressures");
+      s = s.replace(/\bautomated compliance\b/gi, "statutory compliance");
+      s = s.replace(/\black of automated workflows\b/gi, isNuclear ? "statutory and regulatory constraints" : "operational constraints");
+      s = s.replace(/\bslow customer support\b/gi, "procurement & licensing latency");
+      s = s.replace(/\bwhite-label partner integrations\b/gi, "strategic technology & utility partnerships");
+    }
+    return s;
+  };
+
+  const traverseAndScrub = (obj) => {
+    if (!obj || typeof obj !== "object") return obj;
+    for (const key of Object.keys(obj)) {
+      if (typeof obj[key] === "string") {
+        obj[key] = scrubString(obj[key]);
+      } else if (Array.isArray(obj[key])) {
+        obj[key] = obj[key].map((item) => (typeof item === "string" ? scrubString(item) : traverseAndScrub(item)));
+      } else if (typeof obj[key] === "object") {
+        traverseAndScrub(obj[key]);
+      }
+    }
+    return obj;
+  };
+
+  return traverseAndScrub(data);
 }
 
 // Initialize AI lazily to prevent discovery timeouts
@@ -96,6 +243,7 @@ exports.pitchLabEvaluation = onCall({
   console.log("PitchLab Evaluation started for user:", request.auth?.uid);
 
   const reqData = request.data || {};
+  const submissionId = reqData.submissionId || null;
   const idea = reqData.idea || "";
   const problem = reqData.problem || "";
   const targetMarket = reqData.targetMarket || reqData.market || "";
@@ -114,14 +262,20 @@ exports.pitchLabEvaluation = onCall({
     .filter(part => part && typeof part === 'string' && part.trim().length > 0)
     .join(", ");
 
-  const cvBase64 = reqData.cvBase64 || reqData.cvAttachment || "";
-  const cvFileName = reqData.cvFileName || "";
-  const cvText = await getExtractCvText()(cvBase64);
-
-  if (cvText) {
-    console.log(`PitchLab: Successfully extracted ${cvText.length} characters of CV text from ${cvFileName}`);
-    experience = `CV Attachment (${cvFileName}): ${cvText}\nQuestionnaire Experience: ${experience}`;
-    reqData.experience = experience;
+  let cvText = "";
+  try {
+    const cvBase64 = reqData.cvBase64 || reqData.cvAttachment || "";
+    const cvFileName = reqData.cvFileName || "";
+    if (cvBase64) {
+      cvText = await getExtractCvText()(cvBase64);
+      if (cvText) {
+        console.log(`PitchLab: Successfully extracted ${cvText.length} characters of CV text from ${cvFileName}`);
+        experience = `CV Attachment (${cvFileName}): ${cvText}\nQuestionnaire Experience: ${experience}`;
+        reqData.experience = experience;
+      }
+    }
+  } catch (cvErr) {
+    console.warn("PitchLab: Non-fatal CV extraction warning:", cvErr.message);
   }
 
   const founderBackgroundNarrative = reqData.founderBackgroundNarrative || reqData.founderBackground || "";
@@ -171,14 +325,18 @@ exports.pitchLabEvaluation = onCall({
         }
       }
     } catch (guardErr) {
-      if (guardErr instanceof HttpsError) throw guardErr;
+      if (guardErr instanceof HttpsError) {
+        await updateSubmissionProgress(submissionId, 0, guardErr.message, 0, "failed");
+        throw guardErr;
+      }
       console.warn("PitchLab GUARD: Quota check warning:", guardErr.message);
     }
   }
 
   try {
     // 1. Validate inputs
-    console.log("PitchLab: Raw request data:", JSON.stringify(reqData));
+    await updateSubmissionProgress(submissionId, 1, "Validating your submission", 15);
+    console.log(`PitchLab: Processing submission ${submissionId || 'new'} for user ${userId}`);
     if (!idea || !problem || !targetMarket) {
       console.error("PitchLab: Validation failed - missing required fields");
       throw new HttpsError("invalid-argument", "Missing required fields.");
@@ -214,6 +372,7 @@ exports.pitchLabEvaluation = onCall({
     const friScore = calculateFRI({ experience, capacity, network, founderBackgroundNarrative });
 
     // 5. Load Project Atlas ContextData
+    await updateSubmissionProgress(submissionId, 2, "Researching your idea", 35);
     const atlasPath = path.join(__dirname, "..", "backend", "data", "project_atlas");
     let mentorInsights = "Standard startup principles.";
     let failureData = "No specific failure data available.";
@@ -257,10 +416,20 @@ exports.pitchLabEvaluation = onCall({
       CORE OBJECTIVES & FEASIBILITY GUARDRAILS:
       1. VENTURE CONTEXT: Primary Venture Classification: "${ventureType}". Feasibility Gates: ${gatesInfo.hasCriticalGate ? gatesInfo.summary : "No critical feasibility gates detected."}
       2. TARGETED FOUNDER-IDEA FIT SCORING: Distinguish General Founder Capability (e.g. CA, MBA) from Founder-Idea Fit (relevance to THIS specific business). A founder with impressive credentials in an unrelated domain (e.g. a CA proposing nuclear power, biotech, or aerospace without nuclear/medical expertise) MUST NOT be awarded 10-15/15; score 4-6/15 (Weak Fit).
-      3. MARKET ACCESSIBLE OPPORTUNITY SCORING: Distinguish TAM (underlying market size) from Commercially Accessible Opportunity for THIS proposed solution. A large market (e.g. electricity, healthcare) does NOT equal a strong market opportunity if the proposed solution is legally prohibited, highly regulated, or commercially inaccessible. Reduce score accordingly.
+      3. MARKET ACCESSIBLE OPPORTUNITY SCORING: Distinguish TAM (underlying market size) from Commercially Accessible Opportunity for THIS proposed solution. A large market (e.g. electricity, healthcare) does NOT equal a strong market opportunity if the proposed solution faces significant statutory/regulatory barriers or is commercially constrained. Reduce score accordingly.
       4. CONTEXT-SENSITIVE VALIDATION & 90-DAY ROADMAP: Do NOT recommend software/startup MVP terms ("concierge MVP", "code", "NPS", "app UI") for infrastructure, deep tech, heavy industrial, energy, or highly regulated ventures. Recommend PRE-FEASIBILITY VALIDATION (legal permissibility, regulatory landscape, specialist expert consultation, technical feasibility, project economics, stakeholder pathway).
-      5. EXTREME COMPRESSION: Shorten paragraphs, dense with value. Page 1 MUST deliver the blunt answer.
-      6. SCORE & NARRATIVE RECONCILIATION: All report sections MUST tell the exact same commercial story. If founder lacks domain experience, score Founder Capability & Fit accordingly (4-6/15) and rate 1-2/5 stars in investor scorecard.
+      5. FOUNDER TIME & CAPITAL GUIDANCE DIRECTIVE (PRIMARY GATING RISK DRIVEN):
+         - Founder advice MUST derive directly from: (a) venture type, (b) primary gating risk, (c) validation pathway, (d) founder capability gaps, (e) available founder time, (f) available risk capital, and (g) next evidence gateway.
+         - DO NOT assume that customer validation, willingness-to-pay, product features, or software development is always the next step. The correct founder action is the action required to clear the PRIMARY GATING RISK.
+         - For infrastructure, heavy industrial, energy, or regulated ventures, guidance MUST focus on clearing the primary gating risk first: (i) Prioritise statutory and regulatory feasibility before undertaking downstream commercial development, (ii) Do not commit significant capital to technical or commercial development until a credible legal/regulatory pathway has been established, (iii) Use limited founder time for focused statutory research, specialist outreach and evidence gathering, (iv) Determine which specialist capabilities must be recruited, contracted, advised or partnered at each validation stage.
+      6. EVIDENCE-CERTAINTY & CALIBRATED LANGUAGE DIRECTIVE:
+         - Distinguish strictly between: VERIFIED FACT, EVIDENCE-BASED ASSESSMENT, REASONABLE INFERENCE, and MATTER REQUIRING SPECIALIST CONFIRMATION.
+         - If specialist legal/regulatory confirmation is identified as a required validation step, DO NOT simultaneously describe the unresolved legal/regulatory conclusion as an absolute verified fact (avoid absolute claims like "legally prohibited" or "accessible market is zero").
+         - Use calibrated language: e.g., "Commercial nuclear generation appears to face significant statutory and regulatory barriers in New Zealand. Specialist legal confirmation is required to determine whether any viable pathway exists." and "The commercially accessible market appears effectively unavailable under the current assessed regulatory environment, subject to specialist legal confirmation."
+      7. EXTREME COMPRESSION: Shorten paragraphs, dense with value. Page 1 MUST deliver the blunt answer.
+      8. SCORE & NARRATIVE RECONCILIATION: All report sections MUST tell the exact same commercial story. If founder lacks domain experience, score Founder Capability & Fit accordingly (4-6/15) and rate 1-2/5 stars in investor scorecard.
+      9. STAKEHOLDER NEUTRALIZATION DIRECTIVE: NEVER use hostile or adversarial phrasing such as "mitigating their influence", "mitigating stakeholder influence", or "minimising public resistance". ALWAYS use neutral, professional phrasing such as "identifying and engaging transparently with relevant community, public-interest, and regulatory stakeholders".
+      10. PROFESSIONAL EVIDENCE LANGUAGE DIRECTIVE: NEVER use crude absence phrasing such as "zero mention", "has zero experience", or "zero background". ALWAYS use professional evidence phrasing such as "supplied materials do not document direct experience" or "supplied profile does not document direct sector credentials".
 
       STRICT FOUNDER TRUTH FACT-CHECKING DIRECTIVE:
       - Inspect the exact founder background narrative ("${founderBackgroundNarrative ? founderBackgroundNarrative : "None provided."}") and uploaded CV text.
@@ -628,6 +797,7 @@ exports.pitchLabEvaluation = onCall({
 
     // 8. Run AI generation — Google AI (AI Studio) is the primary provider.
     // Model: gemini-2.5-flash — confirmed available via ListModels in v1.0.8.
+    await updateSubmissionProgress(submissionId, 3, "Analysing the opportunity", 65);
     const startTime = Date.now();
     console.log("PitchLab: Starting Google AI generation (gemini-2.5-flash)...");
     
@@ -666,6 +836,7 @@ exports.pitchLabEvaluation = onCall({
     console.log(`PitchLab: Genkit AI raw output received in ${duration}s`);
     
     let evaluationData = safeExtractJsonFromAiResponse(result, reqData);
+    await updateSubmissionProgress(submissionId, 4, "Preparing your assessment", 85);
 
     // 9. Reconcile 7-Category Scores & Band Mapping (Master Fix)
     const rawScores = evaluationData.scorecard || evaluationData.scores || {};
@@ -761,10 +932,79 @@ exports.pitchLabEvaluation = onCall({
         week4: { objective: "Pre-Feasibility Decision (Proceed / Pivot / Stop)", tasks: ["Model indicative project economics, CAPEX/OPEX, and capital requirements", "Present pre-feasibility findings to make a disciplined Go / Pivot / Stop decision"], expectedResult: "Formal Pre-Feasibility Recommendation & Risk Gateway Report" }
       };
 
+      evaluationData.actionPlan = evaluationData.actionPlan || {};
+      const targetJurisdiction = getJurisdictionName(reqData);
+      evaluationData.actionPlan.topFivePriorities = [
+        {
+          priority: "Statutory & Legal Feasibility",
+          action: `Obtain specialist legal advice to evaluate legislative prohibitions and statutory pathways under ${targetJurisdiction} statutory frameworks.`,
+          metric: "Written legal opinion report"
+        },
+        {
+          priority: "Specialist Technical Consultation",
+          action: "Engage qualified nuclear/power engineers and regulatory specialists to map safety and grid prerequisites.",
+          metric: "Specialist advisory gap assessment"
+        },
+        {
+          priority: "Engineering Pre-Feasibility Study",
+          action: "Assess site requirements, grid connection logistics, environmental prerequisites, and deployment dependencies.",
+          metric: "Pre-feasibility technical report"
+        },
+        {
+          priority: "Risk Gateway Decision",
+          action: "Conduct formal pre-feasibility milestone review to determine whether to proceed, pivot, or park the concept.",
+          metric: "Pre-feasibility gateway report"
+        },
+        {
+          priority: "Capital & Resource Scoping",
+          action: "Model extreme CAPEX/OPEX requirements, public policy alignment, and long-term project financing gateways.",
+          metric: "Financial & capital roadmap"
+        }
+      ];
+      evaluationData.topFivePriorities = evaluationData.actionPlan.topFivePriorities;
+      evaluationData.summaryBlock = evaluationData.summaryBlock || {};
+      evaluationData.summaryBlock.topPrioritiesNow = evaluationData.actionPlan.topFivePriorities.map(p => p.priority);
+
+      const ft5D = calculate5DimensionFutureTrends(reqData, reconciled.gatesInfo, ventureType, evaluationData.futureTrends || {});
+      evaluationData.futureTrends = {
+        score: reconciled.categoryScores.futureTrends?.scoreAchieved || 1,
+        futureOutlook: "UNCERTAIN",
+        forecastConfidence: "Medium",
+        marketDirection: ft5D.marketDirection,
+        solutionOutlook: ft5D.solutionOutlook,
+        dimensions: ft5D.dimensions,
+        whatThisMeansForFounder: ft5D.whatThisMeansForFounder,
+        adjacentOpportunities: ft5D.adjacentOpportunities,
+        whereMarketIsHeading: "Macro structural trends, Small Modular Reactor (SMR) commercialisation, rising electricity demand, and decarbonisation mandates are shaping the long-term energy sector outlook.",
+        tailwinds: [
+          "Accelerating electricity demand and industrial electrification goals.",
+          "Growing recognition of grid stability and zero-emission baseload power requirements.",
+          "Global technological advancements and commercialisation in Small Modular Reactors (SMRs)."
+        ],
+        headwinds: [
+          `Significant statutory and regulatory barriers in ${targetJurisdiction} (e.g. historical legislative frameworks and radiation safety statutes).`,
+          "Extreme multi-billion-dollar project capital requirements and complex regulatory licensing process."
+        ],
+        trendAlignmentScore: ft5D.trendAlignmentScore || 7,
+        assessment: "Structural macro demand for clean baseload power is high, but significant statutory and regulatory barriers severely constrain commercial feasibility, subject to specialist legal confirmation.",
+        missingEvidence: "Statutory permissibility and legislative authorization.",
+        improvementAction: "Monitor international regulatory shifts and statutory reform debates before committing development capital."
+      };
+
+      evaluationData.marketInsights = {
+        marketLandscape: `The broader market operates within a heavily structured statutory and regulatory environment. While underlying regional demand for baseload power and grid reliability is significant, sector entry is strictly governed by national legislation, public policy mandates, and extreme capital scale requirements.`,
+        demandDrivers: `Primary demand drivers include rising electricity demand, decarbonisation targets, dry-year hydro risk, and peak demand volatility. However, commercial adoption is strictly constrained by statutory prohibitions and regulatory approval pathways.`,
+        competitionAlternatives: `The founder competes against established state-backed hydro, geothermal, and wind generation incumbents, as well as alternative grid stability solutions integrated into national energy networks.`,
+        commercialReality: `A critical distinction exists between large national electricity demand and the commercially accessible opportunity for this specific solution. The commercially accessible market appears effectively unavailable under the current assessed regulatory environment, subject to specialist legal confirmation.`,
+        localBusinessNews: `Local energy market news highlights rising electricity demand, dry-year hydro volatility, wholesale power price spikes, and policy debates surrounding New Zealand energy security.`,
+        customerReviewTrends: `Energy sector feedback and commercial off-taker reviews reveal concerns over long-term price predictability, grid reliability during peak winter demand, and industrial carbon tax exposure.`,
+        governmentPolicyInfluence: `${targetJurisdiction} statutory policy and legislative frameworks govern power generation, environmental protection, fast-track consenting, and specific nuclear prohibitions under national law.`
+      };
+
       evaluationData.summaryBlock.threePriorityActions = [
         {
           heading: "1. Verify Statutory & Legal Permissibility",
-          explanation: "Obtain specialist legal advice to confirm whether any statutory pathway or legislative exemption exists under regional statutory frameworks (such as the New Zealand Nuclear Free Zone, Disarmament, and Arms Control Act 1987) before committing project capital.",
+          explanation: `Obtain specialist legal advice to confirm whether any statutory pathway or legislative exemption exists under ${targetJurisdiction} statutory frameworks (such as the New Zealand Nuclear Free Zone, Disarmament, and Arms Control Act 1987) before committing project capital.`,
           outcome: "Formal written opinion from specialist legal and regulatory counsel."
         },
         {
@@ -913,20 +1153,24 @@ exports.pitchLabEvaluation = onCall({
       evaluationData.summaryBlock.pitchLabRecommendation = masterRec;
     }
 
-    // Ensure marketInsights has valid 4-paragraph structure matching business reality
-    evaluationData.marketInsights = evaluationData.marketInsights || {};
-    if (!evaluationData.marketInsights.marketLandscape) {
-      if (reconciled.gatesInfo?.hasCriticalGate) {
-        evaluationData.marketInsights.marketLandscape = `The broader market operates within a heavily structured statutory and regulatory environment. While underlying regional demand for essential services (such as baseload power or infrastructure) is significant, sector entry is strictly governed by national legislation, public policy mandates, and extreme capital scale requirements.`;
-        evaluationData.marketInsights.demandDrivers = `Primary demand drivers include national infrastructure priorities, cost pressures, and long-term sustainability goals. However, commercial adoption is strictly constrained by statutory prohibitions and regulatory approval pathways that dictate market access.`;
-        evaluationData.marketInsights.competitionAlternatives = `The founder competes against established, legally compliant incumbent operators, state-backed infrastructure providers, and alternative proven technologies already integrated into regional supply networks.`;
-        evaluationData.marketInsights.commercialReality = `A critical distinction must be drawn between large underlying regional demand (such as national electricity consumption) and the commercially accessible opportunity for this specific solution. Statutory bans and extreme capital requirements render the accessible commercial market immediately constrained or unavailable without legislative change.`;
-      } else {
-        evaluationData.marketInsights.marketLandscape = `The broader market surrounding ${reqData.idea || 'this concept'} is characterized by evolving customer expectations and established commercial practices across ${reqData.locationCountry || 'the target region'}. Sector maturity is driven by ongoing operational shifts and digital adoption.`;
-        evaluationData.marketInsights.demandDrivers = `Demand is driven primarily by customer efficiency requirements, rising operational costs, and the search for reliable, cost-effective alternatives to current manual pain points.`;
-        evaluationData.marketInsights.competitionAlternatives = `The founder competes against established market incumbents, existing manual workarounds, and alternative commercial providers. Customer reliance on existing tools represents a key competition barrier.`;
-        evaluationData.marketInsights.commercialReality = `A critical distinction exists between total addressable market size and early commercial accessibility for this specific solution. Early success relies on demonstrating immediate ROI, low switching friction, and clear differentiation against existing workarounds.`;
-      }
+    // Unconditionally populate marketInsights for critical gate or non-SaaS context to eliminate raw LLM contamination
+    if (reconciled.gatesInfo?.hasCriticalGate) {
+      const targetJurisdiction = getJurisdictionName(reqData);
+      evaluationData.marketInsights = {
+        marketLandscape: `The broader market operates within a heavily structured statutory and regulatory environment. While underlying demand for essential services (such as baseload power or infrastructure) is significant, sector entry is strictly governed by national legislation, public policy mandates, and extreme capital scale requirements.`,
+        demandDrivers: `Primary demand drivers include national infrastructure priorities, cost pressures, and long-term sustainability goals. However, commercial adoption is strictly constrained by statutory prohibitions and regulatory approval pathways that dictate market access.`,
+        competitionAlternatives: `The founder competes against established, legally compliant incumbent operators, state-backed infrastructure providers, and alternative proven technologies already integrated into regional supply networks.`,
+        commercialReality: `A critical distinction must be drawn between large underlying demand (such as national electricity consumption) and the commercially accessible opportunity for this specific solution. Significant statutory and regulatory barriers render the commercially accessible market effectively unavailable without legislative change, subject to specialist legal confirmation.`,
+        localBusinessNews: `Local energy market news highlights rising electricity demand, dry-year hydro volatility, wholesale power price spikes, and policy debates surrounding New Zealand energy security.`,
+        customerReviewTrends: `Energy sector feedback and commercial off-taker reviews reveal concerns over long-term price predictability, grid reliability during peak winter demand, and industrial carbon tax exposure.`,
+        governmentPolicyInfluence: `${targetJurisdiction} statutory policy and legislative frameworks govern power generation, environmental protection, fast-track consenting, and specific regulatory requirements under national law.`
+      };
+    } else if (!evaluationData.marketInsights || !evaluationData.marketInsights.marketLandscape) {
+      evaluationData.marketInsights = evaluationData.marketInsights || {};
+      evaluationData.marketInsights.marketLandscape = `The broader market surrounding ${reqData.idea || 'this concept'} is characterized by evolving customer expectations and established commercial practices across ${reqData.locationCountry || 'the target region'}. Sector maturity is driven by ongoing operational shifts and digital adoption.`;
+      evaluationData.marketInsights.demandDrivers = `Demand is driven primarily by customer efficiency requirements, rising operational costs, and the search for reliable, cost-effective alternatives to current manual pain points.`;
+      evaluationData.marketInsights.competitionAlternatives = `The founder competes against established market incumbents, existing manual workarounds, and alternative commercial providers. Customer reliance on existing tools represents a key competition barrier.`;
+      evaluationData.marketInsights.commercialReality = `A critical distinction exists between total addressable market size and early commercial accessibility for this specific solution. Early success relies on demonstrating immediate ROI, low switching friction, and clear differentiation against existing workarounds.`;
     }
 
     // Post-processing for Targeted Fixes & Malformed Text Sanitization
@@ -951,15 +1195,37 @@ exports.pitchLabEvaluation = onCall({
       evaluationData.summaryBlock.pitchLabVerdict = rawVerdict;
     }
 
-    // Maintain backward-compatibility fields for legacy UI listeners & Idea Portfolio Meta (Fix 14)
-    evaluationData.portfolioMeta = reconciled.portfolioMeta || {};
+    // Contextual Intelligence Synthesis & Portfolio Action
+    evaluationData.portfolioMeta = getPortfolioDecision(reconciled.masterRecommendation, ventureType, reconciled.gatesInfo, reqData);
+    evaluationData.portfolioAction = evaluationData.portfolioMeta.portfolioAction;
+    evaluationData.portfolioReason = evaluationData.portfolioMeta.portfolioReason;
+    evaluationData.nextEvidenceGateway = evaluationData.portfolioMeta.nextEvidenceGateway;
+
+    evaluationData.validationLadder = getValidationLadderForContext(ventureType, reconciled.gatesInfo?.primaryGatingRisk, reqData);
+    evaluationData.adviserOpinion = getCommercialAdviserOpinion(reconciled, ventureType, reconciled.gatesInfo, reqData);
+    evaluationData.primaryGatingRisk = reconciled.gatesInfo?.primaryGatingRisk || "Customer Demand & Willingness to Pay";
+    evaluationData.ventureContext = ventureType;
+
+    // Apply Semantic Guardrail to eliminate generic SaaS template contamination in non-SaaS reports
+    evaluationData = runSemanticGuardrail(evaluationData, ventureType, reconciled.gatesInfo, reqData);
+
+    // PRE-SAVE SCORE INTEGRITY ASSERTION: overallScore MUST strictly equal sum of category scores
+    const sumCategoryScores = Object.values(reconciled.categoryScores).reduce((acc, cat) => acc + (cat.scoreAchieved || cat.score || 0), 0);
+    evaluationData.overallScore = sumCategoryScores;
+    evaluationData.summaryBlock.overallScore = sumCategoryScores;
+    evaluationData.summaryBlock.overallReadinessScore = sumCategoryScores;
+    if (evaluationData.investorBite) {
+      evaluationData.investorBite.overallInterestScore = sumCategoryScores;
+    }
+
     evaluationData.scores = {
-      overall: reconciled.overallScore,
+      overall: sumCategoryScores,
       ...reconciled.categoryScores
     };
-    evaluationData.founderReadinessIndex = reconciled.overallScore;
+    evaluationData.founderReadinessIndex = sumCategoryScores;
 
     // 10. Store Evaluation safely
+    await updateSubmissionProgress(submissionId, 5, "Finalising your report", 98);
     try {
       await db.collection("EvaluationScore").add({
         userId,
@@ -974,12 +1240,16 @@ exports.pitchLabEvaluation = onCall({
         targetMarket,
         ...evaluationData,
         isPublic: false,
+        privacyStatus: "PRIVATE",
         createdAt: FieldValue.serverTimestamp(),
       });
+      // Sync administrative user summary (non-sensitive metrics only)
+      await syncUserAdminSummary(userId);
     } catch (dbErr) {
       console.warn("PitchLab: Firestore EvaluationScore write warning (non-fatal):", dbErr.message);
     }
 
+    await updateSubmissionProgress(submissionId, 5, "Assessment complete!", 100, "completed");
     return evaluationData;
 
   } catch (error) {
@@ -1018,6 +1288,7 @@ exports.pitchLabEvaluation = onCall({
     evaluationData.targetMarket = targetMarket;
     evaluationData.category = category;
     evaluationData.founderBackgroundNarrative = founderBackgroundNarrative;
+    await updateSubmissionProgress(submissionId, 5, "Assessment complete!", 100, "completed");
     return evaluationData;
   }
 });
@@ -1066,30 +1337,30 @@ function getMockResult(reqData = {}) {
       },
       marketInsights: {
         marketLandscape: reconciled.gatesInfo?.hasCriticalGate
-          ? "The broader market operates within a heavily structured statutory and regulatory environment. While underlying regional demand for essential services (such as baseload power or infrastructure) is significant, sector entry is strictly governed by national legislation, public policy mandates, and extreme capital scale requirements."
+          ? "The broader market operates within a heavily structured statutory and regulatory environment. While underlying national demand for essential services (such as baseload power or infrastructure) is significant, sector entry is strictly governed by national legislation, public policy mandates, and extreme capital scale requirements."
           : (isTransportIdea(reqData)
             ? "In New Zealand, small passenger transport operates under Waka Kotahi NZTA regulations requiring a Small Passenger Service Licence (SPSL) and Passenger (P) endorsements. The total registered Small Passenger Service Vehicle (SPSV) fleet spans an estimated 12,000 to 15,000+ active vehicles and licensed drivers nationwide, heavily concentrated in Auckland, Wellington, and Christchurch."
-            : `The broader market surrounding ${reqData.idea || 'this concept'} is characterized by evolving customer expectations and established commercial practices across ${reqData.locationCountry || 'the target region'}. Sector maturity is driven by ongoing operational shifts and digital adoption.`),
+            : `The broader market surrounding ${reqData.idea || 'this concept'} is characterized by evolving customer expectations and established commercial practices across ${reqData.locationCountry || 'the target location'}. Sector maturity is driven by ongoing operational shifts and digital adoption.`),
         demandDrivers: reconciled.gatesInfo?.hasCriticalGate
           ? "Primary demand drivers include national infrastructure priorities, cost pressures, and long-term sustainability goals. However, commercial adoption is strictly constrained by statutory prohibitions and regulatory approval pathways that dictate market access."
           : (isTransportIdea(reqData)
             ? "Passenger demand is driven by urban and regional transport gaps, peak-hour availability shortages, high surge pricing on dominant platforms, and driver demand for lower commission fees."
             : `Demand is driven primarily by customer efficiency requirements, rising operational costs, and the search for reliable, cost-effective alternatives to current manual pain points.`),
         competitionAlternatives: reconciled.gatesInfo?.hasCriticalGate
-          ? "The founder competes against established, legally compliant incumbent operators, state-backed infrastructure providers, and alternative proven technologies already integrated into regional supply networks."
+          ? "The founder competes against established, legally compliant incumbent operators, state-backed infrastructure providers, and alternative proven technologies already integrated into national supply networks."
           : (isTransportIdea(reqData)
             ? "The NZ rideshare and taxi market features dominant international tech leader Uber (operating across ~14 NZ cities) alongside DiDi, local kiwi app YourRide, and established taxi co-ops (Blue Bubble Taxis, Corporate Cabs, Green Cabs). Market consolidation is high: major global player Ola shut down all NZ & Australian operations on April 12, 2024, and local app Zoomy closed in September 2023."
             : `The founder competes against established market incumbents, existing manual workarounds, and alternative commercial providers. Customer reliance on existing tools represents a key competition barrier.`),
         commercialReality: reconciled.gatesInfo?.hasCriticalGate
-          ? "A critical distinction must be drawn between large underlying regional demand (such as national electricity consumption) and the commercially accessible opportunity for this specific solution. Statutory bans and extreme capital requirements render the accessible commercial market immediately constrained or unavailable without legislative change."
+          ? "A critical distinction must be drawn between large underlying national demand (such as national electricity consumption) and the commercially accessible opportunity for this specific solution. Statutory bans and extreme capital requirements render the accessible commercial market immediately constrained or unavailable without legislative change."
           : (isTransportIdea(reqData)
             ? "A critical distinction exists between overall passenger trip volume and early liquidity for a new platform. Launching a new app faces extreme network effect barriers—attracting drivers without rider wait times, and riders without driver shortages."
             : `A critical distinction exists between total addressable market size and early commercial accessibility for this specific solution. Early success relies on demonstrating immediate ROI, low switching friction, and clear differentiation against existing workarounds.`),
         localBusinessNews: reconciled.gatesInfo?.hasCriticalGate
-          ? "Regional business news highlights sharp increases in business input electricity costs (+21.8%), grid stability concerns during dry years, and government plans for LNG import infrastructure to manage thermal supply risks."
+          ? "National business news highlights sharp increases in business input electricity costs (+21.8%), grid stability concerns during dry years, and government plans for LNG import infrastructure to manage thermal supply risks."
           : (isTransportIdea(reqData)
             ? "Local business news highlights driver earnings pressure, regulatory compliance costs for P-endorsements and COF vehicle inspections, and driver multi-apping across platforms to offset fuel and commission expenses."
-            : `Local business news highlights rising overhead costs, digital compliance demands, and margin pressure across regional operators in ${reqData.locationCountry || 'the target region'}, driving interest in productivity tools.`),
+            : `Local business news highlights rising overhead costs, digital compliance demands, and margin pressure across commercial operators in ${reqData.locationCountry || 'the target location'}, driving interest in productivity tools.`),
         customerReviewTrends: reconciled.gatesInfo?.hasCriticalGate
           ? "Customer feedback across industrial and commercial energy consumers reflects strong skepticism regarding retail price stickiness, with heavy demand for bill transparency and price predictability."
           : (isTransportIdea(reqData)
@@ -1099,7 +1370,7 @@ function getMockResult(reqData = {}) {
           ? "Government policy maintains strict statutory enforcement under the New Zealand Nuclear Free Zone, Disarmament, and Arms Control Act 1987. Central government has fast-tracked renewable consenting with a 12-month limit on local council processing times."
           : (isTransportIdea(reqData)
             ? "Waka Kotahi NZTA strictly enforces Small Passenger Service Licence (SPSL) compliance, mandatory P-endorsement police vetting, and Certificate of Fitness (COF) 6-month vehicle inspections across all commercial passenger transport."
-            : `Local government policies and national regulatory frameworks require strict adherence to local council planning, environmental standards, and regional business compliance guidelines.`)
+            : `Local government policies and national regulatory frameworks require strict adherence to local council planning, environmental standards, and national business compliance guidelines.`)
       },
       founderCapabilityExplanation: {
         evidenceReliedOn: reqData.founderBackgroundNarrative || reqData.experience || "Founder experience and narrative background.",
@@ -1182,6 +1453,10 @@ function getMockResult(reqData = {}) {
   if (mockData.output.finalRecommendation) {
     mockData.output.finalRecommendation.recommendation = reconciled.masterRecommendation;
   }
+
+  const ventureType = classifyVentureType(reqData);
+  mockData.output = runSemanticGuardrail(mockData.output, ventureType, reconciled.gatesInfo, reqData);
+
   return mockData;
 }
 
@@ -1221,24 +1496,30 @@ exports.deleteUserAdmin = onCall({
     console.log(`PitchLab Admin: Deleted user ${targetUid} from Firebase Auth`);
 
     // 4. Delete Firestore documents
-    // Delete User Doc
+    // Delete User Doc & AdminUserSummary Doc
     await db.collection("Users").doc(targetUid).delete();
+    await db.collection("AdminUserSummaries").doc(targetUid).delete();
 
     // Delete Founder Profile Doc if exists
     await db.collection("FounderProfiles").doc(targetUid).delete();
 
+    const batch = db.batch();
+
     // Delete IdeaInputs
     const inputsSnapshot = await db.collection("IdeaInputs").where("userId", "==", targetUid).get();
-    const batch = db.batch();
-    inputsSnapshot.docs.forEach((doc) => {
-      batch.delete(doc.ref);
-    });
+    inputsSnapshot.docs.forEach((doc) => batch.delete(doc.ref));
 
     // Delete EvaluationScores
     const evalsSnapshot = await db.collection("EvaluationScore").where("userId", "==", targetUid).get();
-    evalsSnapshot.docs.forEach((doc) => {
-      batch.delete(doc.ref);
-    });
+    evalsSnapshot.docs.forEach((doc) => batch.delete(doc.ref));
+
+    // Delete PublicIdeaProfiles
+    const publicSnapshot = await db.collection("PublicIdeaProfiles").where("userId", "==", targetUid).get();
+    publicSnapshot.docs.forEach((doc) => batch.delete(doc.ref));
+
+    // Delete PrivateShares
+    const sharesSnapshot = await db.collection("PrivateShares").where("userId", "==", targetUid).get();
+    sharesSnapshot.docs.forEach((doc) => batch.delete(doc.ref));
 
     await batch.commit();
     console.log(`PitchLab Admin: Wiped all Firestore records for user ${targetUid}`);
@@ -1663,6 +1944,421 @@ exports.getUserSubmissionQuota = onCall({
   };
 });
 
+// ================= MINIMAL ADMINISTRATIVE USER SUMMARY SYNC =================
+async function syncUserAdminSummary(userId) {
+  if (!userId || userId === 'anonymous-user') return;
+  try {
+    const userDoc = await db.collection("Users").doc(userId).get();
+    let email = "Unknown";
+    let displayName = "Founder";
+    if (userDoc.exists) {
+      const data = userDoc.data() || {};
+      email = data.email || email;
+      displayName = data.displayName || data.name || (email.includes("@") ? email.split("@")[0] : displayName);
+    } else {
+      try {
+        const authUser = await getAuth().getUser(userId);
+        email = authUser.email || email;
+        displayName = authUser.displayName || (email.includes("@") ? email.split("@")[0] : displayName);
+      } catch (authErr) {
+        // ignore
+      }
+    }
+
+    const evalsSnapshot = await db.collection("EvaluationScore")
+      .where("userId", "==", userId)
+      .get();
+    const submissionCount = evalsSnapshot.size;
+
+    await db.collection("AdminUserSummaries").doc(userId).set({
+      uid: userId,
+      email: email,
+      displayName: displayName,
+      submissionCount: submissionCount,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    console.log(`PitchLab: AdminUserSummary synced for ${userId} (submissions: ${submissionCount})`);
+  } catch (err) {
+    console.warn(`PitchLab: Failed to sync AdminUserSummary for ${userId}:`, err.message);
+  }
+}
+
+exports.syncAllAdminSummaries = onCall({
+  cors: true,
+  region: "us-central1",
+}, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "User must be authenticated.");
+  const callerDoc = await db.collection("Users").doc(request.auth.uid).get();
+  if (!callerDoc.exists || callerDoc.data()?.role !== "admin") {
+    throw new HttpsError("permission-denied", "Only administrators can run syncAllAdminSummaries.");
+  }
+
+  const usersSnapshot = await db.collection("Users").get();
+  for (const doc of usersSnapshot.docs) {
+    await syncUserAdminSummary(doc.id);
+  }
+  return { success: true, count: usersSnapshot.size };
+});
+
+// ================= FOUNDER-CONTROLLED PRIVATE SHARING =================
+
+exports.createPrivateShare = onCall({
+  cors: true,
+  region: "us-central1",
+}, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in to create private share.");
+  const userId = request.auth.uid;
+  const { evaluationId, scope, expiresAtInDays } = request.data || {};
+
+  if (!evaluationId) throw new HttpsError("invalid-argument", "Missing evaluationId.");
+  const validScopes = ['public_profile', 'selected_summary', 'complete_report'];
+  const shareScope = validScopes.includes(scope) ? scope : 'selected_summary';
+
+  // Verify ownership of evaluation
+  const evalDoc = await db.collection("EvaluationScore").doc(evaluationId).get();
+  if (!evalDoc.exists || evalDoc.data()?.userId !== userId) {
+    throw new HttpsError("permission-denied", "You do not own this submission.");
+  }
+
+  const crypto = require("crypto");
+  const shareToken = crypto.randomBytes(24).toString("hex");
+
+  let expiresAtDateStr = null;
+  if (expiresAtInDays && typeof expiresAtInDays === "number" && expiresAtInDays > 0) {
+    const expDate = new Date();
+    expDate.setDate(expDate.getDate() + expiresAtInDays);
+    expiresAtDateStr = expDate.toISOString();
+  }
+
+  await db.collection("PrivateShares").doc(shareToken).set({
+    shareToken,
+    evaluationId,
+    userId,
+    scope: shareScope,
+    status: "active",
+    createdAt: FieldValue.serverTimestamp(),
+    expiresAtDate: expiresAtDateStr,
+  });
+
+  await db.collection("EvaluationScore").doc(evaluationId).update({
+    privacyStatus: "SHARE_PRIVATELY"
+  });
+
+  return {
+    success: true,
+    shareToken,
+    scope: shareScope,
+    expiresAtDate: expiresAtDateStr
+  };
+});
+
+exports.getPrivateSharedContent = onCall({
+  cors: true,
+  region: "us-central1",
+}, async (request) => {
+  const { shareToken } = request.data || {};
+  if (!shareToken) throw new HttpsError("invalid-argument", "Missing shareToken.");
+
+  const shareDoc = await db.collection("PrivateShares").doc(shareToken).get();
+  if (!shareDoc.exists) throw new HttpsError("not-found", "This private share link does not exist or has been revoked.");
+
+  const shareData = shareDoc.data() || {};
+  if (shareData.status !== "active") {
+    throw new HttpsError("permission-denied", "This private share link has been revoked by the founder.");
+  }
+
+  if (shareData.expiresAtDate) {
+    const expDate = new Date(shareData.expiresAtDate);
+    if (expDate < new Date()) {
+      throw new HttpsError("permission-denied", "This private share link has expired.");
+    }
+  }
+
+  const evalDoc = await db.collection("EvaluationScore").doc(shareData.evaluationId).get();
+  if (!evalDoc.exists) throw new HttpsError("not-found", "The shared evaluation report is no longer available.");
+
+  const rawEval = evalDoc.data() || {};
+  const scope = shareData.scope || 'selected_summary';
+
+  if (scope === 'public_profile') {
+    return {
+      success: true,
+      scope: 'public_profile',
+      content: {
+        publicTitle: rawEval.idea ? rawEval.idea.slice(0, 100) : "Business Idea",
+        category: rawEval.category || "General Startup",
+        executiveSummary: rawEval.executiveSummary || "",
+        scoreBandName: rawEval.scoreBandName || "Assessed",
+        masterRecommendation: rawEval.masterRecommendation || "Validate",
+      }
+    };
+  } else if (scope === 'selected_summary') {
+    return {
+      success: true,
+      scope: 'selected_summary',
+      content: {
+        ideaTitle: rawEval.idea ? rawEval.idea.slice(0, 100) : "Business Concept",
+        category: rawEval.category || "General Startup",
+        overallScore: rawEval.scores?.overall || rawEval.overallScore || 50,
+        scoreBandName: rawEval.scoreBandName || "Assessed",
+        masterRecommendation: rawEval.masterRecommendation || "Validate",
+        executiveSummary: rawEval.executiveSummary || "",
+        pitchLabVerdict: rawEval.summaryBlock?.pitchLabVerdict || "",
+        scorecardCategories: rawEval.scorecardCategories || [],
+        topStrengths: rawEval.summaryBlock?.topStrengths || [],
+        topPrioritiesNow: rawEval.summaryBlock?.topPrioritiesNow || [],
+        investorBite: rawEval.investorBite || null
+      }
+    };
+  } else {
+    const sanitizedReport = { ...rawEval };
+    delete sanitizedReport.userId;
+    delete sanitizedReport.cvBase64;
+    delete sanitizedReport.cvText;
+
+    return {
+      success: true,
+      scope: 'complete_report',
+      content: sanitizedReport
+    };
+  }
+});
+
+exports.revokePrivateShare = onCall({
+  cors: true,
+  region: "us-central1",
+}, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  const userId = request.auth.uid;
+  const { shareToken } = request.data || {};
+  if (!shareToken) throw new HttpsError("invalid-argument", "Missing shareToken.");
+
+  const shareDoc = await db.collection("PrivateShares").doc(shareToken).get();
+  if (!shareDoc.exists) throw new HttpsError("not-found", "Share link not found.");
+
+  if (shareDoc.data()?.userId !== userId) {
+    throw new HttpsError("permission-denied", "You do not own this share link.");
+  }
+
+  await db.collection("PrivateShares").doc(shareToken).update({
+    status: "revoked",
+    revokedAt: FieldValue.serverTimestamp(),
+  });
+
+  const evaluationId = shareDoc.data()?.evaluationId;
+  if (evaluationId) {
+    const activeShares = await db.collection("PrivateShares")
+      .where("evaluationId", "==", evaluationId)
+      .where("status", "==", "active")
+      .get();
+    if (activeShares.empty) {
+      await db.collection("EvaluationScore").doc(evaluationId).update({
+        privacyStatus: "PRIVATE"
+      });
+    }
+  }
+
+  return { success: true };
+});
+
+exports.listPrivateShares = onCall({
+  cors: true,
+  region: "us-central1",
+}, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  const userId = request.auth.uid;
+  const { evaluationId } = request.data || {};
+  if (!evaluationId) throw new HttpsError("invalid-argument", "Missing evaluationId.");
+
+  const sharesSnapshot = await db.collection("PrivateShares")
+    .where("evaluationId", "==", evaluationId)
+    .where("userId", "==", userId)
+    .get();
+
+  const shares = sharesSnapshot.docs.map(doc => ({
+    shareToken: doc.id,
+    ...doc.data()
+  }));
+
+  return { success: true, shares };
+});
+
+// ================= FOUNDER-CONTROLLED PUBLIC PUBLICATION =================
+
+exports.publishPublicIdea = onCall({
+  cors: true,
+  region: "us-central1",
+}, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  const userId = request.auth.uid;
+  const reqData = request.data || {};
+  const {
+    evaluationId,
+    publicTitle,
+    publicSummary,
+    problem,
+    solution,
+    category,
+    targetMarket,
+    stage,
+    seeking,
+    includeScore,
+    includeInsights,
+    allowContact,
+    identityType,
+    customDisplayName,
+    allowIndexing,
+    consentVersion
+  } = reqData;
+
+  if (!evaluationId) throw new HttpsError("invalid-argument", "Missing evaluationId.");
+
+  const evalDoc = await db.collection("EvaluationScore").doc(evaluationId).get();
+  if (!evalDoc.exists || evalDoc.data()?.userId !== userId) {
+    throw new HttpsError("permission-denied", "You do not own this submission.");
+  }
+
+  const rawEval = evalDoc.data() || {};
+  const crypto = require("crypto");
+  const publicId = `pub_${crypto.randomBytes(12).toString("hex")}`;
+
+  let displayedIdentity = "Anonymous Founder";
+  if (identityType === "display_name") {
+    displayedIdentity = customDisplayName || "PitchLab Founder";
+  } else if (identityType === "business_name") {
+    displayedIdentity = customDisplayName || "Startup Team";
+  }
+
+  const overallScore = rawEval.scores?.overall || rawEval.overallScore || 50;
+  const scoreBandName = rawEval.scoreBandName || "Assessed";
+
+  const publicRecord = {
+    publicId,
+    evaluationId,
+    userId,
+    isPublished: true,
+    status: "active",
+    publicTitle: publicTitle || rawEval.idea || "Public Idea Profile",
+    publicSummary: publicSummary || rawEval.executiveSummary || "",
+    problem: problem || rawEval.problem || "",
+    solution: solution || "",
+    category: category || rawEval.category || "General Startup",
+    targetMarket: targetMarket || rawEval.targetMarket || "",
+    stage: stage || "Idea Stage",
+    seeking: seeking || [],
+    includeScore: includeScore === true,
+    overallScore: includeScore === true ? overallScore : null,
+    scoreBandName: includeScore === true ? scoreBandName : null,
+    includeInsights: includeInsights === true,
+    selectedInsights: includeInsights === true ? (rawEval.summaryBlock?.topStrengths || []) : [],
+    allowContact: allowContact === true,
+    identityType: identityType || "anonymous",
+    displayedIdentity: displayedIdentity,
+    allowIndexing: allowIndexing === true,
+    consentVersion: consentVersion || "1.0",
+    publishedAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+
+  await db.collection("PublicIdeaProfiles").doc(publicId).set(publicRecord);
+
+  await db.collection("EvaluationScore").doc(evaluationId).update({
+    privacyStatus: "PUBLISHED_PUBLICLY",
+    publicId: publicId
+  });
+
+  return { success: true, publicId };
+});
+
+exports.unpublishPublicIdea = onCall({
+  cors: true,
+  region: "us-central1",
+}, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  const userId = request.auth.uid;
+  const { publicId } = request.data || {};
+  if (!publicId) throw new HttpsError("invalid-argument", "Missing publicId.");
+
+  const publicDoc = await db.collection("PublicIdeaProfiles").doc(publicId).get();
+  if (!publicDoc.exists || publicDoc.data()?.userId !== userId) {
+    throw new HttpsError("permission-denied", "You do not own this public profile.");
+  }
+
+  await db.collection("PublicIdeaProfiles").doc(publicId).update({
+    isPublished: false,
+    status: "unpublished",
+    unpublishedAt: FieldValue.serverTimestamp(),
+  });
+
+  const evaluationId = publicDoc.data()?.evaluationId;
+  if (evaluationId) {
+    await db.collection("EvaluationScore").doc(evaluationId).update({
+      privacyStatus: "PRIVATE",
+      publicId: null
+    });
+  }
+
+  return { success: true };
+});
+
+exports.sendPublicContactExpression = onCall({
+  cors: true,
+  region: "us-central1",
+}, async (request) => {
+  const { publicId, senderName, senderEmail, message, seekingCategory } = request.data || {};
+  if (!publicId || !senderEmail || !message) {
+    throw new HttpsError("invalid-argument", "Missing required contact details.");
+  }
+
+  const publicDoc = await db.collection("PublicIdeaProfiles").doc(publicId).get();
+  if (!publicDoc.exists || !publicDoc.data()?.isPublished || !publicDoc.data()?.allowContact) {
+    throw new HttpsError("permission-denied", "Contact function is not active for this public idea.");
+  }
+
+  const publicData = publicDoc.data() || {};
+  const ownerUserId = publicData.userId;
+
+  await db.collection("ExpressionsOfInterest").add({
+    publicId,
+    ownerUserId,
+    senderName: senderName || "Interested Visitor",
+    senderEmail: senderEmail,
+    seekingCategory: seekingCategory || "General Inquiry",
+    message: message.slice(0, 2000),
+    createdAt: FieldValue.serverTimestamp(),
+    status: "unread"
+  });
+
+  return { success: true };
+});
+
+exports.moderatePublicIdea = onCall({
+  cors: true,
+  region: "us-central1",
+}, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  const callerDoc = await db.collection("Users").doc(request.auth.uid).get();
+  if (!callerDoc.exists || callerDoc.data()?.role !== "admin") {
+    throw new HttpsError("permission-denied", "Only Master Admin can moderate public profiles.");
+  }
+
+  const { publicId, action, reason } = request.data || {};
+  if (!publicId) throw new HttpsError("invalid-argument", "Missing publicId.");
+
+  const publicDoc = await db.collection("PublicIdeaProfiles").doc(publicId).get();
+  if (!publicDoc.exists) throw new HttpsError("not-found", "Public profile not found.");
+
+  await db.collection("PublicIdeaProfiles").doc(publicId).update({
+    isPublished: false,
+    status: action === "remove" ? "removed" : "suspended",
+    moderationReason: reason || "Moderated by PitchLab Admin",
+    moderatedAt: FieldValue.serverTimestamp(),
+  });
+
+  return { success: true };
+});
+
+exports.syncUserAdminSummary = syncUserAdminSummary;
 exports.isTransportIdea = isTransportIdea;
 exports.getMockResult = getMockResult;
 exports.isHardwareIdea = isHardwareIdea;
@@ -1672,5 +2368,6 @@ exports.sanitizeHardwareTerms = sanitizeHardwareTerms;
 exports.safeExtractJsonFromAiResponse = safeExtractJsonFromAiResponse;
 exports.logSubmissionError = logSubmissionError;
 exports.formatCapitalValue = formatCapitalValue;
+
 
 

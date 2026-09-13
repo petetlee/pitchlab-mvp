@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'results_dashboard.dart';
@@ -29,9 +30,100 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
   stt.SpeechToText? _speech;
   bool _isListening = false;
   double _confidence = 1.0;
-
   Uint8List? _selectedCvBytes;
   String? _selectedCvName;
+
+  // Live Submission Progress Tracking
+  String? _submissionId;
+  int _currentStageIndex = 1;
+  String _currentStageName = 'Validating your submission';
+  int _progressPercentage = 15;
+  int _elapsedSeconds = 0;
+  Timer? _elapsedTimer;
+  StreamSubscription<DocumentSnapshot>? _progressSubscription;
+  bool _hasSubmissionError = false;
+  String? _submissionErrorMessage;
+
+  void _startSubmissionProgress(String submissionId) {
+    _submissionId = submissionId;
+    _currentStageIndex = 1;
+    _currentStageName = 'Validating your submission';
+    _progressPercentage = 15;
+    _elapsedSeconds = 0;
+    _hasSubmissionError = false;
+    _submissionErrorMessage = null;
+
+    _elapsedTimer?.cancel();
+    _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted && _isLoading && !_hasSubmissionError) {
+        setState(() {
+          _elapsedSeconds++;
+        });
+        if (_elapsedSeconds > 180 && !_hasSubmissionError) {
+          _handleSubmissionError("Assessment processing timed out. Please try submitting again.");
+        }
+      }
+    });
+
+    _progressSubscription?.cancel();
+    _progressSubscription = FirebaseFirestore.instance
+        .collection('SubmissionProgress')
+        .doc(submissionId)
+        .snapshots()
+        .listen((snapshot) {
+      if (!snapshot.exists || !mounted) return;
+      final data = snapshot.data();
+      if (data == null) return;
+
+      final stageIdx = data['stageIndex'] as int? ?? 1;
+      final stageName = data['stageName'] as String? ?? 'Analysing your idea...';
+      final percentage = data['percentage'] as int? ?? 15;
+      final status = data['status'] as String? ?? 'in_progress';
+
+      if (status == 'failed') {
+        _handleSubmissionError(data['error']?.toString() ?? 'Evaluation process encountered an issue.');
+        return;
+      }
+
+      setState(() {
+        _currentStageIndex = stageIdx;
+        _currentStageName = stageName;
+        _progressPercentage = percentage;
+      });
+    }, onError: (err) {
+      print('PitchLab: SubmissionProgress stream error: $err');
+    });
+  }
+
+  void _handleSubmissionError(String message) {
+    _elapsedTimer?.cancel();
+    _progressSubscription?.cancel();
+    if (mounted) {
+      setState(() {
+        _hasSubmissionError = true;
+        _submissionErrorMessage = message;
+      });
+    }
+  }
+
+  void _resetSubmissionState() {
+    _elapsedTimer?.cancel();
+    _progressSubscription?.cancel();
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        _hasSubmissionError = false;
+        _submissionErrorMessage = null;
+        _elapsedSeconds = 0;
+      });
+    }
+  }
+
+  String _formatElapsedTime(int seconds) {
+    final mins = (seconds ~/ 60).toString().padLeft(2, '0');
+    final secs = (seconds % 60).toString().padLeft(2, '0');
+    return '$mins:$secs';
+  }
 
   // Founder Predictions (Pre-Assessment Layer)
   double _predOverallConfidence = 75.0;
@@ -233,6 +325,8 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
 
   @override
   void dispose() {
+    _elapsedTimer?.cancel();
+    _progressSubscription?.cancel();
     for (var controller in _controllers.values) {
       controller.dispose();
     }
@@ -493,7 +587,11 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
   }
 
   Future<void> _submitEvaluation() async {
+    final String submissionId = '${DateTime.now().millisecondsSinceEpoch}_${(1000 + (9000 * 0.5)).toInt()}';
+    _formData['submissionId'] = submissionId;
+
     setState(() => _isLoading = true);
+    _startSubmissionProgress(submissionId);
     
     // Map the new fields to backwards compatible fields for database/backend legacy support
     final narrative = _formData['founderBackgroundNarrative']?.toString() ?? '';
@@ -531,6 +629,7 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
     
     // Front-end Pre-submission Quota Guard
     if (!_isAdmin && _quotaUsed >= 3) {
+      _resetSubmissionState();
       _showLimitReachedDialog();
       return;
     }
@@ -571,6 +670,17 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
       
       if (!mounted) return;
       
+      _progressSubscription?.cancel();
+      _elapsedTimer?.cancel();
+      setState(() {
+        _currentStageIndex = 5;
+        _currentStageName = 'Assessment complete!';
+        _progressPercentage = 100;
+      });
+
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (!mounted) return;
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -579,12 +689,14 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
           ),
         ),
       );
+      return;
     } catch (e) {
       print('❌ PitchLab SUBMISSION ERROR: $e');
       if (!mounted) return;
 
       final errStr = e.toString();
       if (errStr.contains('MVP_LIMIT_EXCEEDED') || errStr.contains('resource-exhausted') || errStr.contains('3 available idea assessments')) {
+        _resetSubmissionState();
         _showLimitReachedDialog();
         return;
       }
@@ -602,6 +714,17 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
         print('✅ PitchLab: Retry successful! Data: ${retryResult.data}');
 
         if (!mounted) return;
+        _progressSubscription?.cancel();
+        _elapsedTimer?.cancel();
+        setState(() {
+          _currentStageIndex = 5;
+          _currentStageName = 'Assessment complete!';
+          _progressPercentage = 100;
+        });
+
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (!mounted) return;
+
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -615,11 +738,14 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
         print('❌ PitchLab Callable Retry Error: $retryError');
         print('🚀 PitchLab: Activating Direct HTTP POST Fallback to emulator endpoint...');
         try {
+          final bool isLocalHost = kIsWeb && (Uri.base.host == 'localhost' || Uri.base.host == '127.0.0.1' || Uri.base.host.startsWith('192.168.'));
           final String host = kIsWeb
               ? (Uri.base.host.isNotEmpty ? Uri.base.host : '127.0.0.1')
               : '10.0.2.2';
-          final httpUrl = Uri.parse('http://$host:5001/demo-pitchlab/us-central1/pitchLabEvaluation');
-          print('🚀 PitchLab: Sending direct HTTP POST to $httpUrl...');
+          final Uri httpUrl = isLocalHost
+              ? Uri.parse('http://$host:5001/demo-pitchlab/us-central1/pitchLabEvaluation')
+              : Uri.parse('https://us-central1-antigravity-pitchlab.cloudfunctions.net/pitchLabEvaluation');
+          print('🚀 PitchLab: Sending direct HTTP POST fallback to $httpUrl...');
           final httpRes = await http.post(
             httpUrl,
             headers: {'Content-Type': 'application/json'},
@@ -634,6 +760,17 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
             print('✅ PitchLab: Direct HTTP Fallback successful! Score: ${evalMap['overallScore']}');
 
             if (!mounted) return;
+            _progressSubscription?.cancel();
+            _elapsedTimer?.cancel();
+            setState(() {
+              _currentStageIndex = 5;
+              _currentStageName = 'Assessment complete!';
+              _progressPercentage = 100;
+            });
+
+            await Future.delayed(const Duration(milliseconds: 300));
+            if (!mounted) return;
+
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
@@ -651,18 +788,348 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
       
       String friendlyError = 'Submission failed: $e';
       if (e.toString().contains('unauthenticated')) {
-        friendlyError = 'Authentication Error: Your session expired or was reset by the server emulator. Please click Get My Score again.';
+        friendlyError = 'Authentication Error: Your session expired or was reset by the server emulator. Please try again.';
       }
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(friendlyError),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      _handleSubmissionError(friendlyError);
     }
+  }
+
+  Widget _buildProgressScreen() {
+    final stages = [
+      {'index': 1, 'name': 'Validating your submission'},
+      {'index': 2, 'name': 'Researching your idea'},
+      {'index': 3, 'name': 'Analysing the opportunity'},
+      {'index': 4, 'name': 'Preparing your assessment'},
+      {'index': 5, 'name': 'Finalising your report'},
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _hasSubmissionError
+                      ? Colors.red.shade50
+                      : const Color(0xFF0071E3).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!_hasSubmissionError)
+                      const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFF0071E3),
+                        ),
+                      )
+                    else
+                      const Icon(Icons.error_outline, size: 16, color: Colors.redAccent),
+                    const SizedBox(width: 8),
+                    Text(
+                      _hasSubmissionError ? "SUBMISSION ISSUE" : "ANALYSIS IN PROGRESS",
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: _hasSubmissionError ? Colors.redAccent : const Color(0xFF0071E3),
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Text(
+            _hasSubmissionError ? "Processing Delayed" : "PitchLab Engine Working",
+            textAlign: TextAlign.center,
+            style: GoogleFonts.outfit(
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF1D1D1F),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _hasSubmissionError
+                ? "We encountered a temporary issue while analysing your idea."
+                : "PitchLab is analysing your idea. Please keep this window open.",
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              color: const Color(0xFF86868B),
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 28),
+
+          if (!_hasSubmissionError) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    _currentStageName,
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF1D1D1F),
+                    ),
+                  ),
+                ),
+                Text(
+                  '$_progressPercentage%',
+                  style: GoogleFonts.outfit(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF0071E3),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox(
+                height: 10,
+                child: LinearProgressIndicator(
+                  value: _progressPercentage / 100.0,
+                  backgroundColor: const Color(0xFFE5E5EA),
+                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF0071E3)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 28),
+
+            Column(
+              children: stages.map((stg) {
+                final stgIndex = stg['index'] as int;
+                final stgName = stg['name'] as String;
+
+                final isCompleted = stgIndex < _currentStageIndex || _progressPercentage >= 100;
+                final isCurrent = stgIndex == _currentStageIndex && _progressPercentage < 100;
+
+                Color iconBg = const Color(0xFFF5F5F7);
+                Color iconColor = const Color(0xFF86868B);
+                Color textColor = const Color(0xFF86868B);
+                FontWeight fontWeight = FontWeight.normal;
+
+                if (isCompleted) {
+                  iconBg = const Color(0xFF34C759).withOpacity(0.15);
+                  iconColor = const Color(0xFF34C759);
+                  textColor = const Color(0xFF1D1D1F);
+                  fontWeight = FontWeight.w500;
+                } else if (isCurrent) {
+                  iconBg = const Color(0xFF0071E3).withOpacity(0.15);
+                  iconColor = const Color(0xFF0071E3);
+                  textColor = const Color(0xFF0071E3);
+                  fontWeight = FontWeight.bold;
+                }
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: iconBg,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: isCompleted
+                              ? Icon(Icons.check, size: 18, color: iconColor)
+                              : isCurrent
+                                  ? const SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Color(0xFF0071E3),
+                                      ),
+                                    )
+                                  : Text(
+                                      '$stgIndex',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: iconColor,
+                                      ),
+                                    ),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Text(
+                          stgName,
+                          style: GoogleFonts.inter(
+                            fontSize: 14.5,
+                            fontWeight: fontWeight,
+                            color: textColor,
+                          ),
+                        ),
+                      ),
+                      if (isCompleted)
+                        Text(
+                          "Done",
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: const Color(0xFF34C759),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 24),
+
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F5F7),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.timer_outlined, size: 18, color: Color(0xFF86868B)),
+                  const SizedBox(width: 8),
+                  Text(
+                    "Elapsed processing time: ${_formatElapsedTime(_elapsedSeconds)}",
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: const Color(0xFF424245),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        "Assessment Could Not Complete",
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red.shade900,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _submissionErrorMessage ?? "An unexpected delay occurred while contacting the server.",
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: Colors.red.shade900,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "Don't worry: All your typed responses and uploaded CV documents are safely preserved.",
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.red.shade700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _resetSubmissionState,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      side: const BorderSide(color: Color(0xFFE5E5EA)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      'Back to Form',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF1D1D1F),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      _resetSubmissionState();
+                      _submitEvaluation();
+                    },
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: Text(
+                      'Try Again',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      backgroundColor: const Color(0xFF0071E3),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   Future<void> _pickCV() async {
@@ -1249,7 +1716,17 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? SafeArea(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 640),
+                    child: _buildProgressScreen(),
+                  ),
+                ),
+              ),
+            )
           : PageView.builder(
               controller: _pageController,
               physics: const NeverScrollableScrollPhysics(),
