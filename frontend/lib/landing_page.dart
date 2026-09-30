@@ -8,6 +8,8 @@ import 'founder_profile.dart';
 import 'history_view.dart';
 import 'login_page.dart';
 import 'admin_dashboard.dart';
+import 'public_idea_view.dart';
+import 'private_share_view.dart';
 
 class LandingPage extends StatefulWidget {
   const LandingPage({super.key});
@@ -24,8 +26,35 @@ class _LandingPageState extends State<LandingPage> {
     super.initState();
     _checkAdminStatus();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkPublicAndShareTokens();
       _checkInviteToken();
     });
+  }
+
+  void _checkPublicAndShareTokens() {
+    final publicId = Uri.base.queryParameters['publicIdea'];
+    if (publicId != null && publicId.isNotEmpty) {
+      print('🚀 PitchLab: Found publicIdea in URL: $publicId');
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => PublicIdeaView(publicId: publicId)),
+        );
+      }
+      return;
+    }
+
+    final shareToken = Uri.base.queryParameters['shareToken'];
+    if (shareToken != null && shareToken.isNotEmpty) {
+      print('🚀 PitchLab: Found shareToken in URL: $shareToken');
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => PrivateShareView(shareToken: shareToken)),
+        );
+      }
+      return;
+    }
   }
 
   Future<void> _checkAdminStatus() async {
@@ -237,45 +266,51 @@ class _LandingPageState extends State<LandingPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Logo or Icon
+                // Official PitchLab Brand Logo Artwork
                 Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.black,
-                    borderRadius: BorderRadius.circular(16),
+                  constraints: const BoxConstraints(maxWidth: 780),
+                  child: Image.asset(
+                    'assets/logo.png',
+                    height: 360,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) => Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.black,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Icon(
+                            Icons.rocket_launch,
+                            color: Colors.white,
+                            size: 40,
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        Text(
+                          'PitchLab',
+                          style: GoogleFonts.outfit(
+                            fontSize: 48,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF1D1D1F),
+                            letterSpacing: -1.0,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Validate your startup idea in minutes, not months',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(
+                            fontSize: 18,
+                            color: const Color(0xFF86868B),
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.rocket_launch,
-                    color: Colors.white,
-                    size: 40,
-                  ),
-                ).animate().scale(delay: 200.ms),
-                
-                const SizedBox(height: 32),
-                
-                // Title
-                Text(
-                  'PitchLab',
-                  style: GoogleFonts.outfit(
-                    fontSize: 48,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1D1D1F),
-                    letterSpacing: -1.0,
-                  ),
-                ).animate().fadeIn(delay: 400.ms).moveY(begin: 20, end: 0),
-                
-                const SizedBox(height: 12),
-                
-                // Subtitle
-                Text(
-                  'Validate your startup idea in minutes, not months',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
-                    fontSize: 18,
-                    color: const Color(0xFF86868B),
-                    fontWeight: FontWeight.w400,
-                  ),
-                ).animate().fadeIn(delay: 600.ms),
+                ).animate().scale(delay: 200.ms).fadeIn(delay: 300.ms),
                 
                 const SizedBox(height: 48),
                 
@@ -328,7 +363,42 @@ class _LandingPageState extends State<LandingPage> {
                   ],
                 ).animate().fadeIn(delay: 900.ms),
                 
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
+                
+                // PitchLab Privacy Guarantee Banner (User-Facing Privacy Notice)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF0071E3).withValues(alpha: 0.3)),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 2)),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.shield_outlined, color: Color(0xFF0071E3), size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            'PitchLab Privacy Guarantee',
+                            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, color: const Color(0xFF1D1D1F)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Your business idea is private by default. PitchLab administrators can see your account name, email address, User ID and number of submissions, but they cannot browse your private idea details, answers, scores or reports. You decide whether to keep your idea private, share it privately or publish selected information publicly.',
+                        style: GoogleFonts.inter(fontSize: 11.5, height: 1.4, color: Colors.grey.shade800),
+                      ),
+                    ],
+                  ),
+                ).animate().fadeIn(delay: 950.ms),
+
+                const SizedBox(height: 20),
                 
                 // Small Tagline
                 Text(

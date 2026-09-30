@@ -789,6 +789,8 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
       String friendlyError = 'Submission failed: $e';
       if (e.toString().contains('unauthenticated')) {
         friendlyError = 'Authentication Error: Your session expired or was reset by the server emulator. Please try again.';
+      } else if (e.toString().contains('firebase_functions/internal') || e.toString().contains('internal')) {
+        friendlyError = 'An unexpected server issue occurred during processing. Please tap "Try Again".';
       }
       
       _handleSubmissionError(friendlyError);

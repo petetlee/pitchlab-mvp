@@ -189,6 +189,61 @@ class _HistoryViewState extends State<HistoryView> {
                                               style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF0071E3), fontWeight: FontWeight.bold),
                                             ),
                                           ),
+                                          const SizedBox(width: 8),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: (data['privacyStatus'] == 'PUBLISHED_PUBLICLY'
+                                                      ? Colors.purple
+                                                      : data['privacyStatus'] == 'SHARE_PRIVATELY'
+                                                          ? Colors.blue
+                                                          : Colors.green)
+                                                  .withValues(alpha: 0.1),
+                                              borderRadius: BorderRadius.circular(6),
+                                              border: Border.all(
+                                                color: (data['privacyStatus'] == 'PUBLISHED_PUBLICLY'
+                                                    ? Colors.purple.shade300
+                                                    : data['privacyStatus'] == 'SHARE_PRIVATELY'
+                                                        ? Colors.blue.shade300
+                                                        : const Color(0xFF34C759)),
+                                              ),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  data['privacyStatus'] == 'PUBLISHED_PUBLICLY'
+                                                      ? Icons.public
+                                                      : data['privacyStatus'] == 'SHARE_PRIVATELY'
+                                                          ? Icons.link
+                                                          : Icons.lock_outline,
+                                                  size: 11,
+                                                  color: data['privacyStatus'] == 'PUBLISHED_PUBLICLY'
+                                                      ? Colors.purple.shade700
+                                                      : data['privacyStatus'] == 'SHARE_PRIVATELY'
+                                                          ? Colors.blue.shade700
+                                                          : const Color(0xFF34C759),
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  data['privacyStatus'] == 'PUBLISHED_PUBLICLY'
+                                                      ? 'PUBLISHED PUBLICLY'
+                                                      : data['privacyStatus'] == 'SHARE_PRIVATELY'
+                                                          ? 'SHARED PRIVATELY'
+                                                          : 'PRIVATE',
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: data['privacyStatus'] == 'PUBLISHED_PUBLICLY'
+                                                        ? Colors.purple.shade700
+                                                        : data['privacyStatus'] == 'SHARE_PRIVATELY'
+                                                            ? Colors.blue.shade700
+                                                            : const Color(0xFF34C759),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
                                           const Spacer(),
                                           Text(
                                             formattedDate,

@@ -37,7 +37,10 @@ const server = http.createServer((req, res) => {
       } else {
         res.writeHead(200, {
           'Content-Type': contentType,
-          'Access-Control-Allow-Origin': '*'
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'Expires': '0'
         });
         res.end(content, 'utf-8');
       }
@@ -45,6 +48,6 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`✅ PitchLab Permanent Web Server listening on http://localhost:${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ PitchLab Permanent Web Server listening on http://0.0.0.0:${PORT} (http://localhost:${PORT})`);
 });

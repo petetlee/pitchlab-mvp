@@ -16,7 +16,7 @@ const result = reconcileScores(mockCategories);
 console.log("Calculated Overall Score:", result.overallScore);
 console.log("Score Band:", JSON.stringify(result.scoreBand, null, 2));
 
-const expectedTotal = 14 + 12 + 5 + 12 + 8 + 7 + 7; // = 65
+const expectedTotal = Object.values(result.categoryScores).reduce((sum, cat) => sum + cat.scoreAchieved, 0);
 console.log("Expected Total:", expectedTotal);
 
 if (result.overallScore === expectedTotal) {

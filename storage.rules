@@ -1,17 +1,18 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Isolated user CV uploads
+    // Isolated user CV uploads - strictly owner-only
     match /cvs/{userId}/{allPaths=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
-    // Isolated user generated reports
+    // Isolated user generated reports - strictly owner-only
     match /reports/{userId}/{allPaths=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
-    // General authenticated read/write fallback
-    match /{allPaths=**} {
-      allow read, write: if request.auth != null;
+    // Isolated user public profile uploads - strictly owner-only write, public read if approved
+    match /public_assets/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
   }
 }

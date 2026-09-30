@@ -1,49 +1,42 @@
-const http = require('http');
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
-const data = JSON.stringify({
-  data: {
-    idea: "Smart Tax Automated GST Set-Aside App",
-    problem: "Small business owners accidentally spend tax money due to cash flow confusion.",
-    targetMarket: "NZ Sole Traders & SMBs",
-    category: "FinTech",
-    investmentCommitment: "5000",
-    timeCommitment: "0-5 hours/week",
-    customerValidation: "None yet",
-    founderExperience: "20+ years CA",
-    industryExperience: "Accounting",
-    founderMotivation: "Solve cash flow errors",
-    biggestObstacle: "Customer switching inertia",
-    businessStage: "Idea",
-    fundingPreference: "Bootstrapped",
-    successDefinition: "Sustainable SaaS"
-  }
-});
-
-const options = {
-  hostname: '127.0.0.1',
-  port: 5001,
-  path: '/antigravity-pitchlab/us-central1/pitchLabEvaluation',
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Content-Length': Buffer.byteLength(data),
-    'Authorization': 'Bearer owner'
-  }
-};
-
-console.log("Calling pitchLabEvaluation emulator at 127.0.0.1:5001...");
-const req = http.request(options, (res) => {
-  let body = '';
-  console.log(`STATUS: ${res.statusCode}`);
-  res.on('data', (chunk) => body += chunk);
-  res.on('end', () => {
-    console.log("RESPONSE BODY HEAD:", body.substring(0, 500));
+async function testNuclearCloudFunction() {
+  console.log("Calling pitchLabEvaluation emulator at 127.0.0.1:5001 with Nuclear Power Plant payload...");
+  const response = await fetch("http://127.0.0.1:5001/demo-pitchlab/us-central1/pitchLabEvaluation", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      data: {
+        idea: "Nuclear Power Plant in New Zealand",
+        problem: "New Zealand needs reliable low-carbon baseload electricity generation",
+        targetMarket: "New Zealand Energy Market & Industrial Power Consumers",
+        category: "Energy & Infrastructure",
+        investmentCommitment: "$5,000",
+        timeCommitment: "15-30 hours/week",
+        customerValidation: "0 potential customers",
+        founderExperience: "Yes – still operating",
+        industryExperience: "20+ years",
+        founderBackgroundNarrative: "I am a Chartered Accountant (CA) with 25+ years senior commercial experience advising SMBs.",
+        locationCountry: "New Zealand",
+        locationRegion: "Auckland",
+        locationSummary: "New Zealand",
+        marketScope: "National customers"
+      }
+    })
   });
-});
 
-req.on('error', (e) => {
-  console.error(`ERROR: ${e.message}`);
-});
+  console.log("STATUS:", response.status);
+  const json = await response.json();
+  const resData = json.result || {};
+  console.log("\n=== CLOUD FUNCTION RETURNED RESULT ===");
+  console.log("overallScore:", resData.overallScore);
+  console.log("scoreBand:", resData.scoreBand);
+  console.log("masterRecommendation:", resData.masterRecommendation);
+  console.log("summaryBlock:", resData.summaryBlock);
+  console.log("scorecard:", resData.scorecard);
+  console.log("marketInsights:", resData.marketInsights);
+}
 
-req.write(data);
-req.end();
+testNuclearCloudFunction().catch(console.error);

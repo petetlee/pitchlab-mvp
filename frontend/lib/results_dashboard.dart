@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'models/evaluation_result.dart';
@@ -12,6 +13,37 @@ class ResultsDashboard extends StatefulWidget {
 
   @override
   State<ResultsDashboard> createState() => _ResultsDashboardState();
+}
+
+class _StickyTabBarDelegate extends SliverPersistentHeaderDelegate {
+  final TabBar tabBar;
+
+  _StickyTabBarDelegate(this.tabBar);
+
+  @override
+  double get minExtent => tabBar.preferredSize.height;
+
+  @override
+  double get maxExtent => tabBar.preferredSize.height;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      color: Colors.white,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          bottom: BorderSide(color: Color(0xFFE5E5EA), width: 1),
+        ),
+      ),
+      child: tabBar,
+    );
+  }
+
+  @override
+  bool shouldRebuild(_StickyTabBarDelegate oldDelegate) {
+    return tabBar != oldDelegate.tabBar;
+  }
 }
 
 class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerProviderStateMixin {
@@ -44,21 +76,22 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F7),
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
+        toolbarHeight: 48,
         backgroundColor: const Color(0xFF1D1D1F),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'PitchLab Commercial Assessment',
-          style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
+          style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
+            icon: const Icon(Icons.picture_as_pdf, color: Colors.white, size: 20),
             tooltip: 'Download PDF Report',
             onPressed: () async {
               try {
@@ -67,14 +100,16 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
                 );
                 await PdfService.generateReport(widget.evaluation);
               } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error generating PDF: $e'), backgroundColor: Colors.redAccent),
-                );
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error generating PDF: $e'), backgroundColor: Colors.redAccent),
+                  );
+                }
               }
             },
           ),
           IconButton(
-            icon: const Icon(Icons.history, color: Colors.white),
+            icon: const Icon(Icons.history, color: Colors.white, size: 20),
             tooltip: 'My Ideas & Assessment History',
             onPressed: () {
               Navigator.push(
@@ -84,193 +119,665 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
             },
           ),
           IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
+            icon: const Icon(Icons.refresh, color: Colors.white, size: 20),
             tooltip: 'Reassess Idea',
             onPressed: () => Navigator.pop(context),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
         ],
       ),
-      body: Column(
-        children: [
-          _buildHeroHeader(context),
-          Container(
-            color: Colors.white,
-            child: TabBar(
-              controller: _tabController,
-              isScrollable: true,
-              labelColor: const Color(0xFF0071E3),
-              unselectedLabelColor: const Color(0xFF86868B),
-              indicatorColor: const Color(0xFF0071E3),
-              indicatorWeight: 3,
-              labelStyle: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13),
-              tabs: const [
-                Tab(text: '1. Overview'),
-                Tab(text: '2. Scorecard'),
-                Tab(text: '3. Business Model'),
-                Tab(text: '4. Founder'),
-                Tab(text: '5. Validation'),
-                Tab(text: '6. Market & Competition'),
-                Tab(text: '7. 90-Day Plan'),
-                Tab(text: '8. Action Plan'),
-              ],
+      body: NestedScrollView(
+        headerSliverBuilder: (context, innerBoxIsScrolled) {
+          return [
+            SliverToBoxAdapter(
+              child: _buildCompactHeader(context),
             ),
-          ),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildOverviewTab(context),
-                _buildScorecardTab(context),
-                _buildBusinessModelTab(context),
-                _buildFounderTab(context),
-                _buildValidationTab(context),
-                _buildMarketTab(context),
-                _buildRoadmapTab(context),
-                _buildActionPlanTab(context),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Header & Summary Hero Section
-  Widget _buildHeroHeader(BuildContext context) {
-    final snap = result.executiveSnapshot;
-
-    return Container(
-      width: double.infinity,
-      color: const Color(0xFF1D1D1F),
-      padding: const EdgeInsets.all(24),
-      child: MaxWidthContainer(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Your PitchLab Founder Commercial Assessment', style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
-                    const SizedBox(height: 4),
-                    Text('${result.conceptSummary} • ${result.assessmentDate} • Baseline Assessment', style: GoogleFonts.inter(fontSize: 13, color: Colors.white70)),
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _StickyTabBarDelegate(
+                TabBar(
+                  controller: _tabController,
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                  labelColor: const Color(0xFF0071E3),
+                  unselectedLabelColor: const Color(0xFF6E6E73),
+                  indicatorColor: const Color(0xFF0071E3),
+                  indicatorWeight: 3,
+                  labelStyle: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13),
+                  unselectedLabelStyle: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 13),
+                  tabs: const [
+                    Tab(text: '1. Overview'),
+                    Tab(text: '2. Scorecard'),
+                    Tab(text: '3. Business Model'),
+                    Tab(text: '4. Founder'),
+                    Tab(text: '5. Validation'),
+                    Tab(text: '6. Market & Competition'),
+                    Tab(text: '7. 90-Day Plan'),
+                    Tab(text: '8. Action Plan'),
                   ],
                 ),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(color: const Color(0xFF0071E3), borderRadius: BorderRadius.circular(20)),
-                      child: Text('Current Stage: ${result.scoreBandName}', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white30)),
-                      child: Text(result.masterRecommendation, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF64D2FF))),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // Hero Card Layout
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Score Box
-                Container(
-                  width: 160,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white12)),
-                  child: Column(
-                    children: [
-                      Text('READINESS SCORE', style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white60)),
-                      const SizedBox(height: 4),
-                      Text('${result.overallScore}/100', style: GoogleFonts.inter(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
-                      const SizedBox(height: 4),
-                      Text('Current Stage:\n${result.scoreBandName}', textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFF34C759))),
-                      const SizedBox(height: 6),
-                      Text('Assessment Confidence: ${result.assessmentConfidence}', style: GoogleFonts.inter(fontSize: 9, color: Colors.white70, fontStyle: FontStyle.italic)),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 20),
-
-                // Verdict & Actions
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(color: const Color(0xFF0071E3).withValues(alpha: 0.2), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFF0071E3).withValues(alpha: 0.4))),
-                        child: Text(result.pitchLabVerdict, style: GoogleFonts.inter(fontSize: 13, color: Colors.white, height: 1.4)),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // 3 Priority Actions
-                      Row(
-                        children: result.threePriorityActions.map((action) {
-                          return Expanded(
-                            child: Container(
-                              margin: const EdgeInsets.only(right: 8),
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.white10)),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(action['heading']!, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
-                                  const SizedBox(height: 2),
-                                  Text(action['explanation']!, maxLines: 2, overflow: TextOverflow.ellipsis, style: GoogleFonts.inter(fontSize: 10, color: Colors.white70)),
-                                ],
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Executive Snapshot Strip
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildSnapshotChip('Recommendation', snap['recommendation']!, Colors.amber.shade300),
-                  _buildSnapshotChip('Biggest Strength', snap['biggestStrength']!, Colors.green.shade300),
-                  _buildSnapshotChip('Biggest Risk', snap['biggestRisk']!, Colors.red.shade300),
-                  _buildSnapshotChip('Biggest Unknown', snap['biggestUnknown']!, Colors.blue.shade300),
-                  _buildSnapshotChip('Time Available', snap['timeAvailable']!, Colors.purple.shade300),
-                ],
               ),
             ),
-            const SizedBox(height: 12),
-            Text(result.progressFraming, style: GoogleFonts.inter(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.white54)),
+          ];
+        },
+        body: TabBarView(
+          controller: _tabController,
+          children: [
+            _buildOverviewTab(context),
+            _buildScorecardTab(context),
+            _buildBusinessModelTab(context),
+            _buildFounderTab(context),
+            _buildValidationTab(context),
+            _buildMarketTab(context),
+            _buildRoadmapTab(context),
+            _buildActionPlanTab(context),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSnapshotChip(String label, String value, Color color) {
+  // Compact Dashboard Summary Header Section
+  Widget _buildCompactHeader(BuildContext context) {
+    final snap = result.executiveSnapshot;
+
     return Container(
-      margin: const EdgeInsets.only(right: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(6)),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      color: const Color(0xFFF8F9FA),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: MaxWidthContainer(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildTitleAndPrivacyHeader(context),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth > 900) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 220,
+                        child: _buildScoreColumn(),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 4,
+                        child: _buildExecSummaryColumn(context),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 4,
+                        child: _buildKeySignalsColumn(snap),
+                      ),
+                    ],
+                  );
+                } else if (constraints.maxWidth > 600) {
+                  return Column(
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(width: 200, child: _buildScoreColumn()),
+                          const SizedBox(width: 12),
+                          Expanded(child: _buildExecSummaryColumn(context)),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      _buildKeySignalsColumn(snap),
+                    ],
+                  );
+                } else {
+                  return Column(
+                    children: [
+                      _buildScoreColumn(),
+                      const SizedBox(height: 12),
+                      _buildExecSummaryColumn(context),
+                      const SizedBox(height: 12),
+                      _buildKeySignalsColumn(snap),
+                    ],
+                  );
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildNextBestActions(context),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTitleAndPrivacyHeader(BuildContext context) {
+    final privacyStatus = widget.evaluation['privacyStatus'] ?? 'PRIVATE';
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    'Founder Commercial Assessment',
+                    style: GoogleFonts.inter(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF1D1D1F),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    '• ${result.assessmentDate}',
+                    style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF86868B)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      result.conceptSummary,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF6E6E73)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: () => _showFullIdeaDialog(context),
+                    child: Text(
+                      'View full idea',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF0071E3),
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 16),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFFE5E5EA)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                privacyStatus == 'PUBLISHED_PUBLICLY'
+                    ? Icons.public
+                    : privacyStatus == 'SHARE_PRIVATELY'
+                        ? Icons.link
+                        : Icons.lock_outline,
+                size: 14,
+                color: privacyStatus == 'PUBLISHED_PUBLICLY'
+                    ? Colors.purple
+                    : privacyStatus == 'SHARE_PRIVATELY'
+                        ? const Color(0xFF0071E3)
+                        : const Color(0xFF34C759),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                privacyStatus == 'PUBLISHED_PUBLICLY'
+                    ? 'PUBLIC'
+                    : privacyStatus == 'SHARE_PRIVATELY'
+                        ? 'PRIVATE LINK'
+                        : 'PRIVATE',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: privacyStatus == 'PUBLISHED_PUBLICLY'
+                      ? Colors.purple
+                      : privacyStatus == 'SHARE_PRIVATELY'
+                          ? const Color(0xFF0071E3)
+                          : const Color(0xFF34C759),
+                ),
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: () => _showPrivateShareDialog(context),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text('Share', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFF0071E3))),
+              ),
+              TextButton(
+                onPressed: () => _showPublishIdeaModal(context),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  privacyStatus == 'PUBLISHED_PUBLICLY' ? 'Manage' : 'Publish',
+                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFF0071E3)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildScoreColumn() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E5EA)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text('$label: ', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: color)),
-          Text(value, style: GoogleFonts.inter(fontSize: 11, color: Colors.white.withValues(alpha: 0.87))),
+          Text(
+            'READINESS SCORE',
+            style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF86868B), letterSpacing: 0.5),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                '${result.overallScore}',
+                style: GoogleFonts.inter(fontSize: 32, fontWeight: FontWeight.w800, color: const Color(0xFF1D1D1F)),
+              ),
+              Text(
+                ' / 100',
+                style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600, color: const Color(0xFF86868B)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: const Color(0xFF34C759).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              result.scoreBandName,
+              style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF28863D)),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Confidence: ${result.assessmentConfidence}',
+            style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF86868B), fontStyle: FontStyle.italic),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExecSummaryColumn(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E5EA)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'EXECUTIVE ASSESSMENT',
+                style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF0071E3), letterSpacing: 0.5),
+              ),
+              InkWell(
+                onTap: () => _showFullExecutiveAssessmentDialog(context),
+                child: Text(
+                  'Read full assessment',
+                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFF0071E3)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            result.pitchLabVerdict,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(fontSize: 12.5, height: 1.4, color: const Color(0xFF1D1D1F)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKeySignalsColumn(Map<String, String> snap) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E5EA)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            'KEY SIGNALS',
+            style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF86868B), letterSpacing: 0.5),
+          ),
+          const SizedBox(height: 6),
+          _buildSignalChip('Recommendation', snap['recommendation'] ?? result.masterRecommendation, const Color(0xFF0071E3), Colors.blue.shade50),
+          const SizedBox(height: 4),
+          _buildSignalChip('Biggest Strength', snap['biggestStrength'] ?? '', const Color(0xFF28863D), Colors.green.shade50),
+          const SizedBox(height: 4),
+          _buildSignalChip('Biggest Risk', snap['biggestRisk'] ?? '', const Color(0xFFD32F2F), Colors.red.shade50),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSignalChip(String label, String value, Color textColor, Color bgColor) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: 110,
+          child: Text(
+            '$label:',
+            style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF1D1D1F)),
+          ),
+        ),
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: textColor),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNextBestActions(BuildContext context) {
+    final actions = result.threePriorityActions;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E5EA)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.bolt, size: 14, color: Color(0xFF0071E3)),
+                  const SizedBox(width: 4),
+                  Text(
+                    'NEXT BEST ACTIONS',
+                    style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF1D1D1F), letterSpacing: 0.5),
+                  ),
+                ],
+              ),
+              Text(
+                'Top 3 Priority Actions',
+                style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF86868B)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth > 700;
+              if (isWide) {
+                return Row(
+                  children: actions.asMap().entries.map((entry) {
+                    final idx = entry.key + 1;
+                    final act = entry.value;
+                    return Expanded(
+                      child: Container(
+                        margin: EdgeInsets.only(right: entry.key < actions.length - 1 ? 8.0 : 0.0),
+                        child: _buildActionTile(context, act, idx),
+                      ),
+                    );
+                  }).toList(),
+                );
+              } else {
+                return Column(
+                  children: actions.asMap().entries.map((entry) {
+                    final idx = entry.key + 1;
+                    final act = entry.value;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: _buildActionTile(context, act, idx),
+                    );
+                  }).toList(),
+                );
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionTile(BuildContext context, Map<String, String> act, int index) {
+    final heading = act['heading'] ?? '';
+    final explanation = act['explanation'] ?? '';
+
+    return InkWell(
+      onTap: () => _showActionDetailDialog(context, act, index),
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8F9FA),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0xFFE5E5EA)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0071E3),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                '0$index',
+                style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    heading,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: const Color(0xFF1D1D1F)),
+                  ),
+                  if (explanation.isNotEmpty)
+                    Text(
+                      explanation,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF6E6E73)),
+                    ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, size: 14, color: Color(0xFF86868B)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showFullIdeaDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: Text('Full Idea Description', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18)),
+        content: SingleChildScrollView(
+          child: SizedBox(
+            width: 500,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('CONCEPT SUMMARY', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF0071E3))),
+                const SizedBox(height: 4),
+                Text(result.conceptSummary, style: GoogleFonts.inter(fontSize: 13, height: 1.4, color: const Color(0xFF1D1D1F))),
+                const SizedBox(height: 16),
+                Text('PRESERVED PROBLEM STATEMENT', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+                const SizedBox(height: 4),
+                Text(result.underlyingProblem, style: GoogleFonts.inter(fontSize: 13, height: 1.4, color: const Color(0xFF1D1D1F))),
+                const SizedBox(height: 16),
+                Text('CURRENT PROPOSED SOLUTION', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+                const SizedBox(height: 4),
+                Text(result.currentProposedSolution, style: GoogleFonts.inter(fontSize: 13, height: 1.4, color: const Color(0xFF1D1D1F))),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showFullExecutiveAssessmentDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: Text('Executive Assessment & Verdict', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18)),
+        content: SingleChildScrollView(
+          child: SizedBox(
+            width: 550,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('PITCHLAB VERDICT', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF0071E3))),
+                const SizedBox(height: 4),
+                Text(result.pitchLabVerdict, style: GoogleFonts.inter(fontSize: 13, height: 1.5, color: const Color(0xFF1D1D1F))),
+                const SizedBox(height: 16),
+                Text('EXECUTIVE SUMMARY', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF1D1D1F))),
+                const SizedBox(height: 4),
+                Text(result.executiveSummary, style: GoogleFonts.inter(fontSize: 13, height: 1.5, color: const Color(0xFF1D1D1F))),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showActionDetailDialog(BuildContext context, Map<String, String> act, int index) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0071E3),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text('0$index', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+            ),
+            const SizedBox(width: 10),
+            Expanded(child: Text(act['heading'] ?? '', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16))),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: SizedBox(
+            width: 450,
+            child: Text(act['explanation'] ?? '', style: GoogleFonts.inter(fontSize: 13, height: 1.5, color: const Color(0xFF1D1D1F))),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
         ],
       ),
     );
@@ -390,17 +897,16 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
     final snap = result.executiveSnapshot;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: MaxWidthContainer(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildCard('Executive Summary', Text(result.executiveSummary, style: GoogleFonts.inter(fontSize: 14, height: 1.6, color: const Color(0xFF1D1D1F)))),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
-            // P.A.R.A.-Inspired Idea Portfolio & Decision Gateway Card (Fix 14)
             _buildPortfolioCard(context),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
             _buildCard('Executive Snapshot Table', Table(
               border: TableBorder.all(color: Colors.grey.shade300, width: 1),
@@ -414,8 +920,7 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
                 _buildTableRow('Capital Position', result.capitalAvailable),
               ],
             )),
-            const SizedBox(height: 20),
-
+            const SizedBox(height: 16),
 
             _buildCard('Business Model Snapshot', Table(
               border: TableBorder.all(color: Colors.grey.shade300, width: 1),
@@ -441,13 +946,13 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
                 _buildTableRow('Commercial Assessment', result.bmCommercialAssessment),
               ],
             )),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
             _buildWouldInvestorsBiteCard(result),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
             _buildPostAssessmentDecisionCard(),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
           ],
         ),
       ),
@@ -459,20 +964,20 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
     final categories = result.scorecardCategories;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: MaxWidthContainer(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('PitchLab Reconciled Scorecard', style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold, color: const Color(0xFF1D1D1F))),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text('The overall score of ${result.overallScore}/100 is strictly calculated from the sum of these 7 commercial categories.', style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF86868B))),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
             ...categories.map((cat) {
               final pct = cat.scoreAchieved / cat.maxScore;
               return Container(
-                margin: const EdgeInsets.only(bottom: 16),
+                margin: const EdgeInsets.only(bottom: 12),
                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
                 child: ExpansionTile(
                   title: Row(
@@ -505,7 +1010,7 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
                   ],
                 ),
               );
-            }).toList(),
+            }),
           ],
         ),
       ),
@@ -515,17 +1020,13 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
   // TAB 3: BUSINESS MODEL
   Widget _buildBusinessModelTab(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: MaxWidthContainer(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Business Model & Commercial Strategy', style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
-
-
-
-
 
             _buildCard('Market Insights', Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -547,7 +1048,7 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
                 )),
               ],
             )),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             _buildFutureTrendsCard(),
           ],
         ),
@@ -557,7 +1058,6 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
 
   Widget _buildFutureTrendsCard() {
     final outlook = result.futureOutlook;
-    final alignment = result.trendAlignmentScore;
     final confidence = result.forecastConfidence;
 
     Color outlookColor = Colors.green.shade800;
@@ -598,25 +1098,11 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text('Future Outlook: ', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey.shade800)),
-                    Text(outlook, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, color: outlookColor)),
+                    Text(outlook, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: outlookColor)),
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0071E3).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFF0071E3).withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('Trend Alignment: ', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey.shade800)),
-                    Text('$alignment/10', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, color: const Color(0xFF0071E3))),
-                  ],
-                ),
-              ),
+
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
@@ -777,7 +1263,7 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
   // TAB 4: FOUNDER
   Widget _buildFounderTab(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: MaxWidthContainer(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -965,7 +1451,7 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
   // TAB 5: VALIDATION
   Widget _buildValidationTab(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: MaxWidthContainer(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -991,7 +1477,7 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
                   ],
                 ),
               );
-            }).toList(),
+            }),
           ],
         ),
       ),
@@ -1001,7 +1487,7 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
   // TAB 6: MARKET & COMPETITION
   Widget _buildMarketTab(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: MaxWidthContainer(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1025,7 +1511,7 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
                 Text(result.strategicMoat, style: GoogleFonts.inter(fontSize: 12, height: 1.45, color: Colors.grey.shade800)),
               ],
             )),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
             _buildCard('📰 Local Business News & Regional Economic Signals', Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1044,7 +1530,7 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
                 ),
               ],
             )),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
             _buildCard('💬 Customer Review Trends & User Sentiment', Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1063,7 +1549,7 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
                 ),
               ],
             )),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
             _buildCard('🏛️ Government Policies & Statutory Regulatory Frameworks', Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1091,7 +1577,7 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
   // TAB 7: 90-DAY PLAN
   Widget _buildRoadmapTab(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: MaxWidthContainer(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1113,7 +1599,7 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
   // TAB 8: ACTION PLAN
   Widget _buildActionPlanTab(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: MaxWidthContainer(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1167,43 +1653,24 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E5EA)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1D1D1F))),
           const SizedBox(height: 12),
           content,
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSwotBox(String title, List<String> items, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(8), border: Border.all(color: color.withValues(alpha: 0.2))),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13, color: color)),
-          const SizedBox(height: 6),
-          ...items.map((i) => Text('• $i', style: GoogleFonts.inter(fontSize: 11, color: Colors.black87))),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGridBox(String title, List<String> items) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12, color: const Color(0xFF0071E3))),
-          const SizedBox(height: 6),
-          ...items.map((i) => Text(i, style: GoogleFonts.inter(fontSize: 11), maxLines: 2, overflow: TextOverflow.ellipsis)),
         ],
       ),
     );
@@ -1337,7 +1804,7 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: potentialColor.withOpacity(0.15),
+                        color: potentialColor.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: potentialColor),
                       ),
@@ -1362,7 +1829,7 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.blue.shade50.withOpacity(0.5),
+              color: Colors.blue.shade50.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: Colors.blue.shade200),
             ),
@@ -1486,8 +1953,6 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
     );
   }
 
-
-
   Widget _buildPostAssessmentDecisionCard() {
     final viewOptions = [
       'Much more positive',
@@ -1526,7 +1991,6 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
           ),
           const SizedBox(height: 12),
 
-          // Question 1: Has this assessment changed your view?
           Text('1. Has this assessment changed your view of the idea?', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1D1D1F))),
           const SizedBox(height: 8),
           Wrap(
@@ -1552,7 +2016,6 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
           ),
           const SizedBox(height: 20),
 
-          // Question 2: What do you want to do with this idea?
           Text('2. What do you want to do with this idea?', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1D1D1F))),
           const SizedBox(height: 8),
           Row(
@@ -1599,8 +2062,6 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
     setState(() => _isSavingDecision = true);
     try {
       final evalId = result.raw['id'] ?? result.raw['inputId'] ?? 'local-eval';
-      print('🚀 PitchLab: Saving decision: viewChanged=$viewChanged, finalDecision=$finalDecision, evalId=$evalId');
-      
       final callable = FirebaseFunctions.instanceFor(region: "us-central1").httpsCallable('updateIdeaDecision');
       await callable.call({
         'evaluationId': evalId,
@@ -1618,10 +2079,572 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
         );
       }
     } catch (e) {
-      print('⚠️ PitchLab: Decision save warning (local mode active): $e');
+      // Local fallback mode active
     } finally {
       if (mounted) setState(() => _isSavingDecision = false);
     }
+  }
+
+  void _showPrivateShareDialog(BuildContext context) {
+    final evalId = widget.evaluation['docId'] ?? widget.evaluation['id'] ?? widget.evaluation['evaluationId'] ?? '';
+    String selectedScope = 'selected_summary';
+    int selectedExpiryDays = 7;
+    bool isGenerating = false;
+    String? generatedLink;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.share, color: Color(0xFF0071E3)),
+              const SizedBox(width: 8),
+              Text('Share Idea Privately', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18)),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: SizedBox(
+              width: 500,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Explicit Private Sharing Disclosure', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.blue.shade900)),
+                        const SizedBox(height: 4),
+                        Text(
+                          'You are creating a secure, unguessable sharing link. Only recipients with this specific token link will be able to view the content scope you explicitly select below.',
+                          style: GoogleFonts.inter(fontSize: 11.5, color: Colors.blue.shade900),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text('1. Select Sharing Content Scope:', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
+                  const SizedBox(height: 6),
+                  RadioListTile<String>(
+                    title: const Text('Selected Assessment Summary (Recommended)'),
+                    subtitle: const Text('Shares executive summary, score, verdict, and key strengths. Omits raw questionnaire answers.'),
+                    value: 'selected_summary',
+                    groupValue: selectedScope,
+                    onChanged: (val) => setDialogState(() => selectedScope = val!),
+                  ),
+                  RadioListTile<String>(
+                    title: const Text('Public Profile Summary Only'),
+                    subtitle: const Text('Shares sanitized public snapshot only.'),
+                    value: 'public_profile',
+                    groupValue: selectedScope,
+                    onChanged: (val) => setDialogState(() => selectedScope = val!),
+                  ),
+                  RadioListTile<String>(
+                    title: const Text('Complete Assessment Report'),
+                    subtitle: const Text('Shares full assessment report and detailed breakdowns.'),
+                    value: 'complete_report',
+                    groupValue: selectedScope,
+                    onChanged: (val) => setDialogState(() => selectedScope = val!),
+                  ),
+                  const SizedBox(height: 16),
+                  Text('2. Select Expiry Period:', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<int>(
+                    value: selectedExpiryDays,
+                    decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12)),
+                    items: const [
+                      DropdownMenuItem(value: 7, child: Text('7 Days (Recommended)')),
+                      DropdownMenuItem(value: 30, child: Text('30 Days')),
+                      DropdownMenuItem(value: 0, child: Text('No Expiry')),
+                    ],
+                    onChanged: (val) => setDialogState(() => selectedExpiryDays = val ?? 7),
+                  ),
+                  const SizedBox(height: 20),
+
+                  if (generatedLink != null) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.green.shade300),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Active Private Share Link Generated:', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.green.shade900)),
+                          const SizedBox(height: 6),
+                          SelectableText(generatedLink!, style: GoogleFonts.inter(fontSize: 11, color: Colors.green.shade900)),
+                          const SizedBox(height: 8),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              Clipboard.setData(ClipboardData(text: generatedLink!));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Private share link copied to clipboard!')),
+                              );
+                            },
+                            icon: const Icon(Icons.copy, size: 16),
+                            label: const Text('Copy Link'),
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, foregroundColor: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning_amber_rounded, size: 16, color: Colors.amber.shade900),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Revocation Disclosure: PitchLab cannot remove screenshots, downloads, or offline copies already retained by recipients.',
+                            style: GoogleFonts.inter(fontSize: 10.5, color: Colors.amber.shade900),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+            ElevatedButton.icon(
+              onPressed: isGenerating
+                  ? null
+                  : () async {
+                      if (evalId.isEmpty || evalId.toString().startsWith('local-')) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please wait for submission to save before sharing.')),
+                        );
+                        return;
+                      }
+
+                      setDialogState(() => isGenerating = true);
+                      try {
+                        final res = await FirebaseFunctions.instanceFor(region: 'us-central1')
+                            .httpsCallable('createPrivateShare')
+                            .call({
+                          'evaluationId': evalId,
+                          'scope': selectedScope,
+                          'expiresAtInDays': selectedExpiryDays,
+                        });
+
+                        final data = res.data as Map<dynamic, dynamic>?;
+                        final token = data?['shareToken'] as String?;
+                        if (token != null) {
+                          final link = '${Uri.base.origin}/?shareToken=$token';
+                          setDialogState(() {
+                            generatedLink = link;
+                            isGenerating = false;
+                          });
+                          setState(() {
+                            widget.evaluation['privacyStatus'] = 'SHARE_PRIVATELY';
+                          });
+                        }
+                      } catch (e) {
+                        setDialogState(() => isGenerating = false);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Failed to generate share link: $e')),
+                          );
+                        }
+                      }
+                    },
+              icon: const Icon(Icons.link, size: 16),
+              label: isGenerating
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Generate Share Link'),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0071E3), foregroundColor: Colors.white),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showPublishIdeaModal(BuildContext context) {
+    final evalId = widget.evaluation['docId'] ?? widget.evaluation['id'] ?? widget.evaluation['evaluationId'] ?? '';
+    final existingPublicId = widget.evaluation['publicId'] as String?;
+    final isAlreadyPublished = widget.evaluation['privacyStatus'] == 'PUBLISHED_PUBLICLY' && existingPublicId != null;
+
+    final titleController = TextEditingController(text: widget.evaluation['idea'] ?? widget.evaluation['businessName'] ?? 'Startup Idea');
+    final summaryController = TextEditingController(text: widget.evaluation['executiveSummary'] ?? '');
+    final problemController = TextEditingController(text: widget.evaluation['problem'] ?? '');
+    final solutionController = TextEditingController(text: widget.evaluation['currentProposedSolution'] ?? widget.evaluation['idea'] ?? '');
+    final categoryController = TextEditingController(text: widget.evaluation['category'] ?? 'General Startup');
+    final marketController = TextEditingController(text: widget.evaluation['targetMarket'] ?? '');
+
+    String identityType = 'anonymous';
+    final displayNameController = TextEditingController();
+    String stage = 'Idea Stage';
+    List<String> seeking = ['Feedback', 'Customer validation'];
+    bool includeScore = false;
+    bool includeInsights = false;
+    bool allowContact = true;
+    bool allowIndexing = false;
+    bool hasAgreedConsent = false;
+    bool isPublishing = false;
+    int currentTab = 0;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.public, color: Color(0xFF0071E3)),
+              const SizedBox(width: 8),
+              Text(isAlreadyPublished ? 'Manage Public Idea Profile' : 'Publish Idea Publicly', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 18)),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: SizedBox(
+              width: 550,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (isAlreadyPublished) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.purple.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.purple.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Currently Published Public Profile', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.purple.shade900)),
+                          const SizedBox(height: 4),
+                          SelectableText('${Uri.base.origin}/?publicIdea=$existingPublicId', style: GoogleFonts.inter(fontSize: 11, color: Colors.purple.shade900)),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              OutlinedButton.icon(
+                                onPressed: () {
+                                  Clipboard.setData(ClipboardData(text: '${Uri.base.origin}/?publicIdea=$existingPublicId'));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Public idea link copied to clipboard!')),
+                                  );
+                                },
+                                icon: const Icon(Icons.copy, size: 14),
+                                label: const Text('Copy Link'),
+                              ),
+                              const SizedBox(width: 8),
+                              OutlinedButton.icon(
+                                onPressed: () async {
+                                  setModalState(() => isPublishing = true);
+                                  try {
+                                    await FirebaseFunctions.instanceFor(region: 'us-central1')
+                                        .httpsCallable('unpublishPublicIdea')
+                                        .call({'publicId': existingPublicId});
+
+                                    if (context.mounted) {
+                                      Navigator.pop(context);
+                                      setState(() {
+                                        widget.evaluation['privacyStatus'] = 'PRIVATE';
+                                        widget.evaluation['publicId'] = null;
+                                      });
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Idea unpublished. Returned to Private status.')),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    setModalState(() => isPublishing = false);
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('Unpublish failed: $e')),
+                                      );
+                                    }
+                                  }
+                                },
+                                icon: const Icon(Icons.do_not_disturb_on, color: Colors.red, size: 14),
+                                label: const Text('Unpublish Idea', style: TextStyle(color: Colors.red)),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  Row(
+                    children: [
+                      ChoiceChip(
+                        label: const Text('1. Edit Public Profile'),
+                        selected: currentTab == 0,
+                        onSelected: (val) => setModalState(() => currentTab = 0),
+                      ),
+                      const SizedBox(width: 8),
+                      ChoiceChip(
+                        label: const Text('2. Live Preview & Consent'),
+                        selected: currentTab == 1,
+                        onSelected: (val) => setModalState(() => currentTab = 1),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  if (currentTab == 0) ...[
+                    TextField(
+                      controller: titleController,
+                      decoration: const InputDecoration(labelText: 'Public Idea Title', border: OutlineInputBorder()),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: summaryController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(labelText: 'Public Summary', border: OutlineInputBorder()),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: problemController,
+                      maxLines: 2,
+                      decoration: const InputDecoration(labelText: 'Problem Addressed', border: OutlineInputBorder()),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: solutionController,
+                      maxLines: 2,
+                      decoration: const InputDecoration(labelText: 'Proposed Solution', border: OutlineInputBorder()),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: categoryController,
+                            decoration: const InputDecoration(labelText: 'Category / Sector', border: OutlineInputBorder()),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: marketController,
+                            decoration: const InputDecoration(labelText: 'Target Market / Region', border: OutlineInputBorder()),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text('Public Identity Option:', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13)),
+                    RadioListTile<String>(
+                      title: const Text('Anonymous Founder (Recommended)'),
+                      subtitle: const Text('Hides name, email, user ID, and account profile.'),
+                      value: 'anonymous',
+                      groupValue: identityType,
+                      onChanged: (val) => setModalState(() => identityType = val!),
+                    ),
+                    RadioListTile<String>(
+                      title: const Text('Display Name'),
+                      subtitle: const Text('Displays your name or custom display name publicly.'),
+                      value: 'display_name',
+                      groupValue: identityType,
+                      onChanged: (val) => setModalState(() => identityType = val!),
+                    ),
+                    RadioListTile<String>(
+                      title: const Text('Business / Organisation Name'),
+                      subtitle: const Text('Displays company or team name publicly.'),
+                      value: 'business_name',
+                      groupValue: identityType,
+                      onChanged: (val) => setModalState(() => identityType = val!),
+                    ),
+                    if (identityType != 'anonymous') ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: TextField(
+                          controller: displayNameController,
+                          decoration: InputDecoration(
+                            labelText: identityType == 'business_name' ? 'Business Name' : 'Display Name',
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    SwitchListTile(
+                      title: const Text('Include PitchLab Assessment Score'),
+                      subtitle: const Text('Optionally display overall readiness score on public profile.'),
+                      value: includeScore,
+                      onChanged: (val) => setModalState(() => includeScore = val),
+                    ),
+                    SwitchListTile(
+                      title: const Text('Include Top Assessment Insights'),
+                      subtitle: const Text('Optionally display key identified strengths.'),
+                      value: includeInsights,
+                      onChanged: (val) => setModalState(() => includeInsights = val),
+                    ),
+                    SwitchListTile(
+                      title: const Text('Allow Contact Founder via PitchLab Relay'),
+                      subtitle: const Text('Allows visitors to send expressions of interest without seeing your email address.'),
+                      value: allowContact,
+                      onChanged: (val) => setModalState(() => allowContact = val),
+                    ),
+                    SwitchListTile(
+                      title: const Text('Allow Search Engine Indexing'),
+                      subtitle: const Text('Disabled by default. Allows web crawlers to index this public page.'),
+                      value: allowIndexing,
+                      onChanged: (val) => setModalState(() => allowIndexing = val),
+                    ),
+                  ] else ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('LIVE PUBLIC PREVIEW', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.grey.shade700)),
+                              Text(identityType == 'anonymous' ? 'Identity: Anonymous Founder' : 'Identity: ${displayNameController.text.trim().isEmpty ? "Custom Name" : displayNameController.text.trim()}', style: GoogleFonts.inter(fontSize: 11, fontStyle: FontStyle.italic)),
+                            ],
+                          ),
+                          const Divider(),
+                          Text(titleController.text.trim(), style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 8),
+                          Text(summaryController.text.trim(), style: GoogleFonts.inter(fontSize: 13, height: 1.4)),
+                          const SizedBox(height: 8),
+                          Text('Problem: ${problemController.text.trim()}', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey.shade800)),
+                          Text('Solution: ${solutionController.text.trim()}', style: GoogleFonts.inter(fontSize: 12, color: Colors.grey.shade800)),
+                          if (includeScore) Text('Assessment Score: ${widget.evaluation["overallScore"] ?? 50}/100', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF0071E3))),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.amber.shade300),
+                      ),
+                      child: Text(
+                        'Consider obtaining appropriate intellectual-property advice before publicly disclosing commercially sensitive or potentially patentable information.',
+                        style: GoogleFonts.inter(fontSize: 11.5, color: Colors.amber.shade900, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: hasAgreedConsent,
+                      onChanged: (val) => setModalState(() => hasAgreedConsent = val ?? false),
+                      title: Text(
+                        'I understand that publishing this profile will make the selected information publicly visible. Other people may view, discuss, copy or act on information I publish. I have reviewed the public preview and want PitchLab to publish it.',
+                        style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF1D1D1F)),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            if (currentTab == 0)
+              ElevatedButton(
+                onPressed: () => setModalState(() => currentTab = 1),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1D1D1F), foregroundColor: Colors.white),
+                child: const Text('Preview & Confirm'),
+              )
+            else
+              ElevatedButton.icon(
+                onPressed: (!hasAgreedConsent || isPublishing)
+                    ? null
+                    : () async {
+                        if (evalId.isEmpty || evalId.toString().startsWith('local-')) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Please wait for submission to save before publishing.')),
+                          );
+                          return;
+                        }
+
+                        setModalState(() => isPublishing = true);
+                        try {
+                          final res = await FirebaseFunctions.instanceFor(region: 'us-central1')
+                              .httpsCallable('publishPublicIdea')
+                              .call({
+                            'evaluationId': evalId,
+                            'publicTitle': titleController.text.trim(),
+                            'publicSummary': summaryController.text.trim(),
+                            'problem': problemController.text.trim(),
+                            'solution': solutionController.text.trim(),
+                            'category': categoryController.text.trim(),
+                            'targetMarket': marketController.text.trim(),
+                            'stage': stage,
+                            'seeking': seeking,
+                            'includeScore': includeScore,
+                            'includeInsights': includeInsights,
+                            'allowContact': allowContact,
+                            'identityType': identityType,
+                            'customDisplayName': displayNameController.text.trim(),
+                            'allowIndexing': allowIndexing,
+                            'consentVersion': '1.0',
+                          });
+
+                          final pubId = (res.data as Map?)?['publicId'] as String?;
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            setState(() {
+                              widget.evaluation['privacyStatus'] = 'PUBLISHED_PUBLICLY';
+                              widget.evaluation['publicId'] = pubId;
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Public Idea Profile successfully published!')),
+                            );
+                          }
+                        } catch (e) {
+                          setModalState(() => isPublishing = false);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Publishing failed: $e')),
+                            );
+                          }
+                        }
+                      },
+                icon: const Icon(Icons.public, size: 16),
+                label: isPublishing
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : Text(isAlreadyPublished ? 'Update Public Profile' : 'Publish Idea Now'),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0071E3), foregroundColor: Colors.white),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -1633,7 +2656,7 @@ class MaxWidthContainer extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1100),
+        constraints: const BoxConstraints(maxWidth: 1400),
         child: child,
       ),
     );

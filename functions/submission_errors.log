@@ -2096,3 +2096,607 @@ STACK: ReferenceError: pw is not defined
     at async runHTTPS (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:424:5)
     at async C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:585:21
 ============================================================
+
+============================================================
+[2026-08-04T08:35:03.975Z] GOOGLE AI FAILED
+USER: nge6qZrtfAeoOIV2zJECyM0CdxL2
+INPUT IDEA: Smart Tax is a tax compliance tool that helps businesses automatically set aside GST and other tax obligations before the money is spent. The goal is to improve cash flow discipline and reduce the risk of falling behind with IRD.
+
+ERROR: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [400 Bad Request] The specified schema produces a constraint that has too many states for serving. Typical causes of this error are schemas with lots of text (for example, very long property or enum names), schemas with long array length limits (especially when nested), or schemas using complex value matchers (for example, integers or numbers with minimum/maximum bounds or strings with complex formats like date-time)
+STATUS: 400
+STACK: Error: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [400 Bad Request] The specified schema produces a constraint that has too many states for serving. Typical causes of this error are schemas with lots of text (for example, very long property or enum names), schemas with long array length limits (especially when nested), or schemas using complex value matchers (for example, integers or numbers with minimum/maximum bounds or strings with complex formats like date-time)
+    at handleResponseNotOk (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google\generative-ai\dist\index.js:434:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async makeRequest (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google\generative-ai\dist\index.js:403:9)
+    at async generateContent (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google\generative-ai\dist\index.js:867:22)
+    at async ChatSession.sendMessage (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google\generative-ai\dist\index.js:1210:9)
+    at async callGemini (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\googleai\lib\gemini.js:1111:26)
+    at async C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\googleai\lib\gemini.js:1159:11
+    at async C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\core\lib\action.js:228:12
+    at async C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\core\lib\action.js:148:27
+    at async C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\core\lib\tracing\instrumentation.js:91:24
+============================================================
+
+============================================================
+[2026-08-04T08:35:05.258Z] GOOGLE AI RETRY FAILED
+USER: nge6qZrtfAeoOIV2zJECyM0CdxL2
+INPUT IDEA: Smart Tax is a tax compliance tool that helps businesses automatically set aside GST and other tax obligations before the money is spent. The goal is to improve cash flow discipline and reduce the risk of falling behind with IRD.
+
+ERROR: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent: [404 Not Found] This model models/gemini-2.5-pro is no longer available to new users. Please update your code to use a newer model for the latest features and improvements.
+STATUS: 404
+STACK: Error: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent: [404 Not Found] This model models/gemini-2.5-pro is no longer available to new users. Please update your code to use a newer model for the latest features and improvements.
+    at handleResponseNotOk (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google\generative-ai\dist\index.js:434:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async makeRequest (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google\generative-ai\dist\index.js:403:9)
+    at async generateContent (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google\generative-ai\dist\index.js:867:22)
+    at async ChatSession.sendMessage (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google\generative-ai\dist\index.js:1210:9)
+    at async callGemini (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\googleai\lib\gemini.js:1111:26)
+    at async C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\googleai\lib\gemini.js:1159:11
+    at async C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\core\lib\action.js:228:12
+    at async C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\core\lib\action.js:148:27
+    at async C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\core\lib\tracing\instrumentation.js:91:24
+============================================================
+
+============================================================
+[2026-08-09T23:20:03.050Z] SUBMISSION TOP-LEVEL ERROR
+USER: nge6qZrtfAeoOIV2zJECyM0CdxL2
+INPUT IDEA: Smart Tax is a tax compliance tool that helps businesses automatically set aside GST and other tax obligations before the money is spent. The goal is to improve cash flow discipline and reduce the risk of falling behind with IRD.
+
+ERROR: JSON5: invalid character '}' at 244:3
+STATUS: N/A
+STACK: SyntaxError: JSON5: invalid character '}' at 244:3
+    at syntaxError (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\json5\lib\parse.js:1110:17)
+    at invalidChar (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\json5\lib\parse.js:1055:12)
+    at Object.afterArrayValue (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\json5\lib\parse.js:694:15)
+    at Object.default (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\json5\lib\parse.js:168:37)
+    at lex (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\json5\lib\parse.js:100:42)
+    at Object.parse (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\json5\lib\parse.js:25:17)
+    at extractJson (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\ai\lib\extract.js:75:37)
+    at Message.parseMessage [as parser] (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\ai\lib\formats\json.js:48:47)
+    at get output (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\ai\lib\message.js:65:25)
+    at get output (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\ai\lib\generate\response.js:119:24)
+============================================================
+
+============================================================
+[2026-08-10T01:46:21.595Z] SUBMISSION TOP-LEVEL ERROR
+USER: nge6qZrtfAeoOIV2zJECyM0CdxL2
+INPUT IDEA: Smart Tax is a tax compliance tool that helps businesses automatically set aside GST and other tax obligations before the money is spent. The goal is to improve cash flow discipline and reduce the risk of falling behind with IRD.
+
+ERROR: JSON5: invalid character '}' at 241:3
+STATUS: N/A
+STACK: SyntaxError: JSON5: invalid character '}' at 241:3
+    at syntaxError (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\json5\lib\parse.js:1110:17)
+    at invalidChar (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\json5\lib\parse.js:1055:12)
+    at Object.afterArrayValue (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\json5\lib\parse.js:694:15)
+    at Object.default (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\json5\lib\parse.js:168:37)
+    at lex (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\json5\lib\parse.js:100:42)
+    at Object.parse (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\json5\lib\parse.js:25:17)
+    at extractJson (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\ai\lib\extract.js:75:37)
+    at Message.parseMessage [as parser] (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\ai\lib\formats\json.js:48:47)
+    at get output (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\ai\lib\message.js:65:25)
+    at get output (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\ai\lib\generate\response.js:119:24)
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:532:28
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\firebase-functions\lib\common\providers\https.js:467:26
+    at async runFunction (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:399:9)
+    at async runHTTPS (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:424:5)
+    at async C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:585:21
+============================================================
+
+============================================================
+[2026-08-10T05:18:19.147Z] SUBMISSION TOP-LEVEL ERROR
+USER: nge6qZrtfAeoOIV2zJECyM0CdxL2
+INPUT IDEA: Smart Tax is a tax compliance tool that helps businesses automatically set aside GST and other tax obligations before the money is spent. The goal is to improve cash flow discipline and reduce the risk of falling behind with IRD.
+
+ERROR: JSON5: invalid character '}' at 243:3
+STATUS: N/A
+STACK: SyntaxError: JSON5: invalid character '}' at 243:3
+    at syntaxError (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\json5\lib\parse.js:1110:17)
+    at invalidChar (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\json5\lib\parse.js:1055:12)
+    at Object.afterArrayValue (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\json5\lib\parse.js:694:15)
+    at Object.default (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\json5\lib\parse.js:168:37)
+    at lex (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\json5\lib\parse.js:100:42)
+    at Object.parse (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\json5\lib\parse.js:25:17)
+    at extractJson (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\ai\lib\extract.js:75:37)
+    at Message.parseMessage [as parser] (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\ai\lib\formats\json.js:48:47)
+    at get output (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\ai\lib\message.js:65:25)
+    at get output (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@genkit-ai\ai\lib\generate\response.js:119:24)
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:538:28
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\firebase-functions\lib\common\providers\https.js:467:26
+    at async runFunction (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:399:9)
+    at async runHTTPS (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:424:5)
+    at async C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:585:21
+============================================================
+
+============================================================
+[2026-08-10T20:43:58.130Z] TEST_VERIFICATION_EVENT
+USER: test-user-verification
+INPUT IDEA: PitchLab System Restart Verification Idea
+ERROR: Synthetic verification error for restart audit
+STATUS: N/A
+STACK: Error: Synthetic verification error for restart audit
+    at Object.<anonymous> (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\test_error_logging.js:9:47)
+    at Module._compile (node:internal/modules/cjs/loader:1804:14)
+    at Object..js (node:internal/modules/cjs/loader:1936:10)
+    at Module.load (node:internal/modules/cjs/loader:1525:32)
+    at Module._load (node:internal/modules/cjs/loader:1327:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+============================================================
+
+============================================================
+[2026-08-10T23:43:41.593Z] SUBMISSION TOP-LEVEL ERROR
+USER: test-user-smarttax
+INPUT IDEA: Smart Tax is an automated tax compliance tool that helps New Zealand businesses set aside GST obligations before spending.
+ERROR: Unable to detect a Project Id in the current environment. 
+To learn more about authentication and Google APIs, visit: 
+https://cloud.google.com/docs/authentication/getting-started
+STATUS: N/A
+STACK: Error: Unable to detect a Project Id in the current environment. 
+To learn more about authentication and Google APIs, visit: 
+https://cloud.google.com/docs/authentication/getting-started
+    at GoogleAuth.findAndCacheProjectId (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\google-auth-library\build\src\auth\googleauth.js:170:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Firestore.initializeIfNeeded (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\index.js:1201:35)
+    at async WriteBatch._commit (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\write-batch.js:469:9)
+    at async C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:164:22
+    at async testLiveReports (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\test_live_reports_regression.js:21:26)
+Caused by: Error
+    at _firestore._traceUtil.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\write-batch.js:438:27)
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:110:30
+    at NoopContextManager.with (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\context\NoopContextManager.js:25:19)
+    at ContextAPI.with (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\api\context.js:60:46)
+    at NoopTracer.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\trace\NoopTracer.js:65:31)
+    at ProxyTracer.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\trace\ProxyTracer.js:36:24)
+    at EnabledTraceUtil.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:102:28)
+    at WriteBatch.commit (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\write-batch.js:436:43)
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:273:18
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:110:30
+    at NoopContextManager.with (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\context\NoopContextManager.js:25:19)
+    at ContextAPI.with (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\api\context.js:60:46)
+    at NoopTracer.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\trace\NoopTracer.js:65:31)
+    at ProxyTracer.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\trace\ProxyTracer.js:36:24)
+    at EnabledTraceUtil.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:102:28)
+    at DocumentReference.create (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:269:43)
+============================================================
+
+============================================================
+[2026-08-10T23:43:41.613Z] SUBMISSION TOP-LEVEL ERROR
+USER: test-user-moorsafe
+INPUT IDEA: MoorSafe is a premium solar-powered low-voltage pest deterrent device mounted onto mooring ropes to prevent rodents boarding vessels.
+ERROR: Unable to detect a Project Id in the current environment. 
+To learn more about authentication and Google APIs, visit: 
+https://cloud.google.com/docs/authentication/getting-started
+STATUS: N/A
+STACK: Error: Unable to detect a Project Id in the current environment. 
+To learn more about authentication and Google APIs, visit: 
+https://cloud.google.com/docs/authentication/getting-started
+    at GoogleAuth.findAndCacheProjectId (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\google-auth-library\build\src\auth\googleauth.js:170:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Firestore.initializeIfNeeded (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\index.js:1201:35)
+    at async WriteBatch._commit (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\write-batch.js:469:9)
+    at async C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:164:22
+    at async testLiveReports (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\test_live_reports_regression.js:21:26)
+Caused by: Error
+    at _firestore._traceUtil.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\write-batch.js:438:27)
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:110:30
+    at NoopContextManager.with (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\context\NoopContextManager.js:25:19)
+    at ContextAPI.with (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\api\context.js:60:46)
+    at NoopTracer.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\trace\NoopTracer.js:65:31)
+    at ProxyTracer.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\trace\ProxyTracer.js:36:24)
+    at EnabledTraceUtil.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:102:28)
+    at WriteBatch.commit (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\write-batch.js:436:43)
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:273:18
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:110:30
+    at NoopContextManager.with (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\context\NoopContextManager.js:25:19)
+    at ContextAPI.with (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\api\context.js:60:46)
+    at NoopTracer.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\trace\NoopTracer.js:65:31)
+    at ProxyTracer.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\trace\ProxyTracer.js:36:24)
+    at EnabledTraceUtil.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:102:28)
+    at DocumentReference.create (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:269:43)
+Caused by: Error
+    at _firestore._traceUtil.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\write-batch.js:438:27)
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:110:30
+    at NoopContextManager.with (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\context\NoopContextManager.js:25:19)
+    at ContextAPI.with (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\api\context.js:60:46)
+    at NoopTracer.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\trace\NoopTracer.js:65:31)
+    at ProxyTracer.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\trace\ProxyTracer.js:36:24)
+    at EnabledTraceUtil.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:102:28)
+    at WriteBatch.commit (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\write-batch.js:436:43)
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:273:18
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:110:30
+    at NoopContextManager.with (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\context\NoopContextManager.js:25:19)
+    at ContextAPI.with (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\api\context.js:60:46)
+    at NoopTracer.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\trace\NoopTracer.js:65:31)
+    at ProxyTracer.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\trace\ProxyTracer.js:36:24)
+    at EnabledTraceUtil.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:102:28)
+    at DocumentReference.create (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:269:43)
+============================================================
+
+============================================================
+[2026-08-10T23:45:28.949Z] SUBMISSION TOP-LEVEL ERROR
+USER: test-user-smarttax
+INPUT IDEA: Smart Tax is an automated tax compliance tool that helps New Zealand businesses set aside GST obligations before spending.
+ERROR: Unable to detect a Project Id in the current environment. 
+To learn more about authentication and Google APIs, visit: 
+https://cloud.google.com/docs/authentication/getting-started
+STATUS: N/A
+STACK: Error: Unable to detect a Project Id in the current environment. 
+To learn more about authentication and Google APIs, visit: 
+https://cloud.google.com/docs/authentication/getting-started
+    at GoogleAuth.findAndCacheProjectId (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\google-auth-library\build\src\auth\googleauth.js:170:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Firestore.initializeIfNeeded (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\index.js:1201:35)
+    at async WriteBatch._commit (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\write-batch.js:469:9)
+    at async C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:164:22
+    at async testLiveReports (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\test_live_reports_regression.js:24:26)
+Caused by: Error
+    at _firestore._traceUtil.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\write-batch.js:438:27)
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:110:30
+    at NoopContextManager.with (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\context\NoopContextManager.js:25:19)
+    at ContextAPI.with (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\api\context.js:60:46)
+    at NoopTracer.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\trace\NoopTracer.js:65:31)
+    at ProxyTracer.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\trace\ProxyTracer.js:36:24)
+    at EnabledTraceUtil.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:102:28)
+    at WriteBatch.commit (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\write-batch.js:436:43)
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:273:18
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:110:30
+    at NoopContextManager.with (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\context\NoopContextManager.js:25:19)
+    at ContextAPI.with (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\api\context.js:60:46)
+    at NoopTracer.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\trace\NoopTracer.js:65:31)
+    at ProxyTracer.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\trace\ProxyTracer.js:36:24)
+    at EnabledTraceUtil.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:102:28)
+    at DocumentReference.create (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:269:43)
+============================================================
+
+============================================================
+[2026-08-10T23:45:28.970Z] SUBMISSION TOP-LEVEL ERROR
+USER: test-user-moorsafe
+INPUT IDEA: MoorSafe is a premium solar-powered low-voltage pest deterrent device mounted onto mooring ropes to prevent rodents boarding vessels.
+ERROR: Unable to detect a Project Id in the current environment. 
+To learn more about authentication and Google APIs, visit: 
+https://cloud.google.com/docs/authentication/getting-started
+STATUS: N/A
+STACK: Error: Unable to detect a Project Id in the current environment. 
+To learn more about authentication and Google APIs, visit: 
+https://cloud.google.com/docs/authentication/getting-started
+    at GoogleAuth.findAndCacheProjectId (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\google-auth-library\build\src\auth\googleauth.js:170:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Firestore.initializeIfNeeded (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\index.js:1201:35)
+    at async WriteBatch._commit (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\write-batch.js:469:9)
+    at async C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:164:22
+    at async testLiveReports (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\test_live_reports_regression.js:24:26)
+Caused by: Error
+    at _firestore._traceUtil.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\write-batch.js:438:27)
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:110:30
+    at NoopContextManager.with (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\context\NoopContextManager.js:25:19)
+    at ContextAPI.with (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\api\context.js:60:46)
+    at NoopTracer.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\trace\NoopTracer.js:65:31)
+    at ProxyTracer.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\trace\ProxyTracer.js:36:24)
+    at EnabledTraceUtil.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:102:28)
+    at WriteBatch.commit (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\write-batch.js:436:43)
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:273:18
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:110:30
+    at NoopContextManager.with (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\context\NoopContextManager.js:25:19)
+    at ContextAPI.with (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\api\context.js:60:46)
+    at NoopTracer.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\trace\NoopTracer.js:65:31)
+    at ProxyTracer.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\trace\ProxyTracer.js:36:24)
+    at EnabledTraceUtil.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:102:28)
+    at DocumentReference.create (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:269:43)
+Caused by: Error
+    at _firestore._traceUtil.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\write-batch.js:438:27)
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:110:30
+    at NoopContextManager.with (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\context\NoopContextManager.js:25:19)
+    at ContextAPI.with (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\api\context.js:60:46)
+    at NoopTracer.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\trace\NoopTracer.js:65:31)
+    at ProxyTracer.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\trace\ProxyTracer.js:36:24)
+    at EnabledTraceUtil.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:102:28)
+    at WriteBatch.commit (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\write-batch.js:436:43)
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:273:18
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:110:30
+    at NoopContextManager.with (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\context\NoopContextManager.js:25:19)
+    at ContextAPI.with (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\api\context.js:60:46)
+    at NoopTracer.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\trace\NoopTracer.js:65:31)
+    at ProxyTracer.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@opentelemetry\api\build\src\trace\ProxyTracer.js:36:24)
+    at EnabledTraceUtil.startActiveSpan (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:102:28)
+    at DocumentReference.create (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\@google-cloud\firestore\build\src\reference\document-reference.js:269:43)
+============================================================
+
+============================================================
+[2026-08-12T00:01:48.397Z] SUBMISSION TOP-LEVEL ERROR
+USER: unknown
+INPUT IDEA: Smart Tax Automated GST Set-Aside App
+ERROR: User must be authenticated with a valid UID.
+STATUS: unauthenticated
+STACK: Error: User must be authenticated with a valid UID.
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:153:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+============================================================
+
+============================================================
+[2026-08-12T02:30:23.403Z] SUBMISSION TOP-LEVEL ERROR
+USER: unknown
+INPUT IDEA: Smart Tax Automated GST Set-Aside App
+ERROR: User must be authenticated with a valid UID.
+STATUS: unauthenticated
+STACK: Error: User must be authenticated with a valid UID.
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:153:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+============================================================
+
+============================================================
+[2026-08-12T03:18:30.387Z] SUBMISSION TOP-LEVEL ERROR
+USER: unknown
+INPUT IDEA: Smart Tax Automated GST Set-Aside App
+ERROR: User must be authenticated with a valid UID.
+STATUS: unauthenticated
+STACK: Error: User must be authenticated with a valid UID.
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:153:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+============================================================
+
+============================================================
+[2026-08-12T03:20:07.026Z] SUBMISSION TOP-LEVEL ERROR
+USER: unknown
+INPUT IDEA: Smart Tax Automated GST Set-Aside App
+ERROR: User must be authenticated with a valid UID.
+STATUS: unauthenticated
+STACK: Error: User must be authenticated with a valid UID.
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:153:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+============================================================
+
+============================================================
+[2026-08-12T03:28:52.701Z] SUBMISSION TOP-LEVEL ERROR
+USER: unknown
+INPUT IDEA: Smart Tax Automated GST Set-Aside App
+ERROR: User must be authenticated with a valid UID.
+STATUS: unauthenticated
+STACK: Error: User must be authenticated with a valid UID.
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:153:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+============================================================
+
+============================================================
+[2026-08-12T03:37:54.444Z] SUBMISSION TOP-LEVEL ERROR
+USER: unknown
+INPUT IDEA: Nuclear Power Plant in New Zealand
+ERROR: User must be authenticated with a valid UID.
+STATUS: unauthenticated
+STACK: Error: User must be authenticated with a valid UID.
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:153:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+============================================================
+
+============================================================
+[2026-08-12T03:38:54.556Z] SUBMISSION TOP-LEVEL ERROR
+USER: unknown
+INPUT IDEA: Nuclear Power Plant in New Zealand
+ERROR: User must be authenticated with a valid UID.
+STATUS: unauthenticated
+STACK: Error: User must be authenticated with a valid UID.
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:153:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+============================================================
+
+============================================================
+[2026-08-12T03:39:58.470Z] SUBMISSION TOP-LEVEL ERROR
+USER: unknown
+INPUT IDEA: Nuclear Power Plant in New Zealand
+ERROR: User must be authenticated with a valid UID.
+STATUS: unauthenticated
+STACK: Error: User must be authenticated with a valid UID.
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:153:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+============================================================
+
+============================================================
+[2026-08-12T03:40:23.691Z] SUBMISSION TOP-LEVEL ERROR
+USER: unknown
+INPUT IDEA: Nuclear Power Plant in New Zealand
+ERROR: User must be authenticated with a valid UID.
+STATUS: unauthenticated
+STACK: Error: User must be authenticated with a valid UID.
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:153:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+============================================================
+
+============================================================
+[2026-08-12T03:40:59.930Z] SUBMISSION TOP-LEVEL ERROR
+USER: unknown
+INPUT IDEA: Nuclear Power Plant in New Zealand
+ERROR: User must be authenticated with a valid UID.
+STATUS: unauthenticated
+STACK: Error: User must be authenticated with a valid UID.
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:153:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+============================================================
+
+============================================================
+[2026-08-12T03:42:12.492Z] SUBMISSION TOP-LEVEL ERROR
+USER: unknown
+INPUT IDEA: Nuclear Power Plant in New Zealand
+ERROR: User must be authenticated with a valid UID.
+STATUS: unauthenticated
+STACK: Error: User must be authenticated with a valid UID.
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:153:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+============================================================
+
+============================================================
+[2026-08-12T03:43:22.838Z] SUBMISSION TOP-LEVEL ERROR
+USER: unknown
+INPUT IDEA: Nuclear Power Plant in New Zealand
+ERROR: User must be authenticated with a valid UID.
+STATUS: unauthenticated
+STACK: Error: User must be authenticated with a valid UID.
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:153:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+============================================================
+
+============================================================
+[2026-08-13T01:58:26.881Z] TEST VERIFICATION ERROR
+USER: test-verifier-user-999
+INPUT IDEA: Test Diagnostic Idea Concept
+ERROR: Simulated PitchLab System Diagnostic Check
+STATUS: TEST_ERR_500
+STACK: Error: Simulated PitchLab System Diagnostic Check
+    at testDirectLogWrite (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\test_error_logging.js:19:21)
+    at runTests (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\test_error_logging.js:79:3)
+    at Object.<anonymous> (C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\test_error_logging.js:86:1)
+    at Module._compile (node:internal/modules/cjs/loader:1804:14)
+    at Object..js (node:internal/modules/cjs/loader:1936:10)
+    at Module.load (node:internal/modules/cjs/loader:1525:32)
+    at Module._load (node:internal/modules/cjs/loader:1327:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+============================================================
+
+============================================================
+[2026-08-13T01:58:27.062Z] SUBMISSION TOP-LEVEL ERROR
+USER: anonymous-user
+INPUT IDEA: N/A
+ERROR: Missing required fields.
+STATUS: invalid-argument
+STACK: Error: Missing required fields.
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:151:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+============================================================
+
+============================================================
+[2026-09-10T00:28:32.723Z] SUBMISSION TOP-LEVEL ERROR
+USER: anonymous-user
+INPUT IDEA: AI Assistant
+ERROR: Missing required fields.
+STATUS: invalid-argument
+STACK: Error: Missing required fields.
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:245:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+============================================================
+
+============================================================
+[2026-09-14T02:45:16.161Z] SUBMISSION TOP-LEVEL ERROR
+USER: nge6qZrtfAeoOIV2zJECyM0CdxL2
+ERROR: cvFileName is not defined
+STATUS: N/A
+STACK: ReferenceError: cvFileName is not defined
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:520:162
+    at async C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\firebase-functions\lib\common\providers\https.js:467:26
+    at async runFunction (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:399:9)
+    at async runHTTPS (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:424:5)
+    at async C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:585:21
+============================================================
+
+============================================================
+[2026-09-14T08:13:45.740Z] SUBMISSION TOP-LEVEL ERROR
+USER: AKnGWxvDNQwIylmo6PEXsriA9Tma
+ERROR: cvFileName is not defined
+STATUS: N/A
+STACK: ReferenceError: cvFileName is not defined
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:531:162
+    at async C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\firebase-functions\lib\common\providers\https.js:467:26
+    at async runFunction (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:399:9)
+    at async runHTTPS (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:424:5)
+    at async C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:585:21
+============================================================
+
+============================================================
+[2026-09-16T01:38:51.423Z] SUBMISSION TOP-LEVEL ERROR
+USER: test-user
+ERROR: cvFileName is not defined
+STATUS: N/A
+STACK: ReferenceError: cvFileName is not defined
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:531:162
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+============================================================
+
+============================================================
+[2026-09-16T01:52:48.584Z] SUBMISSION TOP-LEVEL ERROR
+USER: user-nocv
+ERROR: Assignment to constant variable.
+STATUS: N/A
+STACK: TypeError: Assignment to constant variable.
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:1188:17
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Promise.all (index 1)
+============================================================
+
+============================================================
+[2026-09-16T01:52:54.855Z] SUBMISSION TOP-LEVEL ERROR
+USER: user-cv
+ERROR: Assignment to constant variable.
+STATUS: N/A
+STACK: TypeError: Assignment to constant variable.
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:1188:17
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Promise.all (index 0)
+============================================================
+
+============================================================
+[2026-09-23T06:19:07.562Z] SUBMISSION TOP-LEVEL ERROR
+USER: nge6qZrtfAeoOIV2zJECyM0CdxL2
+ERROR: Cannot access 'targetJurisdiction' before initialization
+STATUS: N/A
+STACK: ReferenceError: Cannot access 'targetJurisdiction' before initialization
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:1048:136
+    at async C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\firebase-functions\lib\common\providers\https.js:467:26
+    at async runFunction (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:399:9)
+    at async runHTTPS (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:424:5)
+    at async C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:585:21
+============================================================
+
+============================================================
+[2026-09-23T08:39:46.041Z] SUBMISSION TOP-LEVEL ERROR
+USER: na6nq5eUUUj8OVVUwayHP7WIwgTI
+ERROR: Cannot access 'targetJurisdiction' before initialization
+STATUS: N/A
+STACK: ReferenceError: Cannot access 'targetJurisdiction' before initialization
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:1048:136
+    at async C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\firebase-functions\lib\common\providers\https.js:467:26
+    at async runFunction (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:399:9)
+    at async runHTTPS (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:424:5)
+    at async C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:585:21
+============================================================
+
+============================================================
+[2026-09-30T08:59:45.195Z] SUBMISSION TOP-LEVEL ERROR
+USER: O5yL9TNIknnqf4pumH2F77SJMG2a
+ERROR: Cannot access 'targetJurisdiction' before initialization
+STATUS: N/A
+STACK: ReferenceError: Cannot access 'targetJurisdiction' before initialization
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:1057:136
+    at async C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\firebase-functions\lib\common\providers\https.js:467:26
+    at async runFunction (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:399:9)
+    at async runHTTPS (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:424:5)
+    at async C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:585:21
+============================================================
+
+============================================================
+[2026-09-30T10:31:35.079Z] SUBMISSION TOP-LEVEL ERROR
+USER: aSMnZESRYSUUHKubzsW7dnF8VU6J
+ERROR: Cannot access 'targetJurisdiction' before initialization
+STATUS: N/A
+STACK: ReferenceError: Cannot access 'targetJurisdiction' before initialization
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:1057:136
+    at async C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\firebase-functions\lib\common\providers\https.js:467:26
+    at async runFunction (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:399:9)
+    at async runHTTPS (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:424:5)
+    at async C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:585:21
+============================================================
+
+============================================================
+[2026-09-30T21:11:28.641Z] SUBMISSION TOP-LEVEL ERROR
+USER: nge6qZrtfAeoOIV2zJECyM0CdxL2
+ERROR: Cannot access 'targetJurisdiction' before initialization
+STATUS: N/A
+STACK: ReferenceError: Cannot access 'targetJurisdiction' before initialization
+    at C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\index.js:1057:136
+    at async C:\Users\petet\.gemini\antigravity\scratch\Pitchlab-AntiGravity\functions\node_modules\firebase-functions\lib\common\providers\https.js:467:26
+    at async runFunction (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:399:9)
+    at async runHTTPS (C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:424:5)
+    at async C:\Users\petet\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulatorRuntime.js:585:21
+============================================================

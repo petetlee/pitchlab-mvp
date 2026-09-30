@@ -13,51 +13,51 @@ class AdminDashboard extends StatelessWidget {
 
   Future<void> _exportData(BuildContext context) async {
     try {
-      // Fetch users to map userId to email
-      final usersSnapshot = await FirebaseFirestore.instance.collection('Users').get();
-      final userEmailMap = {
-        for (var doc in usersSnapshot.docs)
-          doc.id: (doc.data()['email'] as String? ?? 'Unknown')
-      };
-
-      // Fetch evaluations
-      final evalsSnapshot = await FirebaseFirestore.instance
-          .collection('EvaluationScore')
-          .orderBy('createdAt', descending: true)
+      // Fetch administrative user summaries strictly containing non-sensitive details
+      final summariesSnapshot = await FirebaseFirestore.instance
+          .collection('AdminUserSummaries')
           .get();
 
-      if (evalsSnapshot.docs.isEmpty) {
+      if (summariesSnapshot.docs.isEmpty) {
+        // Fallback: Query Users collection to construct summary export if summaries collection is empty
+        final usersSnapshot = await FirebaseFirestore.instance.collection('Users').get();
+        final csvBuffer = StringBuffer();
+        csvBuffer.writeln('Name,Email,User ID,Submissions');
+        for (var doc in usersSnapshot.docs) {
+          final data = doc.data();
+          final email = (data['email'] as String? ?? 'Unknown').replaceAll('"', '""');
+          final name = (data['displayName'] as String? ?? data['name'] ?? email.split('@')[0]).replaceAll('"', '""');
+          final uid = doc.id;
+          csvBuffer.writeln('"$name","$email","$uid",0');
+        }
+        downloadCsv(csvBuffer.toString(), 'pitchlab_admin_users_${DateTime.now().millisecondsSinceEpoch}.csv');
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No evaluations found to export.')),
+            const SnackBar(content: Text('CSV Export completed successfully!')),
           );
         }
         return;
       }
 
-      // Build CSV
+      // Build CSV with strictly 4 administrative fields: Name, Email, User ID, Submissions
       final csvBuffer = StringBuffer();
-      // Headers
-      csvBuffer.writeln('User Email,User ID,Evaluation ID,Created At,Overall Score,Idea');
+      csvBuffer.writeln('Name,Email,User ID,Submissions');
 
-      for (var doc in evalsSnapshot.docs) {
+      for (var doc in summariesSnapshot.docs) {
         final data = doc.data();
-        final userId = data['userId'] ?? '';
-        final email = userEmailMap[userId] ?? 'Unknown';
-        final overallScore = data['scores']?['overall'] ?? data['overallScore'] ?? 0;
-        final idea = (data['idea'] as String? ?? '').replaceAll('"', '""');
-        final createdAtTs = data['createdAt'] as Timestamp?;
-        final createdAtStr = createdAtTs != null ? createdAtTs.toDate().toIso8601String() : 'N/A';
+        final name = (data['displayName'] as String? ?? 'Founder').replaceAll('"', '""');
+        final email = (data['email'] as String? ?? 'Unknown').replaceAll('"', '""');
+        final uid = data['uid'] ?? doc.id;
+        final count = data['submissionCount'] ?? 0;
 
-        csvBuffer.writeln('"$email","$userId","${doc.id}","$createdAtStr",$overallScore,"$idea"');
+        csvBuffer.writeln('"$name","$email","$uid",$count');
       }
 
-      // Download
-      downloadCsv(csvBuffer.toString(), 'pitchlab_evaluations_${DateTime.now().millisecondsSinceEpoch}.csv');
+      downloadCsv(csvBuffer.toString(), 'pitchlab_admin_users_${DateTime.now().millisecondsSinceEpoch}.csv');
       
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('CSV Export completed successfully!')),
+          const SnackBar(content: Text('Administrative User CSV Export completed!')),
         );
       }
     } catch (e) {
@@ -77,7 +77,7 @@ class AdminDashboard extends StatelessWidget {
         backgroundColor: const Color(0xFFFBFBFD),
         appBar: AppBar(
           title: Text(
-            'Admin Dashboard',
+            'Master Admin User Management',
             style: GoogleFonts.outfit(
               fontWeight: FontWeight.w600,
               color: const Color(0xFF1D1D1F),
@@ -99,7 +99,7 @@ class AdminDashboard extends StatelessWidget {
           ],
           bottom: const TabBar(
             tabs: [
-              Tab(icon: Icon(Icons.people), text: 'Users'),
+              Tab(icon: Icon(Icons.people_alt_outlined), text: 'Users'),
               Tab(icon: Icon(Icons.mail_outline), text: 'Invitations'),
             ],
             labelColor: Color(0xFF0071E3),
@@ -107,17 +107,9 @@ class AdminDashboard extends StatelessWidget {
             indicatorColor: Color(0xFF0071E3),
           ),
         ),
-        body: TabBarView(
+        body: const TabBarView(
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: _UsersList(),
-                ),
-              ],
-            ),
+            _UsersList(),
             _InvitationsList(),
           ],
         ),
@@ -126,7 +118,23 @@ class AdminDashboard extends StatelessWidget {
   }
 }
 
-class _UsersList extends StatelessWidget {
+class _UsersList extends StatefulWidget {
+  const _UsersList();
+
+  @override
+  State<_UsersList> createState() => _UsersListState();
+}
+
+class _UsersListState extends State<_UsersList> {
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _deleteUser(BuildContext context, String targetUid) async {
     try {
       showDialog(
@@ -162,7 +170,7 @@ class _UsersList extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Delete User?', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-        content: Text('Are you sure you want to permanently delete $email? This will wipe their Auth account, profile, and all evaluation scores. This cannot be undone.'),
+        content: Text('Are you sure you want to permanently delete $email? This will wipe their Auth account, profile, and administrative record. This cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -185,150 +193,232 @@ class _UsersList extends StatelessWidget {
   Widget build(BuildContext context) {
     final currentUserUid = FirebaseAuth.instance.currentUser?.uid;
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('Users').orderBy('createdAt', descending: true).snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        final users = snapshot.data?.docs ?? [];
-
-        if (users.isEmpty) {
-          return Center(
-            child: Text(
-              'No users found',
-              style: GoogleFonts.inter(color: Colors.grey),
+    return Column(
+      children: [
+        // Search Bar (Filtered by Name, Email, or User ID only)
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: TextField(
+            controller: _searchController,
+            onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
+            decoration: InputDecoration(
+              hintText: 'Search users by Name, Email, or User ID...',
+              prefixIcon: const Icon(Icons.search, color: Colors.grey),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
             ),
-          );
-        }
+          ),
+        ),
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: users.length,
-          itemBuilder: (context, index) {
-            final userDoc = users[index];
-            final data = userDoc.data() as Map<String, dynamic>;
-            final email = data['email'] ?? 'Unknown Email';
-            final role = data['role'] ?? 'user';
-            final Timestamp? createdTs = data['createdAt'];
-            final createdAt = createdTs != null
-                ? DateFormat.yMMMd().format(createdTs.toDate())
-                : 'Unknown Date';
+        // User Management Table Header Banner
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          color: Colors.grey.shade100,
+          child: Row(
+            children: [
+              Expanded(flex: 3, child: Text('NAME', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700))),
+              Expanded(flex: 4, child: Text('EMAIL', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700))),
+              Expanded(flex: 4, child: Text('USER ID', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700))),
+              Expanded(flex: 2, child: Text('SUBMISSIONS', textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700))),
+              const SizedBox(width: 48), // Action column space
+            ],
+          ),
+        ),
 
-            final isMe = userDoc.id == currentUserUid;
+        // User Stream from AdminUserSummaries Collection
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('AdminUserSummaries').snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                // Fallback to Users collection if AdminUserSummaries has not been populated yet
+                return _buildUsersFallbackStream(currentUserUid);
+              }
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: Colors.grey.shade200),
-              ),
-              elevation: 0,
-              child: ListTile(
-                contentPadding: const EdgeInsets.all(16),
-                leading: CircleAvatar(
-                  backgroundColor: role == 'admin' ? Colors.deepPurple.shade100 : Colors.blue.shade100,
-                  foregroundColor: role == 'admin' ? Colors.deepPurple.shade700 : Colors.blue.shade700,
-                  child: Icon(role == 'admin' ? Icons.admin_panel_settings : Icons.person),
-                ),
-                title: Text(
-                  email,
-                  style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 4),
-                    Text('Role: $role', style: GoogleFonts.inter(fontSize: 12)),
-                    Text('Joined: $createdAt', style: GoogleFonts.inter(fontStyle: FontStyle.italic, fontSize: 12)),
-                    Text('UID: ${userDoc.id}', style: GoogleFonts.inter(fontSize: 10, color: Colors.grey)),
-                  ],
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextButton(
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: Text('User Details', style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
-                            content: SizedBox(
-                              width: double.maxFinite,
-                              child: _UserEvaluationsList(userId: userDoc.id),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('Close'),
-                              )
-                            ],
+              final docs = snapshot.data?.docs ?? [];
+              if (docs.isEmpty) {
+                return _buildUsersFallbackStream(currentUserUid);
+              }
+
+              final filtered = docs.where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                final name = (data['displayName'] ?? '').toString().toLowerCase();
+                final email = (data['email'] ?? '').toString().toLowerCase();
+                final uid = doc.id.toLowerCase();
+                if (_searchQuery.isEmpty) return true;
+                return name.contains(_searchQuery) || email.contains(_searchQuery) || uid.contains(_searchQuery);
+              }).toList();
+
+              if (filtered.isEmpty) {
+                return Center(
+                  child: Text('No users match search criteria', style: GoogleFonts.inter(color: Colors.grey)),
+                );
+              }
+
+              return ListView.separated(
+                padding: const EdgeInsets.all(16),
+                itemCount: filtered.length,
+                separatorBuilder: (context, index) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final doc = filtered[index];
+                  final data = doc.data() as Map<String, dynamic>;
+                  final name = data['displayName'] ?? (data['email'] != null ? (data['email'] as String).split('@')[0] : 'Founder');
+                  final email = data['email'] ?? 'Unknown Email';
+                  final uid = doc.id;
+                  final count = data['submissionCount'] ?? 0;
+                  final isMe = uid == currentUserUid;
+
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                    color: Colors.white,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            name,
+                            style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13),
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        );
-                      },
-                      child: const Text('View Evals'),
+                        ),
+                        Expanded(
+                          flex: 4,
+                          child: Text(
+                            email,
+                            style: GoogleFonts.inter(fontSize: 13, color: Colors.grey.shade800),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Expanded(
+                          flex: 4,
+                          child: SelectableText(
+                            uid,
+                            style: GoogleFonts.inter(fontSize: 11, color: Colors.grey.shade600),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 2,
+                          child: Text(
+                            '$count',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14, color: const Color(0xFF1D1D1F)),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 48,
+                          child: isMe
+                              ? const SizedBox.shrink()
+                              : IconButton(
+                                  icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                                  tooltip: 'Delete User',
+                                  onPressed: () => _confirmDeleteUser(context, uid, email),
+                                ),
+                        ),
+                      ],
                     ),
-                    if (!isMe) ...[
-                      const SizedBox(width: 8),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, color: Colors.red),
-                        tooltip: 'Delete User',
-                        onPressed: () => _confirmDeleteUser(context, userDoc.id, email),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
-}
 
-class _UserEvaluationsList extends StatelessWidget {
-  final String userId;
-
-  const _UserEvaluationsList({required this.userId});
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<QuerySnapshot>(
-      future: FirebaseFirestore.instance.collection('EvaluationScore').where('userId', isEqualTo: userId).get(),
+  Widget _buildUsersFallbackStream(String? currentUserUid) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('Users').snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (snapshot.hasError) {
-          return Text('Error fetching evaluations: ${snapshot.error}');
+        final users = snapshot.data?.docs ?? [];
+        if (users.isEmpty) {
+          return Center(child: Text('No users found', style: GoogleFonts.inter(color: Colors.grey)));
         }
 
-        final evals = snapshot.data?.docs ?? [];
-        if (evals.isEmpty) {
-          return const Text('No evaluations found for this user.');
-        }
+        final filtered = users.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          final email = (data['email'] ?? '').toString().toLowerCase();
+          final uid = doc.id.toLowerCase();
+          final name = (data['displayName'] ?? email.split('@')[0]).toString().toLowerCase();
+          if (_searchQuery.isEmpty) return true;
+          return name.contains(_searchQuery) || email.contains(_searchQuery) || uid.contains(_searchQuery);
+        }).toList();
 
-        return ListView.builder(
-          shrinkWrap: true,
-          itemCount: evals.length,
+        return ListView.separated(
+          padding: const EdgeInsets.all(16),
+          itemCount: filtered.length,
+          separatorBuilder: (context, index) => const Divider(height: 1),
           itemBuilder: (context, index) {
-            final evalDoc = evals[index];
-            final data = evalDoc.data() as Map<String, dynamic>;
-            final overallScore = data['scores']?['overall'] ?? data['overallScore'] ?? 0;
-            final idea = data['idea'] ?? 'Unnamed Idea';
-            return ListTile(
-              leading: const Icon(Icons.assessment),
-              title: Text('Idea: $idea'),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            final userDoc = filtered[index];
+            final data = userDoc.data() as Map<String, dynamic>;
+            final email = data['email'] ?? 'Unknown Email';
+            final uid = userDoc.id;
+            final name = data['displayName'] ?? email.split('@')[0];
+            final isMe = uid == currentUserUid;
+
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+              color: Colors.white,
+              child: Row(
                 children: [
-                  Text('Overall Score: $overallScore'),
-                  Text('ID: ${evalDoc.id}', style: const TextStyle(fontSize: 10)),
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      name,
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Expanded(
+                    flex: 4,
+                    child: Text(
+                      email,
+                      style: GoogleFonts.inter(fontSize: 13, color: Colors.grey.shade800),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Expanded(
+                    flex: 4,
+                    child: SelectableText(
+                      uid,
+                      style: GoogleFonts.inter(fontSize: 11, color: Colors.grey.shade600),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance.collection('EvaluationScore').where('userId', isEqualTo: uid).snapshots(),
+                      builder: (context, evalSnap) {
+                        final count = evalSnap.data?.docs.length ?? 0;
+                        return Text(
+                          '$count',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14, color: const Color(0xFF1D1D1F)),
+                        );
+                      },
+                    ),
+                  ),
+                  SizedBox(
+                    width: 48,
+                    child: isMe
+                        ? const SizedBox.shrink()
+                        : IconButton(
+                            icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                            tooltip: 'Delete User',
+                            onPressed: () => _confirmDeleteUser(context, uid, email),
+                          ),
+                  ),
                 ],
               ),
             );

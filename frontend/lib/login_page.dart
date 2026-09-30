@@ -109,6 +109,79 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  Future<void> _sendPasswordResetEmail() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      setState(() {
+        _errorMessage = 'Please enter your email address first to reset your password.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                const Icon(Icons.mark_email_read, color: Color(0xFF0071E3)),
+                const SizedBox(width: 8),
+                Text('Reset Link Sent', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: Text(
+              'A password reset link has been sent to:\n$email\n\nPlease check your inbox (and spam folder) to set a new password.',
+              style: GoogleFonts.inter(fontSize: 14),
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0071E3),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        setState(() {
+          if (e.code == 'user-not-found') {
+            _errorMessage = 'No user account found matching $email.';
+          } else if (e.code == 'invalid-email') {
+            _errorMessage = 'Please enter a valid email address.';
+          } else {
+            _errorMessage = e.message ?? 'Failed to send password reset email.';
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'An error occurred while sending the password reset email.';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -128,16 +201,21 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.black,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Icon(
-                    Icons.rocket_launch,
-                    color: Colors.white,
-                    size: 40,
+                Image.asset(
+                  'assets/logo.png',
+                  height: 210,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(
+                      Icons.rocket_launch,
+                      color: Colors.white,
+                      size: 40,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -161,17 +239,35 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 48),
                 if (_errorMessage != null)
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
                     margin: const EdgeInsets.only(bottom: 24),
                     decoration: BoxDecoration(
                       color: Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: Colors.red.shade200),
                     ),
-                    child: Text(
-                      _errorMessage!,
-                      style: GoogleFonts.inter(color: Colors.red.shade700),
-                      textAlign: TextAlign.center,
+                    child: Column(
+                      children: [
+                        Text(
+                          _errorMessage!,
+                          style: GoogleFonts.inter(color: Colors.red.shade700, fontWeight: FontWeight.w500),
+                          textAlign: TextAlign.center,
+                        ),
+                        if (_isLogin) ...[
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: _isLoading ? null : _sendPasswordResetEmail,
+                            icon: const Icon(Icons.lock_reset, size: 18),
+                            label: const Text('Send Password Reset Link'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF0071E3),
+                              side: const BorderSide(color: Color(0xFF0071E3)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 TextField(
@@ -198,6 +294,23 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   obscureText: true,
                 ),
+                if (_isLogin) ...[
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: _isLoading ? null : _sendPasswordResetEmail,
+                      child: Text(
+                        'Forgot Password?',
+                        style: GoogleFonts.inter(
+                          color: const Color(0xFF0071E3),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
                 if (!_isLogin) ...[
                   const SizedBox(height: 16),
                   TextField(
@@ -211,7 +324,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                 ],
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
                 SizedBox(
                   width: double.infinity,
                   height: 56,

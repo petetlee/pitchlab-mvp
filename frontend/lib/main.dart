@@ -48,21 +48,39 @@ Future<void> _initializeServices() async {
 
     final bool isLocalhost = kDebugMode ||
         (kIsWeb && Uri.base.host == 'localhost') ||
-        (kIsWeb && Uri.base.host == '127.0.0.1');
+        (kIsWeb && Uri.base.host == '127.0.0.1') ||
+        (kIsWeb && Uri.base.host.startsWith('192.168.')) ||
+        (kIsWeb && Uri.base.host.startsWith('10.')) ||
+        (kIsWeb && Uri.base.host.endsWith('.local'));
 
     if (isLocalhost) {
-      print('🚀 PitchLab: Localhost/Debug mode detected. Connecting to emulators at 127.0.0.1...');
+      final String currentHost = Uri.base.host;
+      final String emulatorHost = kIsWeb
+          ? (currentHost == 'localhost' || currentHost.isEmpty ? '127.0.0.1' : currentHost)
+          : '10.0.2.2';
+      print('🚀 PitchLab: Localhost/Debug mode detected. Connecting to emulators at $emulatorHost...');
       print('🚀 PitchLab: Configured API Key: ${app.options.apiKey.substring(0, 5)}...');
       print('🚀 PitchLab: Configured Project ID: ${app.options.projectId}');
       
       try {
-        final emulatorHost = kIsWeb ? 'localhost' : '10.0.2.2'; // 10.0.2.2 for Android emulator
         print('🚀 PitchLab: Using emulator host: $emulatorHost');
 
         // Auth emulator
         print('🚀 PitchLab: Requesting Auth emulator connection to $emulatorHost:9099...');
         await FirebaseAuth.instance.useAuthEmulator(emulatorHost, 9099);
         print('✅ PitchLab: Auth emulator setup complete for ${FirebaseAuth.instance.app.name}');
+
+        // Validate existing Auth user against emulator; purge if stale token from previous run
+        final currentUser = FirebaseAuth.instance.currentUser;
+        if (currentUser != null) {
+          try {
+            await currentUser.getIdToken(true);
+            print('✅ PitchLab: Existing emulator session token verified for ${currentUser.uid}');
+          } catch (staleTokenErr) {
+            print('⚠️ PitchLab: Stale emulator token detected on startup ($staleTokenErr). Purging auth state...');
+            await FirebaseAuth.instance.signOut();
+          }
+        }
 
         // Firestore emulator
         print('🚀 PitchLab: Setting up Firestore emulator on $emulatorHost:8080...');
