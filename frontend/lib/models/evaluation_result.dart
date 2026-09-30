@@ -25,21 +25,27 @@ class EvaluationResult {
   String get conceptSummary => _str(raw['meta']?['conceptSummary'], fallback: 'Commercial Idea Evaluation');
   String get founderName => _str(raw['meta']?['founderName'], fallback: 'Founder');
   String get founderRegion => _str(raw['meta']?['founderRegion'], fallback: 'Global');
-  String get assessmentDate => _str(raw['meta']?['assessmentDate'], fallback: DateTime.now().toString().split(' ')[0]);
+  // Version Control & Deployment Metadata
+  String get appVersion => _str(raw['appVersion'], fallback: 'v0.9.3');
+  String get fullVersionString => _str(raw['fullVersionString'], fallback: 'PitchLab MVP v0.9.3');
+  String get buildId => _str(raw['buildId'], fallback: '885aa22');
+  String get assessmentGeneratedAtFormatted => _str(raw['assessmentGeneratedAtFormatted'], fallback: '01 Oct 2026 NZST');
+  String get assessmentDate => _str(raw['assessmentDate'] ?? raw['assessmentGeneratedAtFormatted'] ?? raw['meta']?['date'], fallback: '01 Oct 2026');
+  String get versionMarker => '$fullVersionString • Build $buildId';
 
   // Summary Block
   Map<String, dynamic> get summaryBlock => (raw['summaryBlock'] as Map<String, dynamic>?) ?? {};
 
   // Reconciled Overall Score (Sum of 7 Categories)
   int get overallScore {
-    final direct = raw['overallScore'] ?? summaryBlock['overallScore'] ?? summaryBlock['overallReadinessScore'] ?? raw['scores']?['overall'];
-    if (direct is num && direct > 0) {
-      return direct.toInt().clamp(0, 100);
-    }
     final categories = scorecardCategories;
     if (categories.isNotEmpty) {
       final sum = categories.fold(0, (prev, cat) => prev + cat.scoreAchieved);
       if (sum > 0) return sum.clamp(0, 100);
+    }
+    final direct = raw['overallScore'] ?? summaryBlock['overallScore'] ?? summaryBlock['overallReadinessScore'] ?? raw['scores']?['overall'];
+    if (direct is num && direct > 0) {
+      return direct.toInt().clamp(0, 100);
     }
     return 50;
   }
@@ -134,18 +140,18 @@ class EvaluationResult {
       return [
         {
           'heading': '1. Verify Statutory & Legal Permissibility',
-          'explanation': 'Obtain specialist legal advice to evaluate statutory prerequisites under the Radiation Safety Act 2016, Resource Management Act 1991, and Atomic Energy Act 1945 (distinguishing land-based commercial power generation from the New Zealand Nuclear Free Zone Act 1987 warship and weapon prohibitions).',
-          'outcome': 'Formal written opinion from specialist legal and regulatory counsel.'
+          'explanation': 'Identify qualified legal and regulatory specialists in New Zealand and obtain an initial consultation to map statutory frameworks before committing development capital.',
+          'outcome': 'Initial specialist discussion & indicative regulatory pathway / scope and fee.'
         },
         {
           'heading': '2. Specialist Technical & Regulatory Pre-Feasibility',
-          'explanation': 'Engage qualified nuclear engineers, grid infrastructure specialists, and environmental regulatory consultants to map mandatory safety, site, grid connection, and statutory prerequisites.',
-          'outcome': 'Technical pre-feasibility gap assessment and regulatory compliance roadmap.'
+          'explanation': 'Identify qualified energy infrastructure engineers and environmental regulatory consultants to map preliminary safety, site, grid connection, and statutory prerequisites.',
+          'outcome': 'Preliminary technical prerequisite & capability-gap scoping note.'
         },
         {
-          'heading': '3. Capital Requirements & Public Policy Assessment',
-          'explanation': 'Evaluate extreme multi-billion-dollar project capital scale requirements, sovereign risk factors, and national energy policy alignment prior to commercial scoping.',
-          'outcome': 'Formal Pre-Feasibility Recommendation & Risk Gateway Report.'
+          'heading': '3. Capital Scale & Resource Scoping',
+          'explanation': 'Perform preliminary desktop analysis of multi-billion-dollar project capital scale requirements, sovereign risk factors, and national energy policy alignment.',
+          'outcome': 'Indicative capital-scale & stakeholder/policy map.'
         }
       ];
     }
@@ -270,9 +276,9 @@ class EvaluationResult {
 
   // Business Model Snapshot
   Map<String, dynamic> get businessModelSnapshot => (raw['businessModelSnapshot'] as Map<String, dynamic>?) ?? {};
-  String get bmTargetCustomer => _str(businessModelSnapshot['targetCustomer'] ?? raw['targetMarket'] ?? raw['market'], fallback: 'Target customer segment defined');
-  String get bmCoreOffering => _str(businessModelSnapshot['coreOffering'] ?? raw['idea'], fallback: 'Core product concept');
-  String get bmCustomerProblem => _str(businessModelSnapshot['customerProblem'] ?? raw['problem'], fallback: 'Customer problem defined');
+  String get bmTargetCustomer => _cleanBusinessModelField(_str(businessModelSnapshot['targetCustomer'], fallback: 'Target customer segment defined'), fallback: 'Target customer segment defined');
+  String get bmCoreOffering => _cleanBusinessModelField(_str(businessModelSnapshot['coreOffering'], fallback: 'Core product concept'), fallback: 'Core product concept');
+  String get bmCustomerProblem => _cleanBusinessModelField(_str(businessModelSnapshot['customerProblem'], fallback: 'Customer problem defined'), fallback: 'Customer problem defined');
   String get bmValueProposition => _str(businessModelSnapshot['valueProposition'] ?? leanCanvas['uniqueValueProp'], fallback: 'Proactive, automated solution addressing customer friction');
   String get bmRevenueModel => _str(businessModelSnapshot['revenueModel'] ?? raw['revenueModel'], fallback: 'Predictable monthly subscription / SaaS model');
   String get bmCustomerAcquisition => _str(businessModelSnapshot['customerAcquisition'] ?? raw['network'], fallback: 'Direct outreach & network referrals');
@@ -302,20 +308,42 @@ class EvaluationResult {
     fallback: 'A critical distinction exists between large underlying market demand and the commercially accessible opportunity for this specific solution.'
   );
 
-  String get localBusinessNews => _str(
-    marketInsightsMap['localBusinessNews'],
-    fallback: 'Local business news highlights rising operational cost pressures, inflation on business inputs (+2.9%), and digital compliance demands across regional operators.'
-  );
+  String get localBusinessNews {
+    final rawNews = _str(marketInsightsMap['localBusinessNews'], fallback: '');
+    if (rawNews.isNotEmpty && (!rawNews.contains('digital compliance') || !isNuclear)) {
+      return _cleanNarrativeText(rawNews, isHardware: isHardware);
+    }
+    if (isNuclear) {
+      return 'Local energy market news highlights rising electricity demand, dry-year hydro volatility, wholesale power price spikes, and policy debates surrounding New Zealand energy security.';
+    }
+    if (isHardware) {
+      return 'Local market news highlights rising component prices, supply chain lead times, and marine infrastructure upgrades across regional ports.';
+    }
+    return 'Local business news highlights operational cost pressures, input price dynamics, and changing customer demand patterns across regional operators.';
+  }
 
-  String get customerReviewTrends => _str(
-    marketInsightsMap['customerReviewTrends'],
-    fallback: 'Customer reviews across incumbent options reveal ongoing dissatisfaction with complex pricing, lack of automated workflows, and slow customer support.'
-  );
+  String get customerReviewTrends {
+    final rawTrends = _str(marketInsightsMap['customerReviewTrends'], fallback: '');
+    if (rawTrends.isNotEmpty && (!rawTrends.contains('lack of automated workflows') || !isNuclear)) {
+      return _cleanNarrativeText(rawTrends, isHardware: isHardware);
+    }
+    if (isNuclear) {
+      return 'Energy sector feedback and commercial off-taker reviews reveal concerns over long-term price predictability, grid reliability during peak winter demand, and industrial carbon tax exposure.';
+    }
+    if (isHardware) {
+      return 'Customer reviews across existing physical deterrents reveal frustration with short product lifespan, high maintenance needs, and ineffective pest barrier coverage.';
+    }
+    return 'Customer reviews across existing market solutions reveal ongoing dissatisfaction with operational friction, maintenance overhead, and lack of specialized service options.';
+  }
 
-  String get governmentPolicyInfluence => _str(
-    marketInsightsMap['governmentPolicyInfluence'],
-    fallback: 'Local government policies and national statutory frameworks govern resource consents, fast-track approvals, and regional compliance mandates.'
-  );
+  String get governmentPolicyInfluence {
+    final rawPolicy = _str(marketInsightsMap['governmentPolicyInfluence'], fallback: '');
+    if (rawPolicy.isNotEmpty) return _cleanNarrativeText(rawPolicy, isHardware: isHardware);
+    if (isNuclear) {
+      return 'National statutory policy and legislative frameworks govern power generation, environmental protection, fast-track consenting, and specific nuclear prohibitions under New Zealand law.';
+    }
+    return 'Local government policies and national statutory frameworks govern resource consents, environmental standards, fast-track approvals, and regional compliance mandates.';
+  }
 
   List<String> get marketInsightsParagraphs => [
     marketLandscape,
@@ -353,27 +381,66 @@ class EvaluationResult {
     return 'Medium';
   }
 
-  String get whereMarketIsHeading => _str(
-    futureTrendsMap['whereMarketIsHeading'],
-    fallback: 'Macro structural trends, digital workflow adoption, and evolving regulatory compliance requirements are creating steady multi-year momentum for this opportunity.'
-  );
+  String get whereMarketIsHeading {
+    final heading = _str(futureTrendsMap['whereMarketIsHeading'], fallback: '');
+    if (heading.isNotEmpty && (!heading.contains('digital workflow adoption') || !isNuclear)) {
+      return _cleanNarrativeText(heading, isHardware: isHardware);
+    }
+    if (isNuclear) {
+      return 'Macro structural trends, Small Modular Reactor (SMR) commercialisation, rising electricity demand, and decarbonisation mandates are shaping the long-term energy sector outlook.';
+    }
+    if (isHardware) {
+      return 'Macro structural trends, hardware miniaturization, solar efficiency improvements, and IoT connectivity are driving market adoption of physical deterrent devices.';
+    }
+    return 'Macro structural trends, technology adoption, and evolving customer requirements are creating steady multi-year momentum for this opportunity.';
+  }
 
   List<String> get tailwinds {
     final list = futureTrendsMap['tailwinds'];
-    if (list is List && list.isNotEmpty) return list.map((e) => e.toString()).toList();
+    if (list is List && list.isNotEmpty) {
+      return list.map((e) => _cleanNarrativeText(e.toString(), isHardware: isHardware)).toList();
+    }
+    if (isNuclear) {
+      return [
+        'Accelerating electricity demand and industrial electrification goals.',
+        'Growing recognition of grid stability and low-carbon firm electricity power requirements.',
+        'Global technological advancements and commercialisation in Small Modular Reactors (SMRs).'
+      ];
+    }
+    if (isHardware) {
+      return [
+        'Growing vessel owner awareness of pest infestation damage and repair costs.',
+        'Advancements in solar power density and durable marine-grade materials.',
+        'Increasing demand for non-toxic, eco-friendly pest prevention solutions.'
+      ];
+    }
     return [
-      'Accelerating digital adoption and demand for automated workflow tools.',
-      'Evolving regulatory compliance mandates requiring audited reporting.',
-      'Growing pressure on businesses to reduce operational overhead.'
+      'Growing market demand for specialized operational tools.',
+      'Rising customer expectation for transparent pricing and rapid service.',
+      'Increasing pressure on businesses to reduce operational overhead.'
     ];
   }
 
   List<String> get headwinds {
     final list = futureTrendsMap['headwinds'];
-    if (list is List && list.isNotEmpty) return list.map((e) => e.toString()).toList();
+    if (list is List && list.isNotEmpty) {
+      return list.map((e) => _cleanNarrativeText(e.toString(), isHardware: isHardware)).toList();
+    }
+    if (isNuclear) {
+      return [
+        'Significant statutory and regulatory frameworks (e.g. Radiation Safety Act 2016, Atomic Energy Act 1945, Resource Management Act 1991).',
+        'Multi-billion-dollar infrastructure capital scale requirements and complex regulatory licensing process.'
+      ];
+    }
+    if (isHardware) {
+      return [
+        'Customer reluctance to replace traditional manual barriers until failure occurs.',
+        'Harsh marine environmental conditions affecting electronic component longevity.'
+      ];
+    }
     return [
       'Customer inertia and reluctance to change entrenched manual routines.',
-      'Potential entry of larger incumbent software platforms into adjacent features.'
+      'Potential entry of larger incumbent operators into adjacent service offerings.'
     ];
   }
 
@@ -382,9 +449,62 @@ class EvaluationResult {
     fallback: 'Focus on rapid low-cost customer discovery and validation to lock in early adopter commitment before investing heavily in full development.'
   );
 
+  String get marketDirection => _str(
+    futureTrendsMap['marketDirection'] ?? raw['scores']?['futureTrends']?['details']?['marketDirection'],
+    fallback: 'POSITIVE'
+  );
+
+  String get solutionOutlook => _str(
+    futureTrendsMap['solutionOutlook'] ?? raw['scores']?['futureTrends']?['details']?['solutionOutlook'],
+    fallback: isNuclear ? 'MATERIAL CONSTRAINTS PENDING LEGAL CONFIRMATION' : (overallScore >= 55 ? 'FAVOURABLE' : 'UNCERTAIN')
+  );
+
+  Map<String, String> get futureTrendsDimensions {
+    final dims = futureTrendsMap['dimensions'] ?? raw['scores']?['futureTrends']?['details']?['dimensions'];
+    if (dims is Map) {
+      return {
+        'demandTrend': _str(dims['demandTrend'], fallback: 'Growing long-term market demand.'),
+        'technologyTrend': _str(dims['technologyTrend'], fallback: 'Technological maturation and efficiency gains.'),
+        'regulatoryTrend': _str(dims['regulatoryTrend'], fallback: 'Evolving regulatory and compliance requirements.'),
+        'competitionTrend': _str(dims['competitionTrend'], fallback: 'Competitive dynamics and incumbent positioning.'),
+        'capitalTrend': _str(dims['capitalTrend'], fallback: 'Capital availability and funding requirements.')
+      };
+    }
+    if (isNuclear) {
+      return {
+        'demandTrend': 'National demand for 24/7 low-carbon firm electricity is expanding rapidly driven by electrification and climate targets.',
+        'technologyTrend': 'SMR technologies continue to progress internationally, although commercial maturity, deployment timelines and economics vary materially by technology and jurisdiction.',
+        'regulatoryTrend': 'Significant statutory and regulatory frameworks (e.g. Radiation Safety Act 2016, Atomic Energy Act 1945) present material regulatory barriers to commercial nuclear generation in NZ, subject to specialist legal confirmation.',
+        'competitionTrend': 'Traditional grid generators (hydro, geothermal, wind) dominate under current regulatory architecture.',
+        'capitalTrend': 'Multi-billion dollar CAPEX structure incompatible with early-stage venture funding without government underwriting.'
+      };
+    }
+    return {
+      'demandTrend': 'Growing long-term market demand for specialized operational solutions.',
+      'technologyTrend': 'Ongoing technological advances reducing implementation costs.',
+      'regulatoryTrend': 'Increasing compliance and operational standards across target region.',
+      'competitionTrend': 'Moderate competition with opportunity for service differentiation.',
+      'capitalTrend': 'Manageable initial capital intensity matching stage maturity.'
+    };
+  }
+
+  String get whatThisMeansForFounder => _str(
+    futureTrendsMap['whatThisMeansForFounder'] ?? raw['scores']?['futureTrends']?['details']?['whatThisMeansForFounder'] ?? futureTrendsMap['founderDecisionGuidance'],
+    fallback: isNuclear
+      ? 'Preserve the problem definition and track policy developments. Do not deploy private development capital into commercial nuclear generation in NZ until a clear statutory and regulatory pathway has been confirmed by specialist counsel.'
+      : 'Focus on rapid low-cost customer discovery and validation to lock in early adopter commitment before investing heavily.'
+  );
+
   List<String> get adjacentOpportunities {
-    final list = futureTrendsMap['adjacentOpportunities'];
+    final list = futureTrendsMap['adjacentOpportunities'] ?? raw['scores']?['futureTrends']?['details']?['adjacentOpportunities'];
     if (list is List && list.isNotEmpty) return list.map((e) => e.toString()).take(3).toList();
+    if (isNuclear) {
+      return [
+        'Off-grid micro-grids and clean energy storage',
+        'Geothermal & hydro grid-firming technologies',
+        'Nuclear technology & regulatory advisory for OECD markets'
+      ];
+    }
     return [
       'Automated compliance reporting module for regional regulatory bodies.',
       'White-label partner integration for existing industry service providers.'
@@ -549,19 +669,31 @@ class EvaluationResult {
 
   // Business Theme & Strategic Positioning
   Map<String, dynamic> get businessTheme => (raw['businessTheme'] as Map<String, dynamic>?) ?? {};
-  String get primaryTheme => _str(businessTheme['primaryTheme'], fallback: isHardware ? 'Hardware & Physical Product Innovation' : 'B2B Software & Business Services');
-  String get secondaryTheme => _str(businessTheme['secondaryTheme'], fallback: isHardware ? 'Field Trial Validation & Asset Protection' : 'Workflow Efficiency & Automation');
+  String get primaryTheme => _str(
+    businessTheme['primaryTheme'],
+    fallback: isNuclear ? 'Energy Infrastructure & Power Generation' : (isHardware ? 'Hardware & Physical Product Innovation' : 'B2B Software & Business Services')
+  );
+  String get secondaryTheme => _str(
+    businessTheme['secondaryTheme'],
+    fallback: isNuclear ? 'Nuclear / SMR / Firm Low-Carbon Generation' : (isHardware ? 'Field Trial Validation & Asset Protection' : 'Workflow Efficiency & Automation')
+  );
   String get strategicPositioning => _str(
     businessTheme['strategicPositioning'],
-    fallback: 'Positions as a high-efficiency specialized solution directly targeting operational pain points. De-risks adoption by delivering immediate physical and functional value.'
+    fallback: isNuclear
+      ? 'Positions as a long-term utility-scale infrastructure option targeting grid reliability, baseload capacity, and industrial decarbonisation within New Zealand.'
+      : (isHardware ? 'Positions as a high-efficiency specialized physical solution directly targeting operational pain points.' : 'Positions as a specialized efficiency solution directly targeting operational friction points.')
   );
   String get marketCategoryDynamics => _str(
     businessTheme['marketCategoryDynamics'],
-    fallback: 'Driven by market demand for durable, low-maintenance asset protection and automated operational tools.'
+    fallback: isNuclear
+      ? 'Governed by national energy security strategy, statutory radiation safety law, environmental consenting frameworks, and multi-billion-dollar infrastructure capital scale.'
+      : (isHardware ? 'Driven by market demand for durable, low-maintenance asset protection and automated operational tools.' : 'Driven by market demand for operational productivity, compliance automation, and workflow efficiency.')
   );
   String get strategicMoat => _str(
     businessTheme['strategicMoat'],
-    fallback: 'Proprietary design mechanics, domain experience, and direct field trial relationships.'
+    fallback: isNuclear
+      ? 'No defensible venture-specific moat is yet evidenced. Potential future defensibility could arise from specialist partnerships, project rights, regulatory capability, long-term off-take arrangements or execution capability.'
+      : (isHardware ? 'Proprietary design mechanics, domain experience, and direct field trial relationships.' : 'Deep domain specialization, high workflow retention, and direct customer relationships.')
   );
 
   // CV Analysis
@@ -605,7 +737,13 @@ class EvaluationResult {
     return ['Identified Domain Background & Industry Context', 'Commercial & Operational Capability'];
   }
 
-  String get cvStrengths => _str(cvAnalysis['founderStrengthsFromCV'], fallback: 'Extensive domain expertise, professional background, and direct access to target market customers.');
+  String get cvStrengths {
+    final rawStr = _str(cvAnalysis['founderStrengthsFromCV'], fallback: '');
+    if (rawStr.isNotEmpty && !rawStr.startsWith('"I have') && !rawStr.startsWith('I have') && rawStr.length < 250) {
+      return _cleanNarrativeText(rawStr, isHardware: isHardware);
+    }
+    return 'Strong commercial, financial, accounting, technology and business-evaluation capability, including financial modelling, business structuring and commercial decision-making.';
+  }
   String get cvAlignment => _str(cvAnalysis['alignmentWithBusinessIdea'], fallback: 'Founder background directly supports problem insight and de-risks initial concept execution.');
 
   // Founder Background Narrative & 4-Part Explanation
@@ -686,6 +824,8 @@ class EvaluationResult {
   }
 
   // Stage-Aware Time & Capital Reality Getters
+  String get availableCapital => capitalAvailable;
+
   String get timeRealitySummary {
     final t = timeAvailable.toLowerCase();
     if (t.contains('0-5') || t.contains('0–5') || t.contains('0 to 5') || t.contains('3')) {
@@ -715,7 +855,10 @@ class EvaluationResult {
   String get capitalRealitySummary {
     final cap = capitalAvailable;
     if (cap.contains(r'$0') || cap.contains('500') || cap.contains('2,500')) {
-      return 'Suitable for lean validation (interviews, surveys, landing-page testing), but likely insufficient for major product development, tooling or launch costs.';
+      if (isNuclear) {
+        return r'Initial risk capital ($500 NZD) can support desktop research, legal framework mapping, and preliminary specialist outreach, but cannot fund formal legal opinions, engineering feasibility studies, or statutory filings. Advancing this concept requires a $5,000–$25,000+ legal/regulatory pre-feasibility gateway.';
+      }
+      return 'Suitable for lean validation (interviews, surveys, preliminary market research), but likely insufficient for major product development, tooling or launch costs.';
     } else if (cap.contains('5,000') || cap.contains('10,000')) {
       return 'Workable for initial MVP prototype development, customer validation, and pilot testing.';
     }
@@ -729,11 +872,11 @@ class EvaluationResult {
     if (aiVal.isNotEmpty) return aiVal;
     final catLower = category.toLowerCase();
     if (isNuclear || catLower.contains('energy') || catLower.contains('infrastructure')) {
-      return r'$5,000 – $25,000+ NZD (Specialist Legal & Regulatory Feasibility)';
+      return r'$5,000 – $25,000+ NZD (Specialist Legal & Regulatory Feasibility Gateway)';
     } else if (isHardware || catLower.contains('marine') || catLower.contains('hardware')) {
       return r'$1,500 – $5,000 NZD (Physical Prototype & Supplier Quotes)';
     }
-    return r'$300 – $1,500 NZD (Lean Customer Discovery & Landing Page Testing)';
+    return r'$300 – $1,500 NZD (Lean Customer Discovery & Preliminary Market Investigation)';
   }
 
   String get riskCapitalExplanation =>
@@ -741,7 +884,9 @@ class EvaluationResult {
 
   List<String> get whatMattersNow {
     final aiList = (raw['whatMattersNow'] as List?)?.map((e) => e.toString()).toList();
-    if (aiList != null && aiList.isNotEmpty) return aiList;
+    if (aiList != null && aiList.isNotEmpty) {
+      return aiList.map((item) => _cleanNarrativeText(item, isHardware: isHardware)).toList();
+    }
 
     final t = timeAvailable.toLowerCase();
     final isLowTime = t.contains('0-5') || t.contains('0–5') || t.contains('3');
@@ -753,11 +898,19 @@ class EvaluationResult {
           ? 'Your available time is limited (0–5 hrs/wk), but sufficient for early validation—provided your weekly scope remains strictly focused on 1 priority objective.'
           : 'Your available time allows steady progress; maintain disciplined focus on direct customer validation before expanding product features.',
       isLowCap
-          ? 'Your initial risk budget ($riskCapital) can support early customer research and landing page testing, but major development costs must be delayed until willingness-to-pay is proven.'
+          ? (isNuclear
+              ? r'Initial risk capital ($500 NZD) supports desktop research, legal framework mapping, and initial specialist outreach, but cannot fund formal legal opinions or engineering studies. A $5,000–$25,000+ pre-feasibility gateway is required to confirm statutory viability.'
+              : r'Your initial risk budget ($riskCapital) can support early customer research and preliminary market investigation, but major development costs must be delayed until willingness-to-pay is proven.')
           : 'Your initial budget is workable for prototype development; preserve capital for customer acquisition experiments rather than premature tooling.',
       founderCapabilityScore <= 6
-          ? 'Specialist technical, manufacturing or domain capability can be sourced via advisors, contractors or partners later; it does not need to be personally solved by the founder prior to customer validation.'
-          : 'Core founder capabilities are well aligned for early stage execution; focus on testing customer demand assumptions.',
+          ? (isNuclear
+              ? 'Domain, statutory, or nuclear engineering specialization can be engaged via advisors, industry partners, or specialist consultants; early positioning should focus on statutory and commercial feasibility.'
+              : (isHardware
+                  ? 'Specialist mechanical, electrical, or manufacturing capability can be sourced via technical advisors, design contractors, or manufacturing partners as hardware concepts are validated.'
+                  : 'Core operational, technical, or domain capabilities can be augmented via advisors, contractors, or key partners as commercial validation progresses.'))
+          : (isNuclear
+              ? 'Core founder capability supports strategic and commercial positioning, but requires early integration of specialist nuclear regulatory and statutory expertise.'
+              : 'Core founder capabilities are well aligned for early-stage execution; focus on validating critical statutory, market, or commercial assumptions.'),
     ];
   }
 
@@ -773,17 +926,39 @@ class EvaluationResult {
 
   List<String> get recommendedApproach {
     final aiList = (raw['recommendedApproach'] as List?)?.map((e) => e.toString()).toList();
-    if (aiList != null && aiList.isNotEmpty) return aiList;
+    if (aiList != null && aiList.isNotEmpty) {
+      return aiList.map((item) => _cleanNarrativeText(item, isHardware: isHardware)).toList();
+    }
 
     final t = timeAvailable.toLowerCase();
     final isLowTime = t.contains('0-5') || t.contains('0–5') || t.contains('3');
 
+    if (isNuclear) {
+      return [
+        isLowTime
+            ? 'Select ONE primary legal or regulatory feasibility objective each week and batch founder effort into targeted research sessions.'
+            : 'Structure weekly work around statutory framework mapping, key stakeholder mapping, and expert consultations.',
+        'Focus effort first on statutory permissibility, regulatory feasibility and relevant policy constraints before committing capital to detailed engineering, site feasibility or downstream off-taker validation.',
+        'Concentrate on clearing the primary gating risk (statutory permissibility and regulatory feasibility) before undertaking downstream commercial validation.',
+        'Maintain a disciplined execution horizon focused on regulatory pre-feasibility milestones.',
+      ];
+    } else if (isHardware) {
+      return [
+        isLowTime
+            ? 'Select ONE key physical design or validation objective each week and batch work into focused sessions.'
+            : 'Structure weekly validation sprints around direct customer/operator feedback and physical concept testing.',
+        'Validate core physical performance, durability requirements, and customer willingness-to-pay before committing capital to costly tooling or full manufacturing runs.',
+        'Concentrate on testing the highest-risk physical and commercial assumptions first (field performance under real conditions and unit economic viability).',
+        'Maintain a 90-day execution horizon to ensure steady, consistent progress without founder burnout.',
+      ];
+    }
+
     return [
       isLowTime
           ? 'Select ONE major validation objective each week and batch founder work into 1–2 focused sessions.'
-          : 'Structure weekly validation sprints around direct customer interviews and prototype feedback.',
-      'Avoid building unnecessary product features or writing extensive code before customer willingness-to-pay is validated.',
-      'Concentrate on testing the highest-risk business assumptions first (problem severity and customer willingness-to-pay).',
+          : 'Structure weekly validation sprints around direct customer interviews and solution feedback.',
+      'Focus effort on validating primary customer demand and commercial model mechanics before expanding product features or operational overhead.',
+      'Concentrate on testing the highest-risk business assumptions first (problem severity and target customer commitment).',
       'Maintain a 90-day execution horizon to ensure steady, consistent progress without founder burnout.',
     ];
   }
@@ -791,22 +966,37 @@ class EvaluationResult {
   String get founderRealityFooter =>
       'Founder Reality: Most businesses begin around existing work, family and financial commitments. Early progress is more dependent on choosing the right priorities and consistently testing the idea than immediately working full-time or committing significant capital.';
 
-  // P.A.R.A.-Inspired Idea Portfolio & Decision System (Fix 14)
+  // P.A.R.A.-Inspired Idea Portfolio & Decision System
   Map<String, dynamic> get portfolioMeta => (raw['portfolioMeta'] as Map<String, dynamic>?) ?? {};
+  String get portfolioDecision => _str(
+    portfolioMeta['portfolioDecision'],
+    fallback: isNuclear ? 'PARK' : (overallScore >= 55 ? 'INVESTIGATE' : (overallScore >= 40 ? 'PIVOT' : 'PARK'))
+  );
   String get decisionState => _str(portfolioMeta['decisionState'], fallback: masterRecommendation);
   String get ventureStage => _str(portfolioMeta['ventureStage'], fallback: scoreBandName);
 
   Map<String, dynamic> get problemVsSolution => (portfolioMeta['problemVsSolution'] as Map<String, dynamic>?) ?? {};
   String get underlyingProblem => _str(problemVsSolution['underlyingProblem'], fallback: _str(raw['problem'], fallback: 'Observed customer pain point'));
   String get currentProposedSolution => _str(problemVsSolution['currentProposedSolution'], fallback: businessName);
-  String get problemStatus => _str(problemVsSolution['problemStatus'], fallback: isNuclear ? 'Worth Investigating (Problem Preserved)' : 'Worth Investigating');
-  String get solutionStatus => _str(problemVsSolution['solutionStatus'], fallback: isNuclear ? 'Infeasible in Current Formulation' : 'Viable Candidate');
-  String get portfolioAction => _str(problemVsSolution['portfolioAction'], fallback: 'Preserve the problem statement while exploring alternative solutions or target geographies.');
+  String get problemStatus => _str(
+    portfolioMeta['problemStatus'] ?? problemVsSolution['problemStatus'],
+    fallback: isNuclear ? 'Worth Investigating' : 'Worth Investigating'
+  );
+  String get solutionStatus => _str(
+    portfolioMeta['solutionStatus'] ?? problemVsSolution['solutionStatus'],
+    fallback: isNuclear ? 'Unviable Under Current Legislation' : 'Under Validation'
+  );
+  String get portfolioAction => _str(
+    portfolioMeta['portfolioAction'] ?? problemVsSolution['portfolioAction'],
+    fallback: isNuclear
+      ? 'Preserve the underlying energy-security opportunity while monitoring alternative technologies, jurisdictions and relevant policy developments.'
+      : 'Conduct structured customer discovery interviews and initial evidence gathering.'
+  );
 
   String get nextEvidenceGateway {
     final metaGateway = _str(portfolioMeta['nextEvidenceGateway'], fallback: '');
     if (metaGateway.isNotEmpty) return metaGateway;
-    if (isNuclear) return 'Establish statutory, legal and public-policy feasibility with qualified specialists.';
+    if (isNuclear) return 'Credible statutory/legal and regulatory pathway.';
     if (isHardware) return 'Produce physical proof-of-concept prototype & obtain manufacturer unit cost estimates.';
     return 'Conduct 10 customer discovery interviews & validate prototype interactive workflow.';
   }
@@ -814,8 +1004,8 @@ class EvaluationResult {
   String get reassessmentTrigger {
     final metaTrigger = _str(portfolioMeta['reassessmentTrigger'], fallback: '');
     if (metaTrigger.isNotEmpty) return metaTrigger;
-    if (isNuclear) return 'Return when statutory legislation or preliminary legal advice confirms a viable regulatory pathway.';
-    return 'Return after completing 10 discovery calls and securing 3 LOIs or pre-orders.';
+    if (isNuclear) return 'Material statutory/regulatory policy change, relevant technology development, or formal pre-feasibility legal clarification.';
+    return 'Completion of 30-day discovery milestone or material market feedback.';
   }
 
   // Prioritize exact user questionnaire choices
@@ -852,12 +1042,16 @@ class EvaluationResult {
     return _str(founderMetrics['initialRiskCapital'] ?? capitalReality['initialRiskCapital'], fallback: r'$1,000 NZD');
   }
 
+  // Helper flags
+  String get primaryGatingRisk => _str(raw['primaryGatingRisk'], fallback: isNuclear ? 'Statutory & Regulatory Permissibility' : 'Customer Demand & Willingness to Pay');
+  bool get isRegulated => isNuclear || category.toLowerCase().contains('regulated') || category.toLowerCase().contains('energy') || category.toLowerCase().contains('medical');
+
   // Validation Ladder & Test
   Map<String, dynamic> get validation => (raw['validation'] as Map<String, dynamic>?) ?? {};
   List<Map<String, String>> get validationLadder {
-    final list = validation['ladder'];
-    if (list is List && list.isNotEmpty) {
-      return list.map((item) {
+    final rawList = raw['validationLadder'] ?? validation['ladder'];
+    if (rawList is List && rawList.isNotEmpty) {
+      return rawList.map((item) {
         if (item is Map) {
           return {
             'stage': _str(item['stage'], fallback: 'Validation Stage'),
@@ -867,6 +1061,34 @@ class EvaluationResult {
         }
         return {'stage': item.toString(), 'status': 'Not yet evidenced', 'notes': ''};
       }).toList();
+    }
+    if (isNuclear || primaryGatingRisk.contains('Statutory') || isRegulated) {
+      return [
+        {'stage': 'Problem identified', 'status': 'Complete', 'notes': 'National energy security & baseload need confirmed'},
+        {'stage': 'Strategic need established', 'status': 'Complete', 'notes': 'Clean electricity demand & grid resilience'},
+        {'stage': 'Statutory permissibility assessed', 'status': 'Not yet evidenced', 'notes': 'Specialist legal assessment under RSA 2016, RMA 1991 & AEA 1945'},
+        {'stage': 'Regulatory pathway identified', 'status': 'Not yet evidenced', 'notes': 'Radiation safety, environmental consent & parliamentary reform roadmap'},
+        {'stage': 'Technical pre-feasibility assessed', 'status': 'Not yet evidenced', 'notes': 'Grid connection, cooling, site & TRL prerequisites'},
+        {'stage': 'Specialist team/advisers identified', 'status': 'Not yet evidenced', 'notes': 'Nuclear engineering & regulatory counsel expertise'},
+        {'stage': 'Capital feasibility assessed', 'status': 'Not yet evidenced', 'notes': 'Multi-billion CAPEX, financing structure & consortium requirements'},
+        {'stage': 'Policy/stakeholder feasibility assessed', 'status': 'Not yet evidenced', 'notes': 'Government policy, local council & community sentiment'},
+        {'stage': 'Off-taker interest tested', 'status': 'Not yet evidenced', 'notes': 'PPA & industrial off-taker validation'},
+        {'stage': 'Formal pre-feasibility completed', 'status': 'Not yet evidenced', 'notes': 'Evidence Gateway Decision (Proceed / Pivot / Stop)'}
+      ];
+    }
+    if (isHardware) {
+      return [
+        {'stage': 'Problem identified', 'status': 'Complete', 'notes': 'Customer pain point confirmed'},
+        {'stage': 'Target customer defined', 'status': 'Complete', 'notes': 'User persona & operating environment defined'},
+        {'stage': 'Problem severity confirmed', 'status': 'Not yet evidenced', 'notes': 'Empirical user interviews & field observation'},
+        {'stage': 'Technical feasibility & CAD model', 'status': 'Not yet evidenced', 'notes': 'Core mechanical & electronic design'},
+        {'stage': 'Physical prototype built', 'status': 'Not yet evidenced', 'notes': 'Functional proof-of-concept prototype'},
+        {'stage': 'Field & durability testing completed', 'status': 'Not yet evidenced', 'notes': 'Real-world marine/outdoor stress testing'},
+        {'stage': 'Manufacturing unit economics verified', 'status': 'Not yet evidenced', 'notes': 'Supplier quotes & bill of materials'},
+        {'stage': 'Willingness to pay tested', 'status': 'Not yet evidenced', 'notes': 'Deposit / pre-order commitments'},
+        {'stage': 'Initial pilot batch produced', 'status': 'Not yet evidenced', 'notes': 'Small-batch manufacturing run'},
+        {'stage': 'Commercial distribution established', 'status': 'Not yet evidenced', 'notes': 'Retail or direct supply channel'}
+      ];
     }
     return [
       {'stage': 'Problem identified', 'status': 'Complete', 'notes': 'Problem confirmed'},
@@ -887,14 +1109,174 @@ class EvaluationResult {
 
   // Adviser Opinion
   Map<String, dynamic> get adviserOpinion => (raw['adviserOpinion'] as Map<String, dynamic>?) ?? {};
+  String get adviserEncouraging {
+    final backendVal = _str(adviserOpinion['encouraging'], fallback: '');
+    if (backendVal.isNotEmpty) return backendVal;
+    if (isNuclear) return 'The underlying national energy-security problem is legitimate and strategically important.';
+    if (founderCapabilityScore <= 6) return 'Strong general commercial and financial capability combined with clear problem definition.';
+    return 'Strong problem definition, domain experience, and capital discipline.';
+  }
+
+  String get adviserCaution {
+    final backendVal = _str(adviserOpinion['caution'], fallback: '');
+    if (backendVal.isNotEmpty) return backendVal;
+    if (isNuclear) return 'The proposed solution faces extraordinary statutory, political, technical and capital barriers.';
+    if (isHardware) return 'Ensure mass production and tooling costs are delayed until physical prototype field durability and customer deposits are secured.';
+    return 'Ensure non-essential features and expenditure are delayed until customer willingness to pay is tested.';
+  }
+
+  String get adviserUnproven {
+    final backendVal = _str(adviserOpinion['unproven'], fallback: '');
+    if (backendVal.isNotEmpty) return backendVal;
+    if (isNuclear) return 'Whether a credible legal/regulatory pathway exists for commercial nuclear generation in New Zealand.';
+    return 'Repeat paid demand and scalable customer acquisition channels.';
+  }
 
   // 90 Day Roadmap
   Map<String, dynamic> get ninetyDayRoadmap => (raw['ninetyDayRoadmap'] as Map<String, dynamic>?) ?? {};
+  List<Map<String, String>> get ninetyDayRoadmapSteps {
+    if (isNuclear || primaryGatingRisk.contains('Statutory') || isRegulated) {
+      return [
+        {
+          'week': 'W 1-2',
+          'objective': 'Legal & Statutory Scoping',
+          'tasks': 'Identify applicable legislation and engage appropriate specialist legal/regulatory expertise.',
+          'hours': '5 hrs/wk',
+          'evidence': 'Preliminary legal-framework map'
+        },
+        {
+          'week': 'W 3-4',
+          'objective': 'Regulatory Pathway Assessment',
+          'tasks': 'Determine whether any credible statutory pathway exists for commercial nuclear generation.',
+          'hours': '5 hrs/wk',
+          'evidence': 'Regulatory pathway scoping note / specialist scope'
+        },
+        {
+          'week': 'W 5-6',
+          'objective': 'Technical Pre-Feasibility',
+          'tasks': 'Engage nuclear/energy infrastructure specialists to identify fundamental technical prerequisites.',
+          'hours': '5 hrs/wk',
+          'evidence': 'Technical prerequisite and capability-gap memo'
+        },
+        {
+          'week': 'W 7-8',
+          'objective': 'Policy & Stakeholder Mapping',
+          'tasks': 'Identify relevant government, regulatory and energy infrastructure stakeholders.',
+          'hours': '5 hrs/wk',
+          'evidence': 'Stakeholder map'
+        },
+        {
+          'week': 'W 9-10',
+          'objective': 'Capital & Delivery Reality',
+          'tasks': 'Establish indicative project capital scale, financing structure and consortium requirements.',
+          'hours': '5 hrs/wk',
+          'evidence': 'Indicative capital-scale model'
+        },
+        {
+          'week': 'W 11-12',
+          'objective': 'Evidence Gateway Decision',
+          'tasks': 'STOP / PARK / PIVOT / CONTINUE based on statutory and pre-feasibility evidence obtained.',
+          'hours': '5 hrs/wk',
+          'evidence': 'Evidence Gateway Decision'
+        },
+      ];
+    }
+    if (isHardware) {
+      return [
+        {
+          'week': 'W 1-2',
+          'objective': 'User Problem Discovery',
+          'tasks': 'Interview 10 target operators on current equipment issues & costs.',
+          'hours': '5 hrs/wk',
+          'evidence': 'Interview transcript log'
+        },
+        {
+          'week': 'W 3-4',
+          'objective': 'Technical CAD & Specs',
+          'tasks': 'Draft initial mechanical CAD model & electronic component specs.',
+          'hours': '5 hrs/wk',
+          'evidence': 'CAD spec sheet'
+        },
+        {
+          'week': 'W 5-6',
+          'objective': 'Physical Prototype Build',
+          'tasks': 'Fabricate benchtop physical prototype for initial mechanism testing.',
+          'hours': '5 hrs/wk',
+          'evidence': 'Benchtop prototype'
+        },
+        {
+          'week': 'W 7-8',
+          'objective': 'Field & Durability Testing',
+          'tasks': 'Test prototype in real operating environment under stress conditions.',
+          'hours': '5 hrs/wk',
+          'evidence': 'Field test log'
+        },
+        {
+          'week': 'W 9-10',
+          'objective': 'Unit Economics & Sourcing',
+          'tasks': 'Obtain quotes from 2 manufacturers for bill of materials & batch assembly.',
+          'hours': '5 hrs/wk',
+          'evidence': 'Supplier quote comparison'
+        },
+        {
+          'week': 'W 11-12',
+          'objective': 'Commercial Pre-Orders',
+          'tasks': 'Present tested prototype to 5 prospective buyers to secure pre-orders.',
+          'hours': '5 hrs/wk',
+          'evidence': '2 pilot deposits / pre-orders'
+        },
+      ];
+    }
+    return [
+      {
+        'week': 'W 1-2',
+        'objective': 'Problem Discovery',
+        'tasks': 'Draft interview guide; reach out to 10 target prospects',
+        'hours': '5 hrs/wk',
+        'evidence': 'Target outreach log'
+      },
+      {
+        'week': 'W 3-4',
+        'objective': 'Customer Interviews',
+        'tasks': 'Conduct 6 structured interviews; record pain points',
+        'hours': '5 hrs/wk',
+        'evidence': '6 interview transcripts'
+      },
+      {
+        'week': 'W 5-6',
+        'objective': 'Solution Workflow Test',
+        'tasks': 'Test interactive prototype or workflow with 3 target users',
+        'hours': '5 hrs/wk',
+        'evidence': 'User feedback logs'
+      },
+      {
+        'week': 'W 7-8',
+        'objective': 'Price & Offer Test',
+        'tasks': 'Present formal pricing terms to 5 target prospects',
+        'hours': '5 hrs/wk',
+        'evidence': '2 LOIs / deposit commitments'
+      },
+      {
+        'week': 'W 9-10',
+        'objective': 'Pilot Evaluation',
+        'tasks': 'Measure initial retention, manual effort, and user satisfaction',
+        'hours': '5 hrs/wk',
+        'evidence': 'Pilot metrics report'
+      },
+      {
+        'week': 'W 11-12',
+        'objective': 'Commercial Decision',
+        'tasks': 'Reassess evidence; decide whether to Build, Pivot, or Stop',
+        'hours': '5 hrs/wk',
+        'evidence': 'PitchLab Reassessment'
+      },
+    ];
+  }
 
   // Action Plan
   Map<String, dynamic> get actionPlan => (raw['actionPlan'] as Map<String, dynamic>?) ?? {};
   List<Map<String, String>> get topFivePriorities {
-    final list = actionPlan['topFivePriorities'];
+    final list = actionPlan['topFivePriorities'] ?? raw['topFivePriorities'];
     if (list is List && list.isNotEmpty) {
       return list.map((item) {
         if (item is Map) {
@@ -906,6 +1288,15 @@ class EvaluationResult {
         }
         return {'priority': 'Priority Action', 'action': _cleanNarrativeText(item.toString(), isHardware: isHardware), 'metric': 'Completed'};
       }).toList();
+    }
+    if (isNuclear) {
+      return [
+        {'priority': 'Statutory & Legal Feasibility', 'action': 'Identify qualified legal specialists and obtain an initial consultation to map statutory frameworks under New Zealand legislation.', 'metric': 'Initial specialist consultation & scope/fee (Immediate Stage) / Written legal opinion (Later $5k+ Gateway)'},
+        {'priority': 'Specialist Technical Outreach', 'action': 'Engage qualified power/nuclear engineers and regulatory consultants to map safety and grid prerequisites.', 'metric': 'Preliminary specialist advisory scoping note'},
+        {'priority': 'Engineering & Site Prerequisite Scoping', 'action': 'Perform desktop research to map site requirements, grid connection logistics, and environmental consenting prerequisites.', 'metric': 'Desktop technical prerequisite memo (Immediate Stage) / Formal pre-feasibility study (Later $25k+ Gateway)'},
+        {'priority': 'Risk Gateway Decision', 'action': 'Review preliminary legal and technical scoping notes against founder resource reality before committing further investment.', 'metric': 'Pre-Feasibility Go / Reframe / Stop Decision'},
+        {'priority': 'Capital & Policy Scoping', 'action': 'Model multi-billion-dollar project capital scale requirements, sovereign risk factors, and national energy policy alignment.', 'metric': 'Indicative capital-scale & policy map'}
+      ];
     }
     if (isHardware) {
       return [
@@ -919,13 +1310,25 @@ class EvaluationResult {
     return [
       {'priority': 'Conduct Discovery Interviews', 'action': 'Interview 10 target customers on current workarounds.', 'metric': '10 interviews'},
       {'priority': 'Confirm Problem Severity', 'action': 'Verify if customers spend money to solve this today.', 'metric': '70% pain confirmation'},
-      {'priority': 'Define Concierge MVP', 'action': 'Design simple manual service before investing in software development.', 'metric': 'MVP spec'},
+      {'priority': 'Define Pre-Feasibility Scope', 'action': 'Design simple low-cost research plan before investing in development.', 'metric': 'Validation spec'},
       {'priority': 'Test Willingness to Pay', 'action': 'Present pricing to 5 prospects.', 'metric': '2 pilot sign-ups'},
       {'priority': 'Establish Execution Cadence', 'action': 'Block 5 hours/week for customer interviews.', 'metric': 'Weekly completion'}
     ];
   }
 
-  String get nextSevenDaysAction => _str(actionPlan['nextSevenDaysAction'], fallback: 'Draft your customer discovery interview script and list 10 target contacts in your network.');
+  String get nextSevenDaysAction {
+    final backendAction = _str(actionPlan['nextSevenDaysAction'] ?? summaryBlock['doThisBeforeBuildingMore'], fallback: '');
+    if (backendAction.isNotEmpty && !backendAction.contains('Execute a formal Pre-Feasibility') && (!backendAction.contains('Draft your customer discovery interview script') || !isNuclear)) {
+      return _cleanNarrativeText(backendAction, isHardware: isHardware);
+    }
+    if (isNuclear) {
+      return 'Begin statutory and regulatory pre-feasibility by identifying the applicable New Zealand legal framework and approaching an appropriately qualified specialist for an initial discussion and indicative scope/fee.';
+    }
+    if (isHardware) {
+      return 'Sketch physical concept dimensions and contact 3 target operators or component suppliers for preliminary feedback.';
+    }
+    return 'Draft your customer discovery interview script and conduct initial outreach to 5 target users.';
+  }
 
   List<Map<String, dynamic>> get readinessChecklist {
     final list = actionPlan['readinessChecklist'];
@@ -1100,6 +1503,18 @@ class EvaluationResult {
       if (res.isNotEmpty) return res;
     }
     return fallback;
+  }
+
+  static String _cleanBusinessModelField(String text, {required String fallback}) {
+    if (text.isEmpty || text == fallback) return fallback;
+    var cleaned = text.trim();
+    cleaned = cleaned.replaceAll(RegExp(r'^["\“\‘](.*)["\”\’]$'), r'$1').trim();
+    cleaned = cleaned.replaceAll(RegExp(r'^(i\s+want\s+to\s+(develop|build|create|launch)|developing|i\s+am\s+building|we\s+are\s+building|my\s+startup\s+idea\s+is|the\s+problem\s+is|customer\s+problem\s+is|my\s+target\s+market\s+is|i\s+want\s+to\s+target|our\s+target\s+customers\s+are)\s+', caseSensitive: false), '');
+    cleaned = cleaned.trim();
+    if (cleaned.isEmpty) return fallback;
+    cleaned = cleaned[0].toUpperCase() + cleaned.substring(1);
+    if (!cleaned.endsWith('.')) cleaned += '.';
+    return cleaned;
   }
 
   static String _getBandNameFromScore(int s) {

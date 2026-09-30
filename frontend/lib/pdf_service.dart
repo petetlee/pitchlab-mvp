@@ -9,6 +9,7 @@ import 'pdf_downloader.dart';
 class PdfService {
   static Future<void> generateReport(Map<String, dynamic> rawEvaluation) async {
     final res = EvaluationResult.fromMap(rawEvaluation);
+    _validatePrePdfIntegrity(res);
     final pdf = pw.Document();
 
     // 12-16 Page PDF Layout
@@ -35,8 +36,9 @@ class PdfService {
             child: pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
-                pw.Text(_cleanPdfText('Confidential Assessment prepared for ${res.founderName}'), style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey600)),
-                pw.Text(_cleanPdfText('Page ${context.pageNumber} of ${context.pagesCount}'), style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey600)),
+                pw.Text(_cleanPdfText('Confidential  |  ${res.founderName}'), style: const pw.TextStyle(fontSize: 6.5, color: PdfColors.grey600)),
+                pw.Text(_cleanPdfText('PitchLab MVP ${res.appVersion} • Build ${res.buildId} • Generated ${res.assessmentGeneratedAtFormatted}'), style: const pw.TextStyle(fontSize: 6.5, color: PdfColors.grey600)),
+                pw.Text(_cleanPdfText('Page ${context.pageNumber} of ${context.pagesCount}'), style: const pw.TextStyle(fontSize: 6.5, color: PdfColors.grey600)),
               ],
             ),
           );
@@ -161,7 +163,7 @@ class PdfService {
             ...res.threePriorityActions.map((act) => pw.Padding(
               padding: const pw.EdgeInsets.only(bottom: 5),
               child: pw.Bullet(
-                text: _cleanPdfText('${act['heading']}: ${act['explanation']} (Outcome: ${act['outcome']})'),
+                text: _cleanPdfText(_formatActionHeading(act['heading'] ?? '', act['explanation'] ?? '', tag: act['outcome'] != null ? 'Outcome: ${act['outcome']}' : null)),
                 style: const pw.TextStyle(fontSize: 8.5),
               ),
             )),
@@ -381,7 +383,7 @@ class PdfService {
             pw.Divider(height: 20, color: PdfColors.grey300, thickness: 0.5),
 
             // ================= FUTURE TRENDS & MARKET DIRECTION =================
-            _buildSectionHeaderPDF('Future Trends & Market Direction (3-10 Year Outlook)'),
+            _buildSectionHeaderPDF('Future Trends & Market Direction (5-Dimension Outlook)'),
             pw.Container(
               padding: const pw.EdgeInsets.all(6),
               decoration: const pw.BoxDecoration(
@@ -391,55 +393,23 @@ class PdfService {
               child: pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text(_cleanPdfText('Future Outlook: ${res.futureOutlook}'), style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                  pw.Text(_cleanPdfText('Trend Alignment: ${res.trendAlignmentScore}/10'), style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColors.green900)),
-                  pw.Text(_cleanPdfText('Forecast Confidence: ${res.forecastConfidence}'), style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: PdfColors.grey900)),
+                  pw.Text(_cleanPdfText('Market Direction: ${res.marketDirection}'), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.green900)),
+                  pw.Text(_cleanPdfText('Solution Outlook: ${res.solutionOutlook}'), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
                 ],
               ),
             ),
-            pw.SizedBox(height: 6),
-            pw.Text(_cleanPdfText('Where the Market Is Heading:'), style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+            pw.SizedBox(height: 4),
+            pw.Text(_cleanPdfText('5 Key Trend Dimensions:'), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
             pw.SizedBox(height: 2),
-            pw.Text(_cleanPdfText(res.whereMarketIsHeading), style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey900)),
-            pw.SizedBox(height: 6),
-            pw.Row(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Expanded(
-                  child: pw.Container(
-                    padding: const pw.EdgeInsets.all(6),
-                    decoration: const pw.BoxDecoration(color: PdfColors.green50, borderRadius: pw.BorderRadius.all(pw.Radius.circular(4))),
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text(_cleanPdfText('Tailwinds (Strengthening Trends):'), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.green900)),
-                        pw.SizedBox(height: 3),
-                        ...res.tailwinds.map((t) => pw.Bullet(text: _cleanPdfText(t), style: const pw.TextStyle(fontSize: 7.5))),
-                      ],
-                    ),
-                  ),
-                ),
-                pw.SizedBox(width: 8),
-                pw.Expanded(
-                  child: pw.Container(
-                    padding: const pw.EdgeInsets.all(6),
-                    decoration: const pw.BoxDecoration(color: PdfColors.orange50, borderRadius: pw.BorderRadius.all(pw.Radius.circular(4))),
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text(_cleanPdfText('Headwinds (Complicating Trends):'), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.orange900)),
-                        pw.SizedBox(height: 3),
-                        ...res.headwinds.map((h) => pw.Bullet(text: _cleanPdfText(h), style: const pw.TextStyle(fontSize: 7.5))),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            pw.SizedBox(height: 6),
-            pw.Text(_cleanPdfText('What This Means for the Founder: ${res.futureTrendsDecisionGuidance}'), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.blueGrey900)),
+            pw.Bullet(text: _cleanPdfText('Demand & Market: ${res.futureTrendsDimensions['demandTrend']}'), style: const pw.TextStyle(fontSize: 7.5)),
+            pw.Bullet(text: _cleanPdfText('Technology Trajectory: ${res.futureTrendsDimensions['technologyTrend']}'), style: const pw.TextStyle(fontSize: 7.5)),
+            pw.Bullet(text: _cleanPdfText('Regulation & Policy: ${res.futureTrendsDimensions['regulatoryTrend']}'), style: const pw.TextStyle(fontSize: 7.5)),
+            pw.Bullet(text: _cleanPdfText('Competition & Substitutes: ${res.futureTrendsDimensions['competitionTrend']}'), style: const pw.TextStyle(fontSize: 7.5)),
+            pw.Bullet(text: _cleanPdfText('Capital & Economics: ${res.futureTrendsDimensions['capitalTrend']}'), style: const pw.TextStyle(fontSize: 7.5)),
+            pw.SizedBox(height: 4),
+            pw.Text(_cleanPdfText('What This Means for the Founder: ${res.whatThisMeansForFounder}'), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.blueGrey900)),
             if (res.adjacentOpportunities.isNotEmpty) ...[
-              pw.SizedBox(height: 4),
+              pw.SizedBox(height: 3),
               pw.Text(_cleanPdfText('Emerging / Adjacent Opportunities:'), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.grey900)),
               ...res.adjacentOpportunities.map((a) => pw.Bullet(text: _cleanPdfText(a), style: const pw.TextStyle(fontSize: 7.5))),
             ],
@@ -558,13 +528,15 @@ class PdfService {
 
             // ================= PAGE 11: COMMERCIAL ADVISER OPINION =================
             _buildSectionHeaderPDF('Commercial Adviser Opinion'),
-            pw.Text(_cleanPdfText('What is encouraging: ${res.founderCapabilityScore <= 6 ? "Strong general commercial and financial capability combined with clear problem definition." : "Strong problem definition, domain experience, and capital discipline."}'), style: const pw.TextStyle(fontSize: 8.5)),
+            pw.Text(_cleanPdfText('What is encouraging: ${res.adviserEncouraging}'), style: const pw.TextStyle(fontSize: 8.5)),
             pw.SizedBox(height: 3),
-            pw.Text(_cleanPdfText('What requires caution: Ensure non-essential features are delayed until customer willingness to pay is tested.'), style: const pw.TextStyle(fontSize: 8.5)),
+            pw.Text(_cleanPdfText('What requires caution: ${res.adviserCaution}'), style: const pw.TextStyle(fontSize: 8.5)),
             pw.SizedBox(height: 3),
-            pw.Text(_cleanPdfText('What has not yet been proven: Repeat paid demand and scalable customer acquisition channels.'), style: const pw.TextStyle(fontSize: 8.5)),
+            pw.Text(_cleanPdfText('What has not yet been proven: ${res.adviserUnproven}'), style: const pw.TextStyle(fontSize: 8.5)),
             pw.SizedBox(height: 3),
             pw.Text(_cleanPdfText('Master Recommendation: ${res.masterRecommendation}'), style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold, color: PdfColors.blueGrey900)),
+            pw.SizedBox(height: 2),
+            pw.Text(_cleanPdfText('Idea Portfolio Action: ${res.portfolioAction}'), style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
             pw.Divider(height: 24, color: PdfColors.grey300, thickness: 0.5),
 
             // ================= PAGE 12+: 90-DAY WEEKLY ROADMAP =================
@@ -589,48 +561,13 @@ class PdfService {
                     pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text(_cleanPdfText('Evidence Produced'), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold))),
                   ],
                 ),
-                pw.TableRow(children: [
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('W 1-2', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))),
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Problem Discovery', style: const pw.TextStyle(fontSize: 7))),
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Draft interview guide; reach out to 10 target prospects', style: const pw.TextStyle(fontSize: 7))),
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('5 hrs/wk', style: const pw.TextStyle(fontSize: 7))),
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Target outreach log', style: const pw.TextStyle(fontSize: 7))),
-                ]),
-                pw.TableRow(children: [
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('W 3-4', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))),
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Customer Interviews', style: const pw.TextStyle(fontSize: 7))),
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Conduct 6 structured interviews; record pain points', style: const pw.TextStyle(fontSize: 7))),
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('5 hrs/wk', style: const pw.TextStyle(fontSize: 7))),
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('6 interview transcripts', style: const pw.TextStyle(fontSize: 7))),
-                ]),
-                pw.TableRow(children: [
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('W 5-6', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))),
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Concierge MVP Test', style: const pw.TextStyle(fontSize: 7))),
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Design manual workflow; run prototype with 3 users', style: const pw.TextStyle(fontSize: 7))),
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('5 hrs/wk', style: const pw.TextStyle(fontSize: 7))),
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Pilot feedback logs', style: const pw.TextStyle(fontSize: 7))),
-                ]),
-                pw.TableRow(children: [
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('W 7-8', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))),
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Price & Offer Test', style: const pw.TextStyle(fontSize: 7))),
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Present pricing terms to 5 prospective customers', style: const pw.TextStyle(fontSize: 7))),
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('5 hrs/wk', style: const pw.TextStyle(fontSize: 7))),
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('2 signed LOIs / deposits', style: const pw.TextStyle(fontSize: 7))),
-                ]),
-                pw.TableRow(children: [
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('W 9-10', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))),
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Pilot Evaluation', style: const pw.TextStyle(fontSize: 7))),
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Measure retention, manual effort, and customer NPS', style: const pw.TextStyle(fontSize: 7))),
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('5 hrs/wk', style: const pw.TextStyle(fontSize: 7))),
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Pilot metrics report', style: const pw.TextStyle(fontSize: 7))),
-                ]),
-                pw.TableRow(children: [
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('W 11-12', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))),
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Commercial Decision', style: const pw.TextStyle(fontSize: 7))),
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('Reassess evidence; decide whether to Build, Pivot, or Stop', style: const pw.TextStyle(fontSize: 7))),
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('5 hrs/wk', style: const pw.TextStyle(fontSize: 7))),
-                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('PitchLab Reassessment', style: const pw.TextStyle(fontSize: 7))),
-                ]),
+                ...res.ninetyDayRoadmapSteps.map((step) => pw.TableRow(children: [
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text(_cleanPdfText(step['week']!), style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text(_cleanPdfText(step['objective']!), style: const pw.TextStyle(fontSize: 7))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text(_cleanPdfText(step['tasks']!), style: const pw.TextStyle(fontSize: 7))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text(_cleanPdfText(step['hours']!), style: const pw.TextStyle(fontSize: 7))),
+                  pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text(_cleanPdfText(step['evidence']!), style: const pw.TextStyle(fontSize: 7))),
+                ])),
               ],
             ),
             pw.Divider(height: 24, color: PdfColors.grey300, thickness: 0.5),
@@ -654,7 +591,7 @@ class PdfService {
             ...res.topFivePriorities.map((p) => pw.Padding(
               padding: const pw.EdgeInsets.only(bottom: 3),
               child: pw.Bullet(
-                text: _cleanPdfText('${p['priority']}: ${p['action']} (Success Metric: ${p['metric']})'),
+                text: _cleanPdfText(_formatActionHeading(p['priority'] ?? '', p['action'] ?? '', tag: p['metric'] != null ? 'Success Metric: ${p['metric']}' : null)),
                 style: const pw.TextStyle(fontSize: 8),
               ),
             )),
@@ -666,7 +603,7 @@ class PdfService {
               child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  pw.Text(_cleanPdfText('Idea Portfolio Decision: ${res.decisionState} (Stage: ${res.ventureStage})'), style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                  pw.Text(_cleanPdfText('Idea Portfolio Decision: ${res.portfolioDecision} (Stage: ${res.ventureStage})'), style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
                   pw.SizedBox(height: 2),
                   pw.Text(_cleanPdfText('Preserved Problem: ${res.underlyingProblem} (${res.problemStatus})'), style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey900)),
                   pw.SizedBox(height: 2),
@@ -727,12 +664,38 @@ class PdfService {
   static String buildPdfFilename(Map<String, dynamic> rawEvaluation, String defaultDate) {
     // 1. Determine Date (YYYY-MM-DD)
     String dateStr = '';
-    if (rawEvaluation['meta']?['assessmentDate'] != null && rawEvaluation['meta']['assessmentDate'].toString().trim().isNotEmpty) {
+    
+    // Check direct assessmentGeneratedAt ISO string first
+    final genAt = rawEvaluation['assessmentGeneratedAt'] ?? rawEvaluation['createdAt'];
+    if (genAt != null && genAt.toString().length >= 10) {
+      final isoPart = genAt.toString().substring(0, 10);
+      if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(isoPart)) {
+        dateStr = isoPart;
+      }
+    }
+    
+    if (dateStr.isEmpty && rawEvaluation['meta']?['assessmentDate'] != null && rawEvaluation['meta']['assessmentDate'].toString().trim().isNotEmpty) {
       dateStr = rawEvaluation['meta']['assessmentDate'].toString().trim();
     }
-    if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(dateStr)) {
+    
+    if (dateStr.isEmpty && defaultDate.trim().isNotEmpty) {
       dateStr = defaultDate.trim();
     }
+
+    // Try parsing "30 Sep 2026" or similar formatted strings into YYYY-MM-DD
+    if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(dateStr)) {
+      final match = RegExp(r'(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})').firstMatch(dateStr);
+      if (match != null) {
+        final day = match.group(1)!.padLeft(2, '0');
+        final monthStr = match.group(2)!.toLowerCase();
+        final year = match.group(3)!;
+        const months = {'jan':'01','feb':'02','mar':'03','apr':'04','may':'05','jun':'06','jul':'07','aug':'08','sep':'09','oct':'10','nov':'11','dec':'12'};
+        if (months.containsKey(monthStr)) {
+          dateStr = '$year-${months[monthStr]}-$day';
+        }
+      }
+    }
+    
     if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(dateStr)) {
       final now = DateTime.now();
       final y = now.year.toString().padLeft(4, '0');
@@ -874,6 +837,18 @@ class PdfService {
     return s;
   }
 
+  static String _formatActionHeading(String heading, String detail, {String? tag}) {
+    String h = heading.trim();
+    h = h.replaceAll(RegExp(r'[.:;,]+$'), '');
+    h = h.replaceAll('.:', '');
+    h = h.replaceAll('::', '');
+    String result = '$h: $detail';
+    if (tag != null && tag.isNotEmpty) {
+      result += ' ($tag)';
+    }
+    return result;
+  }
+
   static String _cleanPdfText(String input, {bool isHardware = false}) {
     if (input.isEmpty) return input;
     String s = input
@@ -891,7 +866,10 @@ class PdfService {
     s = s.replaceAll(r'lock-$1', 'lock-in');
     s = s.replaceAll(r'$1', '');
 
-    // FIX 2: Correct Assessment Confidence labeling
+    // FIX 2: Correct heading punctuation and Assessment Confidence labeling
+    s = s.replaceAll('.:', ':');
+    s = s.replaceAll('::', ':');
+    s = s.replaceAll(':.', ':');
     s = s.replaceAll('Confidence: Moderate Confidence', 'Assessment Confidence: Moderate');
     s = s.replaceAll('Confidence: Low Confidence', 'Assessment Confidence: Low');
     s = s.replaceAll('Confidence: High Confidence', 'Assessment Confidence: High');
@@ -899,7 +877,20 @@ class PdfService {
     s = s.replaceAll('Confidence: Low', 'Assessment Confidence: Low');
     s = s.replaceAll('Confidence: High', 'Assessment Confidence: High');
 
-    // FIX 5: Remove NPS from early stage roadmaps
+    // FIX 4: Tone Calibration
+    s = s.replaceAll(RegExp(r'the market need is undeniable', caseSensitive: false), 'the underlying energy need is substantial');
+    s = s.replaceAll(RegExp(r'market need is undeniable', caseSensitive: false), 'underlying energy need is substantial');
+    s = s.replaceAll(RegExp(r'execution challenges are monumental', caseSensitive: false), 'execution barriers are exceptionally high');
+    s = s.replaceAll(RegExp(r'critical founder-idea mismatch', caseSensitive: false), 'a significant gap between current project capabilities and venture-specific technical and regulatory requirements');
+    s = s.replaceAll(RegExp(r'is currently un-investable', caseSensitive: false), 'is not presently investment-ready');
+    s = s.replaceAll(RegExp(r'currently un-investable', caseSensitive: false), 'not presently investment-ready');
+    s = s.replaceAll(RegExp(r'un-investable', caseSensitive: false), 'not presently investment-ready');
+    s = s.replaceAll(RegExp(r'required to even initiate a credible pre-feasibility study', caseSensitive: false), 'required to establish initial pre-feasibility');
+    s = s.replaceAll(RegExp(r'required to even initiate', caseSensitive: false), 'required to establish initial');
+
+    // FIX 5: False Precision & NPS removal
+    s = s.replaceAll(RegExp(r'reaching commercial TRL 7-9 maturity in OECD markets', caseSensitive: false), 'progressing internationally, although commercial maturity, deployment timelines and economics vary materially by technology and jurisdiction');
+    s = s.replaceAll(RegExp(r'\bTRL 7-9\b'), 'commercial maturity');
     s = s.replaceAll(RegExp(r'customer NPS', caseSensitive: false), 'qualitative satisfaction & problem resolution feedback');
     s = s.replaceAll(RegExp(r'NPS score', caseSensitive: false), 'user feedback & continuation willingness');
     s = s.replaceAll(RegExp(r'Net Promoter Score', caseSensitive: false), 'customer referral feedback');
@@ -985,5 +976,83 @@ class PdfService {
     final sentences = trimmed.split(RegExp(r'(?<=[.!?])\s+')).where((s) => s.trim().isNotEmpty).toList();
     if (sentences.length <= 3) return trimmed;
     return sentences.take(3).join(' ');
+  }
+
+  static void _validatePrePdfIntegrity(EvaluationResult res) {
+    // 1. SCORE CONSISTENCY: Displayed category scores = overall score
+    final categories = res.scorecardCategories;
+    if (categories.isNotEmpty) {
+      final sum = categories.fold(0, (prev, cat) => prev + cat.scoreAchieved);
+      if (res.overallScore != sum) {
+        throw StateError(
+          'PRE-PDF INTEGRITY FAILURE: overallScore (${res.overallScore}) does not match exact sum of category scores ($sum).'
+        );
+      }
+    }
+
+    // 2. MALFORMED NUMBER / RANGE DETECTION
+    final capStr = res.availableCapital;
+    if (capStr.contains('0,000') && capStr.contains('-0')) {
+      throw StateError('PRE-PDF INTEGRITY FAILURE: Malformed capital range detected ($capStr).');
+    }
+
+    // 3. TRUNCATED SENTENCE & TEXT FRAGMENT & MALFORMED PUNCTUATION DETECTION
+    final exec = res.executiveSummary;
+    if (exec.contains('concept wo') || exec.contains('potent.') || exec.endsWith(' for "') || exec.contains('reduce ca') || exec.contains('targeting needs')) {
+      throw StateError('PRE-PDF INTEGRITY FAILURE: Malformed text fragment detected in Executive Summary.');
+    }
+
+    // Check for malformed ".:" heading punctuation across top actions and priorities
+    for (final act in res.threePriorityActions) {
+      final heading = act['heading'] ?? '';
+      if (heading.contains('.:') || heading.contains('::')) {
+        throw StateError('PRE-PDF INTEGRITY FAILURE: Malformed ".:" punctuation in action heading ($heading).');
+      }
+    }
+    for (final p in res.topFivePriorities) {
+      final priority = p['priority'] ?? '';
+      if (priority.contains('.:') || priority.contains('::')) {
+        throw StateError('PRE-PDF INTEGRITY FAILURE: Malformed ".:" punctuation in top priority ($priority).');
+      }
+    }
+
+    // 4. CROSS-IDEA BANNED TEMPLATE CONTAMINATION CHECK FOR NUCLEAR ASSESSMENTS
+    if (res.isNuclear) {
+      final allText = '${res.executiveSummary} ${res.pitchLabVerdict} ${res.primaryTheme} ${res.secondaryTheme} ${res.strategicMoat} ${res.marketCategoryDynamics} ${res.marketLandscape} ${res.demandDrivers} ${res.customerReviewTrends}'.toLowerCase();
+      final bannedTerms = [
+        'b2b software',
+        'workflow efficiency',
+        'automated operational tools',
+        'durable, low-maintenance asset protection',
+        'proprietary design mechanics',
+        'concierge mvp',
+        'landing page testing',
+        'writing extensive code',
+        'regional law',
+        'customer willingness-to-pay',
+        'customer acquisition experiments',
+        'trl 7-9',
+        'market need is undeniable',
+        'execution challenges are monumental',
+        'currently un-investable',
+        '(+21.8%)'
+      ];
+      for (final term in bannedTerms) {
+        if (allText.contains(term)) {
+          throw StateError(
+            'PRE-PDF INTEGRITY FAILURE: Contamination term "$term" detected in nuclear assessment.'
+          );
+        }
+      }
+    }
+
+    // 5. JURISDICTION TERMINOLOGY & FALSE PRECISION ACCURACY
+    final fullReportText = '${res.executiveSummary} ${res.pitchLabVerdict} ${res.marketLandscape}'.toLowerCase();
+    if (fullReportText.contains('under regional law') || fullReportText.contains('regional statutory')) {
+      throw StateError('PRE-PDF INTEGRITY FAILURE: Unreplaced "regional law" remnant found.');
+    }
+    if (fullReportText.contains('(+21.8%)')) {
+      throw StateError('PRE-PDF INTEGRITY FAILURE: False numerical precision claim (+21.8%) detected.');
+    }
   }
 }

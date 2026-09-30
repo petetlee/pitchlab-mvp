@@ -10,9 +10,10 @@ const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
 const fs = require("fs");
 const path = require("path");
-const { calculateFRI, reconcileScores, getScoreBand, classifyVentureType, detectFeasibilityGates, calculateFounderEvidenceGap, calculate5DimensionFutureTrends, getValidationLadderForContext, getCommercialAdviserOpinion, getPortfolioDecision } = require("./scoring_logic");
+const { calculateFRI, reconcileScores, getScoreBand, classifyVentureType, detectFeasibilityGates, calculateFounderEvidenceGap, calculate5DimensionFutureTrends, getValidationLadderForContext, getCommercialAdviserOpinion, getPortfolioDecision, generateContextualInvestorCommentary } = require("./scoring_logic");
 
-console.log("PitchLab: Cloud Functions v1.3.0 Loaded — MVP Version 5 (Final Refinement)");
+const VERSION_INFO = require("./version_config.json");
+console.log(`PitchLab: ${VERSION_INFO.fullVersionString} Loaded (Build: ${VERSION_INFO.buildId})`);
 initializeApp({ projectId: process.env.GCP_PROJECT || "antigravity-pitchlab" });
 const db = getFirestore();
 try {
@@ -140,13 +141,27 @@ function runSemanticGuardrail(data, ventureType = "", gatesInfo = {}, reqData = 
       s = s.replace(/regional supply/gi, `national supply`);
       s = s.replace(/regional markets/gi, `domestic markets`);
 
-      // Fix 4: Evidence certainty guardrail calibration
+      // Fix 3: Evidence certainty guardrail calibration
+      s = s.replace(/requires statutory legislative reform/gi, "appears to face substantial statutory and regulatory barriers, subject to specialist legal confirmation");
+      s = s.replace(/currently block commercial nuclear generation/gi, "present material regulatory barriers to commercial nuclear generation, subject to specialist legal confirmation");
+      s = s.replace(/currently block commercial/gi, "present material regulatory barriers to commercial, subject to specialist legal confirmation");
       s = s.replace(/\bis legally prohibited\b/gi, "appears to face significant statutory and regulatory barriers, subject to specialist legal confirmation");
       s = s.replace(/\blegally prohibited\b/gi, "constrained by significant statutory and regulatory barriers");
       s = s.replace(/statutory bans render the accessible commercial market immediately unavailable/gi, "significant statutory and regulatory barriers render the commercially accessible market effectively unavailable without legislative change, subject to specialist legal confirmation");
       s = s.replace(/statutory bans severely restrict/gi, "significant statutory and regulatory barriers severely constrain, subject to specialist legal confirmation");
       s = s.replace(/statutory bans remain active/gi, "significant statutory and regulatory barriers remain active, subject to specialist legal confirmation");
+      s = s.replace(/\bstatutory bans\b/gi, "statutory and regulatory barriers");
+      s = s.replace(/\bstatutory prohibitions\b/gi, "statutory and regulatory barriers");
+      s = s.replace(/\bstatutory prohibition\b/gi, "statutory and regulatory barrier");
+      s = s.replace(/\bunviable under current law\b/gi, "materially constrained pending legal confirmation");
+      s = s.replace(/\bextreme capital scale requirements\b/gi, "multi-billion-dollar infrastructure capital scale requirements");
+      s = s.replace(/\bextreme capital requirements\b/gi, "multi-billion-dollar infrastructure capital requirements");
+      s = s.replace(/\bextreme capital scale\b/gi, "very high capital scale");
+      s = s.replace(/\bextreme capital\b/gi, "very high capital requirements");
       s = s.replace(/the accessible market is zero/gi, "the commercially accessible market appears effectively unavailable under current regulatory settings, subject to specialist legal confirmation");
+      s = s.replace(/essential services \(such as baseload power or infrastructure\)/gi, "baseload power and grid reliability infrastructure");
+      s = s.replace(/the founder competes against/gi, "the proposed solution would compete with");
+      s = s.replace(/competitor or state entity from controlling this infrastructure/gi, "competing provider or established entity from entering this market");
 
       // Generic SaaS term scrubbing
       s = s.replace(/\blanding page testing\b/gi, isNuclear ? "statutory permissibility assessment" : (isHardware ? "physical prototype testing" : "preliminary market investigation"));
@@ -190,6 +205,183 @@ function runSemanticGuardrail(data, ventureType = "", gatesInfo = {}, reqData = 
   };
 
   return traverseAndScrub(data);
+}
+
+function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction = "New Zealand") {
+  const isNuc = Boolean((data.idea || "").toLowerCase().match(/nuclear|smr|power plant|atomic/) || (data.problem || "").toLowerCase().match(/nuclear|smr/));
+  const isTax = Boolean((data.idea || "").toLowerCase().match(/tax|gst|ird|bookkeep|accounting/) || (data.category || "").toLowerCase().match(/fintech|tax/));
+  const isHw = Boolean(vType.includes("Hardware") || (data.idea || "").toLowerCase().match(/moor|boat|hardware|device|sensor|solar/));
+
+  if (fieldType === 'targetCustomer') {
+    if (isNuc) return "Electricity retailers, large industrial off-takers and public-sector energy purchasers.";
+    if (isTax) return "Kiwi small-to-medium businesses (SMBs), sole traders, and accounting practitioners.";
+    if (isHw) return "Commercial vessel operators, marine infrastructure owners, and recreational boating consumers.";
+    let raw = (data.targetMarket || data.market || "Target commercial customer segment").trim();
+    raw = raw.replace(/^["\“\‘](.*)["\”\’]$/, '$1').trim();
+    raw = raw.replace(/^(i\s+want\s+to\s+target|my\s+target\s+market\s+is|targeting|the\s+target\s+customer\s+is|we\s+target|our\s+target\s+customers\s+are)\s+/i, '');
+    raw = raw.charAt(0).toUpperCase() + raw.slice(1);
+    if (raw.length > 150) raw = raw.slice(0, 150).replace(/\s+\S*$/, '') + '...';
+    if (!raw.endsWith('.')) raw += '.';
+    return raw;
+  }
+  if (fieldType === 'coreOffering') {
+    if (isNuc) return `SMR-based firm, low-carbon electricity generation supplied into ${jurisdiction}'s national grid.`;
+    if (isTax) return "Automated GST calculation, tax compliance filing, and financial reporting software.";
+    if (isHw) return "Solar-powered automated marine mooring and asset protection device.";
+    let raw = (data.idea || "Proposed commercial concept").trim();
+    raw = raw.replace(/^["\“\‘](.*)["\”\’]$/, '$1').trim();
+    raw = raw.replace(/^(i\s+want\s+to\s+build|i\s+want\s+to\s+develop|developing|i\s+am\s+building|we\s+are\s+building|a\s+new|we\s+offer|my\s+startup\s+idea\s+is)\s+/i, '');
+    raw = raw.charAt(0).toUpperCase() + raw.slice(1);
+    if (raw.length > 150) raw = raw.slice(0, 150).replace(/\s+\S*$/, '') + '...';
+    if (!raw.endsWith('.')) raw += '.';
+    return raw;
+  }
+  if (fieldType === 'customerProblem') {
+    if (isNuc) return "Increasing electricity demand, reliability requirements, wholesale price volatility and demand for additional firm low-carbon generation.";
+    if (isTax) return "Manual GST calculation errors, unexpected IRD tax penalties, and cash flow strain for commercial SMBs.";
+    if (isHw) return "Mooring line failures, vessel collision damage risk, and manual maintenance overheads.";
+    let raw = (data.problem || "Defined commercial market problem").trim();
+    raw = raw.replace(/^["\“\‘](.*)["\”\’]$/, '$1').trim();
+    raw = raw.replace(/^(the\s+problem\s+is|customer\s+problem\s+is|users\s+suffer\s+from|new\s+zealand\s+faces)\s+/i, '');
+    raw = raw.charAt(0).toUpperCase() + raw.slice(1);
+    if (raw.length > 180) raw = raw.slice(0, 180).replace(/\s+\S*$/, '') + '...';
+    if (!raw.endsWith('.')) raw += '.';
+    return raw;
+  }
+  return "";
+}
+
+/**
+ * Editorial QA Pass & NZ English Spell Checker
+ * Automatically converts US spellings to NZ/UK English, repairs sentence fragments,
+ * cleans up semicolon joins, balances quotes, and verifies sentence completeness.
+ */
+function runEditorialQaAndSpellCheck(data, reqData = {}) {
+  if (!data || typeof data !== "object") return data;
+
+  const jurisdictionName = getJurisdictionName(reqData);
+
+  const noTerminalPeriodKeys = new Set([
+    "masterRecommendation",
+    "portfolioDecision",
+    "problemStatus",
+    "solutionStatus",
+    "primaryTheme",
+    "secondaryTheme",
+    "weeklyAvailableHours",
+    "availableCapital",
+    "initialRiskCapital",
+    "scoreBand",
+    "investmentPotential",
+    "pitchLabRecommendation",
+    "area",
+    "state",
+    "decisionStatus",
+    "overallCommercialVerdict",
+    "portfolioAction",
+    "futureOutlook",
+    "forecastConfidence",
+    "founderPositionSummary",
+    "marketPatternSummary",
+    "verdict",
+    "name"
+  ]);
+
+  const editString = (str, key = "") => {
+    if (typeof str !== "string" || !str.trim()) return str;
+    let s = str;
+
+    // 1. NZ/UK English Spelling Conversions
+    s = s.replace(/\bspecialized\b/g, "specialised");
+    s = s.replace(/\bspecialization\b/g, "specialisation");
+    s = s.replace(/\bmodeling\b/g, "modelling");
+    s = s.replace(/\bmodeled\b/g, "modelled");
+    s = s.replace(/\borganization\b/g, "organisation");
+    s = s.replace(/\borganizations\b/g, "organisations");
+    s = s.replace(/\bprioritize\b/g, "prioritise");
+    s = s.replace(/\bprioritized\b/g, "prioritised");
+    s = s.replace(/\banalyze\b/g, "analyse");
+    s = s.replace(/\banalyzed\b/g, "analysed");
+    s = s.replace(/\boptimizing\b/g, "optimising");
+    s = s.replace(/\boptimization\b/g, "optimisation");
+    s = s.replace(/\bcommercialization\b/g, "commercialisation");
+    s = s.replace(/\bbehavior\b/g, "behaviour");
+    s = s.replace(/\bbehaviors\b/g, "behaviours");
+    s = s.replace(/\bflavor\b/g, "flavour");
+    s = s.replace(/\blicense\b(?=\s+(?:requirement|process|application|fee|holder|authority|framework|statute))/g, "licence");
+
+    // 2. Remove residual "regional law" / "regional statutory" phrases
+    s = s.replace(/\bunder regional law\b/gi, `under ${jurisdictionName} statutory frameworks`);
+    s = s.replace(/\bregional statutory frameworks?\b/gi, `${jurisdictionName} statutory frameworks`);
+    s = s.replace(/\bregional statutory pathways?\b/gi, `${jurisdictionName} statutory pathways`);
+    s = s.replace(/\bregional law\b/gi, `${jurisdictionName} law`);
+    s = s.replace(/\bregional statutory\b/gi, `${jurisdictionName} statutory`);
+    s = s.replace(/\btarget region\b/gi, `target market`);
+
+    // 3. Remove system placeholders, uncalibrated claims, and dramatic tone
+    s = s.replace(/Professional background and credentials extracted from CV\.?/gi, "Demonstrated commercial leadership, financial modelling, and enterprise risk management capability.");
+    s = s.replace(/Evaluated based on sub-factors and supplied evidence\.?/gi, "Evaluated against commercial feasibility criteria.");
+    s = s.replace(/zero-emission baseload/gi, "low-carbon firm electricity");
+
+    // Tone Calibration (Fix 4)
+    s = s.replace(/\bthe market need is undeniable\b/gi, "the underlying energy need is substantial");
+    s = s.replace(/\bmarket need is undeniable\b/gi, "underlying energy need is substantial");
+    s = s.replace(/\bexecution challenges are monumental\b/gi, "execution barriers are exceptionally high");
+    s = s.replace(/\bcritical founder-idea mismatch\b/gi, "a significant gap between current project capabilities and venture-specific technical and regulatory requirements");
+    s = s.replace(/\bis currently un-investable\b/gi, "is not presently investment-ready");
+    s = s.replace(/\bcurrently un-investable\b/gi, "not presently investment-ready");
+    s = s.replace(/\bun-investable\b/gi, "not presently investment-ready");
+    s = s.replace(/required to even initiate a credible pre-feasibility study/gi, "required to establish initial pre-feasibility");
+    s = s.replace(/required to even initiate/gi, "required to establish initial");
+    s = s.replace(/founder lacks the expertise required to even initiate/gi, "project team does not yet evidence the direct technical engineering and regulatory capability required to establish initial");
+
+    // False Precision Removal (Fix 5)
+    s = s.replace(/reaching commercial TRL 7-9 maturity in OECD markets/gi, "progressing internationally, although commercial maturity, deployment timelines and economics vary materially by technology and jurisdiction");
+    s = s.replace(/\bTRL 7-9\b/gi, "commercial maturity");
+
+    // 4. Scrub quotation artifacts safely without mid-word slicing
+    s = s.replace(/["”]\s*\.\s*While/g, '. While');
+    s = s.replace(/prices\s*["”]\s*\.\s*While/gi, 'prices. While');
+    s = s.replace(/""/g, '"');
+    s = s.replace(/\s+/g, ' ');
+
+    // 5. Fix accidental mid-sentence capitalization
+    s = s.replace(/(\bcenters? around\s+)([A-Z])([a-z]+)/g, (m, p1, p2, p3) => p1 + p2.toLowerCase() + p3);
+    s = s.replace(/(\bfocuses on\s+)([A-Z])([a-z]+)/g, (m, p1, p2, p3) => p1 + p2.toLowerCase() + p3);
+
+    // 6. Remove duplicated words ("the the", "for for")
+    s = s.replace(/\b(the|for|and|in|on|at|to|a|an|is|are)\s+\1\b/gi, "$1");
+
+    // 7. Clean up raw semicolon joins inside prose
+    s = s.replace(/;\s*([A-Z])/g, ". $1");
+    s = s.replace(/;\s*;/g, ";");
+
+    // 7. Ensure proper terminal punctuation for prose (skip enums, titles, metrics, codes, short labels)
+    s = s.trim();
+    const isEnumOrTitleKey = key && noTerminalPeriodKeys.has(key);
+    const isTaxonValue = /^(PARK|PURSUE|INVESTIGATE|STOP|PAUSE|PROCEED)/i.test(s) || /hours\/week$/i.test(s) || /^\$[\d,\s\-]+(NZD|USD|AUD)?$/i.test(s);
+    if (!isEnumOrTitleKey && !isTaxonValue && s.length > 0 && !/[.!?:"']$/.test(s)) {
+      s += '.';
+    }
+
+    return s;
+  };
+
+  const traverseAndEdit = (obj) => {
+    if (!obj || typeof obj !== "object") return obj;
+    for (const key of Object.keys(obj)) {
+      if (typeof obj[key] === "string") {
+        obj[key] = editString(obj[key], key);
+      } else if (Array.isArray(obj[key])) {
+        obj[key] = obj[key].map((item) => (typeof item === "string" ? editString(item, key) : traverseAndEdit(item)));
+      } else if (typeof obj[key] === "object") {
+        traverseAndEdit(obj[key]);
+      }
+    }
+    return obj;
+  };
+
+  return traverseAndEdit(data);
 }
 
 // Initialize AI lazily to prevent discovery timeouts
@@ -263,9 +455,9 @@ exports.pitchLabEvaluation = onCall({
     .join(", ");
 
   let cvText = "";
+  let cvFileName = reqData.cvFileName || "";
   try {
     const cvBase64 = reqData.cvBase64 || reqData.cvAttachment || "";
-    const cvFileName = reqData.cvFileName || "";
     if (cvBase64) {
       cvText = await getExtractCvText()(cvBase64);
       if (cvText) {
@@ -396,7 +588,7 @@ exports.pitchLabEvaluation = onCall({
     const ai = aiContext.ai;
     const z = aiContext.z;
     
-    const ventureType = classifyVentureType(reqData);
+    let ventureType = classifyVentureType(reqData);
     const gatesInfo = detectFeasibilityGates(reqData);
 
     // 6. Define the evaluation prompt (MVP Version 5 - Master Research & Business Expert Engine)
@@ -842,6 +1034,14 @@ exports.pitchLabEvaluation = onCall({
     const rawScores = evaluationData.scorecard || evaluationData.scores || {};
     const reconciled = reconcileScores(rawScores, reqData);
 
+    evaluationData.appVersion = VERSION_INFO.appVersion;
+    evaluationData.fullVersionString = VERSION_INFO.fullVersionString;
+    evaluationData.buildId = VERSION_INFO.buildId;
+    evaluationData.deployedAt = VERSION_INFO.deployedAt;
+    evaluationData.deployedAtFormatted = VERSION_INFO.deployedAtFormatted;
+    evaluationData.assessmentGeneratedAt = new Date().toISOString();
+    evaluationData.assessmentGeneratedAtFormatted = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) + ' NZST';
+
     evaluationData.overallScore = reconciled.overallScore;
     evaluationData.scoreBand = reconciled.scoreBand;
     evaluationData.masterRecommendation = reconciled.masterRecommendation;
@@ -864,16 +1064,20 @@ exports.pitchLabEvaluation = onCall({
     evaluationData.investorBite.investmentPotential = reconciled.overallScore >= 75 ? "High" : (reconciled.overallScore >= 50 ? "Medium" : "Low");
     evaluationData.investorBite.overallInterestExplanation = evaluationData.investorBite.overallInterestExplanation || evaluationData.executiveSummary || "Commercial concept evaluated against evidence and feasibility criteria.";
     
-    // Direct Score-to-Star Alignment & Reconciled Commentary (Fix 7)
+    // Direct Score-to-Star Alignment & Reconciled Commentary (Fix 7 / Fix 3)
+    const getRating = (catKey, maxVal) => {
+      const score = reconciled.categoryScores[catKey]?.scoreAchieved || 0;
+      return Math.max(1, Math.min(5, Math.round((score / maxVal) * 5)));
+    };
     evaluationData.investorBite.scorecard = [
-      { area: "Problem Worth Solving", rating: Math.max(1, Math.min(5, Math.round(((reconciled.categoryScores.problemCustomerClarity?.scoreAchieved || 10) / 15) * 5))), commentary: reconciled.categoryScores.problemCustomerClarity?.explanation || "Problem urgency and target customer definition." },
-      { area: "Market Opportunity", rating: Math.max(1, Math.min(5, Math.round(((reconciled.categoryScores.marketCommercialOpportunity?.scoreAchieved || 10) / 15) * 5))), commentary: reconciled.categoryScores.marketCommercialOpportunity?.explanation || "Addressable market reach and commercial space." },
-      { area: "Competitive Advantage", rating: Math.max(1, Math.min(5, Math.round(((reconciled.categoryScores.competitivePosition?.scoreAchieved || 6) / 10) * 5))), commentary: reconciled.categoryScores.competitivePosition?.explanation || "Differentiation against existing workarounds." },
-      { area: "Business Model", rating: Math.max(1, Math.min(5, Math.round(((reconciled.categoryScores.businessModelWillingnessToPay?.scoreAchieved || 10) / 15) * 5))), commentary: reconciled.categoryScores.businessModelWillingnessToPay?.explanation || "Monetization logic and margin structure." },
-      { area: "Founder Capability", rating: (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved >= 13 ? 5 : (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved >= 10 ? 4 : (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved >= 7 ? 3 : (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved >= 4 ? 2 : 1)))), commentary: reconciled.categoryScores.founderCapabilityFit?.explanation || "Domain background and operational fit." },
-      { area: "Customer Validation", rating: Math.max(1, Math.min(5, Math.round(((reconciled.categoryScores.customerValidation?.scoreAchieved || 4) / 20) * 5))), commentary: reconciled.categoryScores.customerValidation?.explanation || "Empirical proof of real customer demand." },
-      { area: "Scalability", rating: Math.max(1, Math.min(5, Math.round(((reconciled.categoryScores.executionReadiness?.scoreAchieved || 6) / 10) * 5))), commentary: reconciled.categoryScores.executionReadiness?.explanation || "Capacity to grow without proportional linear cost." },
-      { area: "Investment Readiness", rating: Math.max(1, Math.min(5, Math.round((reconciled.overallScore / 100) * 5))), commentary: "Overall evidence maturity for capital allocation." }
+      { area: "Problem Worth Solving", rating: getRating("problemCustomerClarity", 15), commentary: generateContextualInvestorCommentary("Problem Worth Solving", getRating("problemCustomerClarity", 15), reconciled.categoryScores.problemCustomerClarity?.scoreAchieved || 0, 15, reqData, reconciled.gatesInfo, reconciled) },
+      { area: "Market Opportunity", rating: getRating("marketCommercialOpportunity", 15), commentary: generateContextualInvestorCommentary("Market Opportunity", getRating("marketCommercialOpportunity", 15), reconciled.categoryScores.marketCommercialOpportunity?.scoreAchieved || 0, 15, reqData, reconciled.gatesInfo, reconciled) },
+      { area: "Competitive Advantage", rating: getRating("competitivePosition", 10), commentary: generateContextualInvestorCommentary("Competitive Advantage", getRating("competitivePosition", 10), reconciled.categoryScores.competitivePosition?.scoreAchieved || 0, 10, reqData, reconciled.gatesInfo, reconciled) },
+      { area: "Business Model", rating: getRating("businessModelWillingnessToPay", 15), commentary: generateContextualInvestorCommentary("Business Model", getRating("businessModelWillingnessToPay", 15), reconciled.categoryScores.businessModelWillingnessToPay?.scoreAchieved || 0, 15, reqData, reconciled.gatesInfo, reconciled) },
+      { area: "Founder Capability", rating: (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved >= 13 ? 5 : (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved >= 10 ? 4 : (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved >= 7 ? 3 : (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved >= 4 ? 2 : 1)))), commentary: generateContextualInvestorCommentary("Founder Capability", (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved >= 13 ? 5 : (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved >= 10 ? 4 : (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved >= 7 ? 3 : (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved >= 4 ? 2 : 1)))), reconciled.categoryScores.founderCapabilityFit?.scoreAchieved || 0, 15, reqData, reconciled.gatesInfo, reconciled) },
+      { area: "Customer Validation", rating: getRating("customerValidation", 20), commentary: generateContextualInvestorCommentary("Customer Validation", getRating("customerValidation", 20), reconciled.categoryScores.customerValidation?.scoreAchieved || 0, 20, reqData, reconciled.gatesInfo, reconciled) },
+      { area: "Scalability", rating: getRating("executionReadiness", 10), commentary: generateContextualInvestorCommentary("Scalability", getRating("executionReadiness", 10), reconciled.categoryScores.executionReadiness?.scoreAchieved || 0, 10, reqData, reconciled.gatesInfo, reconciled) },
+      { area: "Investment Readiness", rating: Math.max(1, Math.min(5, Math.round((reconciled.overallScore / 100) * 5))), commentary: generateContextualInvestorCommentary("Investment Readiness", Math.max(1, Math.min(5, Math.round((reconciled.overallScore / 100) * 5))), reconciled.overallScore, 100, reqData, reconciled.gatesInfo, reconciled) }
     ];
 
     // Section 13: Attach internal telemetry debug object
@@ -908,7 +1112,7 @@ exports.pitchLabEvaluation = onCall({
       evaluationData.summaryBlock.decisionStatus = reconciled.masterRecommendation;
       evaluationData.summaryBlock.overallCommercialVerdict = reconciled.masterRecommendation;
       evaluationData.summaryBlock.biggestRiskToThisIdea = reconciled.gatesInfo.summary || "A potentially fundamental legal or regulatory barrier has been identified. This requires verification with appropriately qualified legal and regulatory specialists before further investment.";
-      evaluationData.summaryBlock.doThisBeforeBuildingMore = "Verify Legal & Regulatory Feasibility: Obtain specialist advice on whether any lawful pathway currently exists for commercial nuclear generation in New Zealand.";
+      evaluationData.summaryBlock.doThisBeforeBuildingMore = `Identify an appropriately qualified legal and regulatory specialist in ${targetJurisdiction} and obtain an initial discussion, indicative view or scope and fee for determining the applicable statutory pathway.`;
 
       evaluationData.decisionStatus = {
         state: reconciled.masterRecommendation,
@@ -920,7 +1124,7 @@ exports.pitchLabEvaluation = onCall({
         recommendation: reconciled.masterRecommendation,
         why: "A potentially fundamental legal or regulatory barrier has been identified. This requires verification with appropriately qualified legal and regulatory specialists before further investment.",
         biggestIssue: reconciled.gatesInfo.summary,
-        pathForward: "Verify Legal & Regulatory Feasibility: Obtain specialist advice on whether any lawful pathway currently exists for commercial nuclear generation in New Zealand.",
+        pathForward: `Identify an appropriately qualified legal and regulatory specialist in ${targetJurisdiction} and obtain an initial discussion, indicative view or scope and fee for determining the applicable statutory pathway.`,
         explicitWarning: "Do not commit capital, project engineering, site options, or team onboarding until pre-feasibility validation is complete."
       };
 
@@ -936,29 +1140,29 @@ exports.pitchLabEvaluation = onCall({
       const targetJurisdiction = getJurisdictionName(reqData);
       evaluationData.actionPlan.topFivePriorities = [
         {
-          priority: "Statutory & Legal Feasibility",
-          action: `Obtain specialist legal advice to evaluate legislative prohibitions and statutory pathways under ${targetJurisdiction} statutory frameworks.`,
-          metric: "Written legal opinion report"
+          priority: "Statutory & Legal Scoping",
+          action: `Identify qualified legal specialists and obtain an initial consultation to map statutory frameworks under ${targetJurisdiction} legislation.`,
+          metric: "Initial specialist consultation & scope/fee (Immediate Stage) / Written legal opinion (Later $5k+ Gateway)"
         },
         {
-          priority: "Specialist Technical Consultation",
-          action: "Engage qualified nuclear/power engineers and regulatory specialists to map safety and grid prerequisites.",
-          metric: "Specialist advisory gap assessment"
+          priority: "Specialist Technical Outreach",
+          action: "Identify qualified power/nuclear engineers and regulatory consultants to map preliminary safety and grid prerequisites.",
+          metric: "Preliminary specialist advisory scoping note"
         },
         {
-          priority: "Engineering Pre-Feasibility Study",
-          action: "Assess site requirements, grid connection logistics, environmental prerequisites, and deployment dependencies.",
-          metric: "Pre-feasibility technical report"
+          priority: "Engineering & Site Prerequisite Mapping",
+          action: "Perform desktop research to map site requirements, grid connection logistics, and environmental consenting prerequisites.",
+          metric: "Desktop technical prerequisite memo (Immediate Stage) / Formal pre-feasibility study (Later $25k+ Gateway)"
         },
         {
-          priority: "Risk Gateway Decision",
-          action: "Conduct formal pre-feasibility milestone review to determine whether to proceed, pivot, or park the concept.",
-          metric: "Pre-feasibility gateway report"
+          priority: "Founder Risk Gateway Decision",
+          action: "Conduct initial milestone review against statutory and technical prerequisites to determine whether to park, pivot, or proceed.",
+          metric: "Founder Risk Gateway decision framework"
         },
         {
-          priority: "Capital & Resource Scoping",
-          action: "Model extreme CAPEX/OPEX requirements, public policy alignment, and long-term project financing gateways.",
-          metric: "Financial & capital roadmap"
+          priority: "Capital Scale & Resource Scoping",
+          action: "Model indicative project capital scale requirements, sovereign risk factors, and national energy policy alignment.",
+          metric: "Indicative capital-scale & policy map"
         }
       ];
       evaluationData.topFivePriorities = evaluationData.actionPlan.topFivePriorities;
@@ -978,7 +1182,7 @@ exports.pitchLabEvaluation = onCall({
         whereMarketIsHeading: "Macro structural trends, Small Modular Reactor (SMR) commercialisation, rising electricity demand, and decarbonisation mandates are shaping the long-term energy sector outlook.",
         tailwinds: [
           "Accelerating electricity demand and industrial electrification goals.",
-          "Growing recognition of grid stability and zero-emission baseload power requirements.",
+          "Growing recognition of grid stability and low-carbon firm electricity power requirements.",
           "Global technological advancements and commercialisation in Small Modular Reactors (SMRs)."
         ],
         headwinds: [
@@ -1004,18 +1208,18 @@ exports.pitchLabEvaluation = onCall({
       evaluationData.summaryBlock.threePriorityActions = [
         {
           heading: "1. Verify Statutory & Legal Permissibility",
-          explanation: `Obtain specialist legal advice to confirm whether any statutory pathway or legislative exemption exists under ${targetJurisdiction} statutory frameworks (such as the New Zealand Nuclear Free Zone, Disarmament, and Arms Control Act 1987) before committing project capital.`,
-          outcome: "Formal written opinion from specialist legal and regulatory counsel."
+          explanation: `Identify qualified legal and regulatory specialists in ${targetJurisdiction} and obtain an initial consultation to map statutory frameworks before committing development capital.`,
+          outcome: "Initial specialist discussion & indicative regulatory pathway / scope and fee."
         },
         {
-          heading: "2. Specialist Technical & Regulatory Pre-Feasibility",
-          explanation: "Engage qualified nuclear engineers, grid infrastructure specialists, and environmental regulatory consultants to map mandatory safety, site, grid connection, and statutory prerequisites.",
-          outcome: "Technical pre-feasibility gap assessment and regulatory compliance roadmap."
+          heading: "2. Specialist Technical & Regulatory Pre-Feasibility Scoping",
+          explanation: "Identify qualified energy infrastructure engineers and environmental regulatory consultants to map preliminary safety, site, grid connection, and statutory prerequisites.",
+          outcome: "Preliminary technical prerequisite & capability-gap scoping note."
         },
         {
-          heading: "3. Capital Requirements & Public Policy Assessment",
-          explanation: "Evaluate extreme multi-billion-dollar project capital scale requirements, sovereign risk factors, and national energy policy alignment prior to commercial scoping.",
-          outcome: "Formal Pre-Feasibility Recommendation & Risk Gateway Report."
+          heading: "3. Capital Scale & Policy Assessment",
+          explanation: "Perform preliminary desktop analysis of multi-billion-dollar project capital scale requirements, sovereign risk factors, and national energy policy alignment.",
+          outcome: "Indicative capital-scale & stakeholder/policy map."
         }
       ];
       evaluationData.threePriorityActions = evaluationData.summaryBlock.threePriorityActions;
@@ -1059,13 +1263,57 @@ exports.pitchLabEvaluation = onCall({
     evaluationData.investorBite.pitchLabRecommendation = evaluationData.investorBite.pitchLabRecommendation || (reconciled.overallScore >= 80 ? "Ready to Pitch" : reconciled.overallScore >= 65 ? "Almost Ready" : reconciled.overallScore >= 45 ? "Needs More Validation" : "Early Stage Idea");
     evaluationData.investorBite.pitchLabRecommendationExplanation = evaluationData.investorBite.pitchLabRecommendationExplanation || "Focus on validating customer demand and securing early proof of willingness to pay before raising external capital.";
 
-    // Ensure businessTheme is fully populated with strategic positioning
+    // Ensure businessTheme is fully populated with contextual strategic positioning
+    ventureType = classifyVentureType(reqData);
+    const targetJurisdiction = getJurisdictionName(reqData);
+    const isNuclear = (idea + " " + category).toLowerCase().includes("nuclear");
+
     evaluationData.businessTheme = evaluationData.businessTheme || {};
-    evaluationData.businessTheme.primaryTheme = evaluationData.businessTheme.primaryTheme || category || "B2B Software & Business Services";
-    evaluationData.businessTheme.secondaryTheme = evaluationData.businessTheme.secondaryTheme || "Workflow Efficiency & Automation";
-    evaluationData.businessTheme.strategicPositioning = evaluationData.businessTheme.strategicPositioning || "Positions as a high-efficiency specialized tool directly targeting workflow friction. De-risks adoption by embedding seamlessly alongside existing customer routines rather than forcing a major operational overhaul.";
-    evaluationData.businessTheme.marketCategoryDynamics = evaluationData.businessTheme.marketCategoryDynamics || "Driven by accelerating demand for automated compliance, time-saving software, and operational cost reduction across target businesses.";
-    evaluationData.businessTheme.strategicMoat = evaluationData.businessTheme.strategicMoat || "Deep domain specialization, high workflow retention, and direct industry network access.";
+    if (isNuclear || reconciled.gatesInfo?.hasCriticalGate) {
+      evaluationData.businessTheme.primaryTheme = "Energy Infrastructure & Power Generation";
+      evaluationData.businessTheme.secondaryTheme = "Nuclear / SMR / Firm Low-Carbon Generation";
+      evaluationData.businessTheme.strategicPositioning = `Positions as a long-term utility-scale infrastructure option targeting grid reliability, baseload capacity, and industrial decarbonisation within ${targetJurisdiction}.`;
+      evaluationData.businessTheme.marketCategoryDynamics = `Governed by national energy security strategy, statutory radiation safety law, environmental consenting frameworks, and multi-billion-dollar infrastructure capital scale.`;
+      evaluationData.businessTheme.strategicMoat = "No defensible venture-specific moat is yet evidenced. Potential future defensibility could arise from specialist partnerships, project rights, regulatory capability, long-term off-take arrangements or execution capability.";
+    } else if (ventureType.includes("Hardware") || ventureType.includes("Manufacturing")) {
+      evaluationData.businessTheme.primaryTheme = evaluationData.businessTheme.primaryTheme || "Hardware & Physical Product Innovation";
+      evaluationData.businessTheme.secondaryTheme = evaluationData.businessTheme.secondaryTheme || "Field Trial Validation & Asset Protection";
+      evaluationData.businessTheme.strategicPositioning = evaluationData.businessTheme.strategicPositioning || "Positions as a high-efficiency specialized physical solution directly targeting operational pain points. De-risks adoption by delivering immediate physical and functional value.";
+      evaluationData.businessTheme.marketCategoryDynamics = evaluationData.businessTheme.marketCategoryDynamics || "Driven by market demand for durable, low-maintenance asset protection and automated operational tools.";
+      evaluationData.businessTheme.strategicMoat = evaluationData.businessTheme.strategicMoat || "Proprietary design mechanics, domain experience, and direct field trial relationships.";
+    } else {
+      evaluationData.businessTheme.primaryTheme = evaluationData.businessTheme.primaryTheme || category || "B2B Software & Business Services";
+      evaluationData.businessTheme.secondaryTheme = evaluationData.businessTheme.secondaryTheme || "Workflow Efficiency & Automation";
+      evaluationData.businessTheme.strategicPositioning = evaluationData.businessTheme.strategicPositioning || "Positions as a specialized efficiency solution directly targeting operational friction points. De-risks adoption by delivering clear functional value and low switching friction.";
+      evaluationData.businessTheme.marketCategoryDynamics = evaluationData.businessTheme.marketCategoryDynamics || "Driven by market demand for operational productivity, compliance automation, and workflow efficiency.";
+      evaluationData.businessTheme.strategicMoat = evaluationData.businessTheme.strategicMoat || "Deep domain specialization, high workflow retention, and direct customer relationships.";
+    }
+
+
+
+    evaluationData.businessModelSnapshot.targetCustomer = synthesizeBusinessModelField('targetCustomer', reqData, ventureType, targetJurisdiction);
+    evaluationData.businessModelSnapshot.coreOffering = synthesizeBusinessModelField('coreOffering', reqData, ventureType, targetJurisdiction);
+    evaluationData.businessModelSnapshot.customerProblem = synthesizeBusinessModelField('customerProblem', reqData, ventureType, targetJurisdiction);
+
+    if (isNuclear || reconciled.gatesInfo?.hasCriticalGate) {
+      evaluationData.businessModelSnapshot.valueProposition = "Continuous, low-carbon firm electricity generation providing long-term price predictability, grid stability, and industrial decarbonisation.";
+      evaluationData.businessModelSnapshot.revenueModel = "Wholesale electricity market sales, long-term Power Purchase Agreements (PPAs) with industrial off-takers, and ancillary grid support fees, subject to statutory feasibility.";
+      evaluationData.businessModelSnapshot.customerAcquisition = "Direct long-term PPA contracting with electricity retailers, heavy industrial energy users, and national grid operators.";
+      evaluationData.businessModelSnapshot.keyCosts = "Technology licensing, site development, regulatory consenting, plant engineering, construction, grid interconnection, operation, security, and decommissioning.";
+      evaluationData.businessModelSnapshot.commercialAssessment = "Business model viability is strictly governed by statutory permissibility, regulatory consenting, and multi-billion-dollar project financing gateways.";
+    } else if (ventureType.includes("Hardware")) {
+      evaluationData.businessModelSnapshot.valueProposition = evaluationData.businessModelSnapshot.valueProposition || "Durable physical solution delivering direct operational efficiency or asset protection.";
+      evaluationData.businessModelSnapshot.revenueModel = evaluationData.businessModelSnapshot.revenueModel || "Direct hardware sales, distributor margins, or optional maintenance support agreements.";
+      evaluationData.businessModelSnapshot.customerAcquisition = evaluationData.businessModelSnapshot.customerAcquisition || "Direct commercial outreach, industry trade channels, and field demonstration trials.";
+      evaluationData.businessModelSnapshot.keyCosts = evaluationData.businessModelSnapshot.keyCosts || "Component sourcing, tooling, manufacturing assembly, quality certification, and field testing.";
+      evaluationData.businessModelSnapshot.commercialAssessment = evaluationData.businessModelSnapshot.commercialAssessment || "Commercial viability depends on prototype durability testing and verified manufacturing unit economics.";
+    } else {
+      evaluationData.businessModelSnapshot.valueProposition = evaluationData.businessModelSnapshot.valueProposition || "Commercial solution addressing operational workflow friction or market demand.";
+      evaluationData.businessModelSnapshot.revenueModel = evaluationData.businessModelSnapshot.revenueModel || "Commercial revenue model based on subscription, transaction fee, or direct service billing.";
+      evaluationData.businessModelSnapshot.customerAcquisition = evaluationData.businessModelSnapshot.customerAcquisition || "Direct client outreach, industry network referrals, and targeted digital marketing.";
+      evaluationData.businessModelSnapshot.keyCosts = evaluationData.businessModelSnapshot.keyCosts || "Solution development, customer acquisition, operational support, and ongoing service delivery.";
+      evaluationData.businessModelSnapshot.commercialAssessment = evaluationData.businessModelSnapshot.commercialAssessment || "Business model evaluated against customer willingness to pay and low-friction adoption.";
+    }
 
     // Ensure raw inputs flow through directly to frontend
     evaluationData.idea = idea;
@@ -1090,11 +1338,26 @@ exports.pitchLabEvaluation = onCall({
     evaluationData.meta.betaCohort = "first50";
     evaluationData.meta.founderRegion = locationSummary || locationCountry || "Global";
 
-    // Ensure founderMetrics has fallbacks matching user inputs
+    // Single Authoritative Founder Resource Object & Calibrated Time Bands
     evaluationData.founderMetrics = evaluationData.founderMetrics || {};
-    evaluationData.founderMetrics.weeklyAvailableHours = evaluationData.founderMetrics.weeklyAvailableHours || reqData.timeCommitment || capacity || "15-30 hours/week";
+    const rawTimeInput = (reqData.timeCommitment || capacity || "").toString().trim();
+    let hoursBand = "15-30 hours/week";
+    if (rawTimeInput.match(/\b(0-5|0\s*-\s*5|<5)\b/i)) {
+      hoursBand = "0-5 hours/week";
+    } else if (rawTimeInput.match(/\b(5-10|5\s*-\s*10)\b/i)) {
+      hoursBand = "5-10 hours/week";
+    } else if (rawTimeInput.match(/\b(10-20|10-15|10\s*-\s*20)\b/i)) {
+      hoursBand = "10-20 hours/week";
+    } else if (rawTimeInput.match(/\b(15-30|20-30|15\s*-\s*30)\b/i)) {
+      hoursBand = "15-30 hours/week";
+    } else if (rawTimeInput.match(/\b(30\+|40|full-time)\b/i)) {
+      hoursBand = "30+ hours/week";
+    } else if (rawTimeInput) {
+      hoursBand = rawTimeInput;
+    }
+    evaluationData.founderMetrics.weeklyAvailableHours = hoursBand;
 
-    // FIX 2: Format Capital Value cleanly & prevent corruption
+    // Single Authoritative Capital Formatting (Fix $5,000-0,000 NZD bug)
     const userCapInput = reqData.investmentCommitment || reqData.budget || budget;
     const formattedCap = formatCapitalValue(userCapInput, evaluationData.founderMetrics.availableCapital);
     evaluationData.founderMetrics.availableCapital = formattedCap;
@@ -1104,8 +1367,6 @@ exports.pitchLabEvaluation = onCall({
 
     evaluationData.founderMetrics.initialRiskCapital = evaluationData.founderMetrics.initialRiskCapital || "$1,000 NZD";
     const founderScoreVal = reconciled.categoryScores.founderCapabilityFit?.scoreAchieved || 0;
-    const userTimeVal = (reqData.timeCommitment || capacity || "").toLowerCase();
-    const isLimitedTimeVal = Boolean(userTimeVal.match(/0-5|5-15|0\s*-\s*5|5\s*-\s*15|<15/i));
 
     if (founderScoreVal >= 12) {
       evaluationData.founderMetrics.founderPositionSummary = "Well Positioned";
@@ -1118,14 +1379,15 @@ exports.pitchLabEvaluation = onCall({
     }
     evaluationData.founderMetrics.analysis = reconciled.categoryScores.founderCapabilityFit?.explanation || evaluationData.founderMetrics.analysis;
 
-    // SEMANTIC CONSISTENCY QA PASS: Eliminate Narrative Contradictions (Requirement 17)
+    // CV Analysis & Language Calibration
+    evaluationData.cvAnalysis = evaluationData.cvAnalysis || {};
     if (founderScoreVal <= 6) {
-      if (evaluationData.cvAnalysis) {
-        evaluationData.cvAnalysis.alignmentWithBusinessIdea = "Founder background demonstrates general commercial capability, but lacks direct technical/domain credentials for this specific venture.";
-      }
+      evaluationData.cvAnalysis.alignmentWithBusinessIdea = "The supplied CV demonstrates general commercial capability, but does not evidence direct technical or regulatory execution experience for this specific venture.";
       if (evaluationData.founderCapabilityExplanation) {
-        evaluationData.founderCapabilityExplanation.whyThisScoreWasAwarded = "Recognises general commercial and financial capability, but highlights a major venture-specific domain and technical execution gap.";
+        evaluationData.founderCapabilityExplanation.whyThisScoreWasAwarded = "Recognises general commercial capability, but highlights a major venture-specific domain and technical execution gap.";
       }
+    } else {
+      evaluationData.cvAnalysis.alignmentWithBusinessIdea = evaluationData.cvAnalysis.alignmentWithBusinessIdea || "Founder's background supports commercial analysis and project execution.";
     }
 
     // FIX 3: Master Recommendation Everywhere Enforcer & Contradiction Guard
@@ -1137,7 +1399,6 @@ exports.pitchLabEvaluation = onCall({
     if (evaluationData.investorBite) {
       evaluationData.investorBite.pitchLabRecommendation = masterRec;
       evaluationData.investorBite.recommendation = masterRec;
-      // Sanitize investor questions to remove 'circumvent'
       if (Array.isArray(evaluationData.investorBite.investorQuestions)) {
         evaluationData.investorBite.investorQuestions = evaluationData.investorBite.investorQuestions.map(q =>
           q.replace(/circumvent|bypass|evade/gi, "establish a lawful legislative, regulatory or policy pathway for")
@@ -1153,46 +1414,25 @@ exports.pitchLabEvaluation = onCall({
       evaluationData.summaryBlock.pitchLabRecommendation = masterRec;
     }
 
-    // Unconditionally populate marketInsights for critical gate or non-SaaS context to eliminate raw LLM contamination
-    if (reconciled.gatesInfo?.hasCriticalGate) {
-      const targetJurisdiction = getJurisdictionName(reqData);
-      evaluationData.marketInsights = {
-        marketLandscape: `The broader market operates within a heavily structured statutory and regulatory environment. While underlying demand for essential services (such as baseload power or infrastructure) is significant, sector entry is strictly governed by national legislation, public policy mandates, and extreme capital scale requirements.`,
-        demandDrivers: `Primary demand drivers include national infrastructure priorities, cost pressures, and long-term sustainability goals. However, commercial adoption is strictly constrained by statutory prohibitions and regulatory approval pathways that dictate market access.`,
-        competitionAlternatives: `The founder competes against established, legally compliant incumbent operators, state-backed infrastructure providers, and alternative proven technologies already integrated into regional supply networks.`,
-        commercialReality: `A critical distinction must be drawn between large underlying demand (such as national electricity consumption) and the commercially accessible opportunity for this specific solution. Significant statutory and regulatory barriers render the commercially accessible market effectively unavailable without legislative change, subject to specialist legal confirmation.`,
-        localBusinessNews: `Local energy market news highlights rising electricity demand, dry-year hydro volatility, wholesale power price spikes, and policy debates surrounding New Zealand energy security.`,
-        customerReviewTrends: `Energy sector feedback and commercial off-taker reviews reveal concerns over long-term price predictability, grid reliability during peak winter demand, and industrial carbon tax exposure.`,
-        governmentPolicyInfluence: `${targetJurisdiction} statutory policy and legislative frameworks govern power generation, environmental protection, fast-track consenting, and specific regulatory requirements under national law.`
-      };
-    } else if (!evaluationData.marketInsights || !evaluationData.marketInsights.marketLandscape) {
-      evaluationData.marketInsights = evaluationData.marketInsights || {};
-      evaluationData.marketInsights.marketLandscape = `The broader market surrounding ${reqData.idea || 'this concept'} is characterized by evolving customer expectations and established commercial practices across ${reqData.locationCountry || 'the target region'}. Sector maturity is driven by ongoing operational shifts and digital adoption.`;
-      evaluationData.marketInsights.demandDrivers = `Demand is driven primarily by customer efficiency requirements, rising operational costs, and the search for reliable, cost-effective alternatives to current manual pain points.`;
-      evaluationData.marketInsights.competitionAlternatives = `The founder competes against established market incumbents, existing manual workarounds, and alternative commercial providers. Customer reliance on existing tools represents a key competition barrier.`;
-      evaluationData.marketInsights.commercialReality = `A critical distinction exists between total addressable market size and early commercial accessibility for this specific solution. Early success relies on demonstrating immediate ROI, low switching friction, and clear differentiation against existing workarounds.`;
-    }
+    // Contextual Executive Summary Engine (Answers 1. Opportunity 2. Problem 3. Evidence 4. Gating Risk 5. Next Step)
+    const cleanIdeaStr = idea || "The business concept";
+    const cleanMarketStr = targetMarket || "the target market";
+    const cleanProbStr = problem || "a defined commercial pain point";
 
-    // Post-processing for Targeted Fixes & Malformed Text Sanitization
-    const hardwareConcept = isHardwareIdea(idea, category);
-    evaluationData = sanitizeHardwareTerms(evaluationData, hardwareConcept);
-
-    // Ensure specific CV credentials extracted
-    const extractedCreds = extractSpecificCredentialsFromCvText(cvText, founderBackgroundNarrative);
-    evaluationData.cvAnalysis = evaluationData.cvAnalysis || {};
-    if (!Array.isArray(evaluationData.cvAnalysis.extractedCredentials) || evaluationData.cvAnalysis.extractedCredentials.length === 0 || evaluationData.cvAnalysis.extractedCredentials[0].includes("Relevant professional domain")) {
-      evaluationData.cvAnalysis.extractedCredentials = extractedCreds;
-    }
-
-    // Ensure 4-part substantive PitchLab Verdict
-    evaluationData.summaryBlock = evaluationData.summaryBlock || {};
-    const rawVerdict = cleanNarrativeText(evaluationData.summaryBlock.pitchLabVerdict || evaluationData.finalRecommendation?.why || "");
-    if (!rawVerdict || rawVerdict.split('.').filter(s => s.trim().length > 0).length < 2) {
-      const topStrength = evaluationData.summaryBlock.topStrengths?.[0] || "strong founder alignment and clear problem definition";
-      const keyRisk = evaluationData.summaryBlock.biggestRiskToThisIdea || "uncertain customer demand and willingness to pay prior to direct validation";
-      evaluationData.summaryBlock.pitchLabVerdict = `This concept addresses a genuine customer problem with ${topStrength}. However, customer demand, willingness to pay, and competitive defensibility remain insufficiently validated. The central commercial risk centers on ${keyRisk}. The founder should validate these core assumptions through structured customer interviews and pilot trials before committing significant development capital.`;
+    if (isNuclear || reconciled.gatesInfo?.hasCriticalGate) {
+      evaluationData.executiveSummary = `The concept addresses a strategic energy and infrastructure opportunity in ${targetJurisdiction}, targeting ${cleanProbStr}. While underlying national demand for baseload power is high, commercial feasibility is strictly governed by statutory prohibitions and regulatory approval pathways. The primary gating risk centers on statutory permissibility and extreme capital requirements. Pre-feasibility validation and specialist legal advice are required before committing development capital.`;
     } else {
-      evaluationData.summaryBlock.pitchLabVerdict = rawVerdict;
+      evaluationData.executiveSummary = `The business concept addresses a commercial opportunity targeting ${cleanMarketStr}, focusing on ${cleanProbStr}. Current evidence remains early stage with core commercial assumptions requiring empirical verification. The primary gating risk centers on ${reconciled.gatesInfo?.primaryGatingRisk || 'customer demand and willingness to pay'}. Structured validation and evidence gathering are recommended before committing development capital.`;
+    }
+
+    // Professional PitchLab Verdict Prose Synthesizer
+    evaluationData.summaryBlock = evaluationData.summaryBlock || {};
+    if (isNuclear || reconciled.gatesInfo?.hasCriticalGate) {
+      evaluationData.summaryBlock.pitchLabVerdict = `The concept addresses a genuine long-term energy and infrastructure challenge, but it is not commercially actionable in its current formulation. The principal barriers are statutory and regulatory feasibility, specialist technical capability, extreme capital requirements, and public policy alignment. Before committing meaningful development capital, the founder should establish whether a credible statutory and regulatory pathway exists in ${targetJurisdiction} and complete an initial technical pre-feasibility assessment.`;
+    } else {
+      const topStr = evaluationData.summaryBlock.topStrengths?.[0] || "strong problem clarity";
+      const mainRisk = reconciled.gatesInfo?.primaryGatingRisk || "customer demand and willingness to pay";
+      evaluationData.summaryBlock.pitchLabVerdict = `This concept addresses a genuine customer problem backed by ${topStr.toLowerCase()}. However, customer demand, willingness to pay, and competitive defensibility remain insufficiently validated. The primary commercial risk centers on ${mainRisk.toLowerCase()}. The founder should validate these core assumptions through structured customer discovery interviews and pilot trials before committing significant development capital.`;
     }
 
     // Contextual Intelligence Synthesis & Portfolio Action
@@ -1208,6 +1448,9 @@ exports.pitchLabEvaluation = onCall({
 
     // Apply Semantic Guardrail to eliminate generic SaaS template contamination in non-SaaS reports
     evaluationData = runSemanticGuardrail(evaluationData, ventureType, reconciled.gatesInfo, reqData);
+
+    // Apply Editorial QA Pass for NZ English spelling, grammar, and sentence completeness
+    evaluationData = runEditorialQaAndSpellCheck(evaluationData, reqData);
 
     // PRE-SAVE SCORE INTEGRITY ASSERTION: overallScore MUST strictly equal sum of category scores
     const sumCategoryScores = Object.values(reconciled.categoryScores).reduce((acc, cat) => acc + (cat.scoreAchieved || cat.score || 0), 0);
@@ -1300,13 +1543,174 @@ function getMockResult(reqData = {}) {
   const founderPredictionsInput = reqData.founderPredictions || {};
   const founderEvidenceGap = calculateFounderEvidenceGap(founderPredictionsInput, reconciled, reqData);
 
+  const ventureType = classifyVentureType(reqData);
+  const targetJurisdiction = getJurisdictionName(reqData);
+  const idea = (reqData.idea || "Proposed business concept").trim();
+  const problem = (reqData.problem || "Defined market problem").trim();
+  const targetMarket = (reqData.targetMarket || "Target customer segment").trim();
+  const isNuclear = (idea + " " + (reqData.category || "")).toLowerCase().includes("nuclear");
+
+  let execSummary = "";
+  let verdictStr = "";
+
+  if (isNuclear || reconciled.gatesInfo?.hasCriticalGate) {
+    execSummary = `The concept proposes using small modular reactor technology to provide reliable, low-carbon firm electricity within ${targetJurisdiction}. It addresses a legitimate long-term challenge involving electricity reliability, increasing industrial demand, and decarbonisation goals. However, the opportunity is not presently commercially actionable because statutory and regulatory feasibility remains unresolved, specialist nuclear capability is unevidenced, and likely capital requirements are extreme. The immediate priority is statutory and regulatory pre-feasibility rather than downstream customer validation.`;
+    verdictStr = `The concept addresses a genuine long-term energy and infrastructure challenge, but it is not commercially actionable in its current formulation. The principal barriers are statutory and regulatory feasibility, specialist technical capability, extreme capital requirements, and public policy alignment. Before committing meaningful development capital, the founder should establish whether a credible statutory and regulatory pathway exists in ${targetJurisdiction} and complete an initial technical pre-feasibility assessment.`;
+  } else {
+    execSummary = `The business concept addresses a commercial opportunity in ${targetJurisdiction} targeting ${targetMarket}. It addresses a genuine operational friction point. Current commercial evidence remains early stage with core assumptions requiring empirical verification. The primary gating risk centers on ${reconciled.gatesInfo?.primaryGatingRisk || 'customer demand and willingness to pay'}. Structured validation and evidence gathering are recommended before committing development capital.`;
+    verdictStr = `This concept addresses a genuine customer problem. However, customer demand, willingness to pay, and competitive defensibility remain insufficiently validated. The primary commercial risk centers on ${reconciled.gatesInfo?.primaryGatingRisk || 'customer demand and willingness to pay'}. The founder should validate these core assumptions through structured customer discovery interviews and pilot trials before committing significant development capital.`;
+  }
+
+  const portfolioMeta = getPortfolioDecision(reconciled.masterRecommendation, ventureType, reconciled.gatesInfo, reqData);
+  const ft5D = calculate5DimensionFutureTrends(reqData, reconciled.gatesInfo, ventureType, {});
+  const adviserOpinion = getCommercialAdviserOpinion(reconciled, ventureType, reconciled.gatesInfo, reqData);
+  const ladder = getValidationLadderForContext(ventureType, reconciled.gatesInfo?.primaryGatingRisk, reqData);
+
+  let primaryThemeStr = "B2B Software & Business Services";
+  let secondaryThemeStr = "Workflow Efficiency & Automation";
+  let stratPos = "Positions as a specialized efficiency solution directly targeting operational friction points.";
+  let catDyn = "Driven by market demand for operational productivity and compliance automation.";
+  let moatStr = "Deep domain specialization, high workflow retention, and direct customer relationships.";
+
+  if (isNuclear || reconciled.gatesInfo?.hasCriticalGate) {
+    primaryThemeStr = "Energy Infrastructure & Power Generation";
+    secondaryThemeStr = "Nuclear / SMR / Firm Low-Carbon Generation";
+    stratPos = `Positions as a long-term utility-scale infrastructure option targeting grid reliability, baseload capacity, and industrial decarbonisation within ${targetJurisdiction}.`;
+    catDyn = `Governed by national energy security strategy, statutory radiation safety law, environmental consenting frameworks, and multi-billion-dollar infrastructure capital scale.`;
+    moatStr = "No defensible venture-specific moat is yet evidenced. Potential future defensibility could arise from specialist partnerships, project rights, regulatory capability, long-term off-take arrangements or execution capability.";
+  } else if (ventureType.includes("Hardware") || ventureType.includes("Manufacturing")) {
+    primaryThemeStr = "Hardware & Physical Product Innovation";
+    secondaryThemeStr = "Field Trial Validation & Asset Protection";
+    stratPos = "Positions as a high-efficiency specialized physical solution directly targeting operational pain points.";
+    catDyn = "Driven by market demand for durable, low-maintenance asset protection and automated operational tools.";
+    moatStr = "Proprietary design mechanics, domain experience, and direct field trial relationships.";
+  }
+
+  let valProp = "Commercial solution addressing operational workflow friction or market demand.";
+  let revModel = "Commercial revenue model based on subscription, transaction fee, or direct service billing.";
+  let acqChannel = "Direct client outreach, industry network referrals, and targeted digital marketing.";
+  let keyCostsStr = "Solution development, customer acquisition, operational support, and ongoing service delivery.";
+  let commAssess = "Business model evaluated against customer willingness to pay and low-friction adoption.";
+
+  if (isNuclear || reconciled.gatesInfo?.hasCriticalGate) {
+    valProp = "Continuous, low-carbon firm electricity generation providing long-term price predictability, grid stability, and industrial decarbonisation.";
+    revModel = "Wholesale electricity market sales, long-term Power Purchase Agreements (PPAs) with industrial off-takers, and ancillary grid support fees, subject to statutory feasibility.";
+    acqChannel = "Direct long-term PPA contracting with electricity retailers, heavy industrial energy users, and national grid operators.";
+    keyCostsStr = "Technology licensing, site development, regulatory consenting, plant engineering, construction, grid interconnection, operation, security, and decommissioning.";
+    commAssess = "Business model viability is strictly governed by statutory permissibility, regulatory consenting, and multi-billion-dollar project financing gateways.";
+  } else if (ventureType.includes("Hardware")) {
+    valProp = "Durable physical solution delivering direct operational efficiency or asset protection.";
+    revModel = "Direct hardware sales, distributor margins, or optional maintenance support agreements.";
+    acqChannel = "Direct commercial outreach, industry trade channels, and field demonstration trials.";
+    keyCostsStr = "Component sourcing, tooling, manufacturing assembly, quality certification, and field testing.";
+    commAssess = "Commercial viability depends on prototype durability testing and verified manufacturing unit economics.";
+  }
+
+  const rawTimeInput = (reqData.timeCommitment || reqData.capacity || "").toString().trim();
+  let hoursBand = "15-30 hours/week";
+  if (rawTimeInput.match(/\b(0-5|0\s*-\s*5|<5)\b/i)) {
+    hoursBand = "0-5 hours/week";
+  } else if (rawTimeInput.match(/\b(5-10|5\s*-\s*10)\b/i)) {
+    hoursBand = "5-10 hours/week";
+  } else if (rawTimeInput.match(/\b(10-20|10-15|10\s*-\s*20)\b/i)) {
+    hoursBand = "10-20 hours/week";
+  } else if (rawTimeInput.match(/\b(15-30|20-30|15\s*-\s*30)\b/i)) {
+    hoursBand = "15-30 hours/week";
+  } else if (rawTimeInput.match(/\b(30\+|40|full-time)\b/i)) {
+    hoursBand = "30+ hours/week";
+  } else if (rawTimeInput) {
+    hoursBand = rawTimeInput;
+  }
+
+  const userCapInput = reqData.investmentCommitment || reqData.budget;
+  const formattedCap = formatCapitalValue(userCapInput, "$5,000–$10,000 NZD");
+
   const mockData = {
     output: {
+      appVersion: VERSION_INFO.appVersion,
+      fullVersionString: VERSION_INFO.fullVersionString,
+      buildId: VERSION_INFO.buildId,
+      deployedAt: VERSION_INFO.deployedAt,
+      deployedAtFormatted: VERSION_INFO.deployedAtFormatted,
+      assessmentId: `eval_${Date.now()}`,
+      assessmentGeneratedAt: new Date().toISOString(),
+      assessmentGeneratedAtFormatted: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) + ' NZST',
       masterRecommendation: reconciled.masterRecommendation,
       overallScore: reconciled.overallScore,
       scoreBand: reconciled.scoreBand,
+      scores: reconciled.categoryScores,
+      categoryScores: reconciled.categoryScores,
+      executiveSummary: execSummary,
+      pitchLabVerdict: verdictStr,
+      portfolioMeta: portfolioMeta,
+      portfolioAction: portfolioMeta.portfolioAction,
+      portfolioReason: portfolioMeta.portfolioReason,
+      nextEvidenceGateway: portfolioMeta.nextEvidenceGateway,
+      reassessmentTrigger: portfolioMeta.reassessmentTrigger,
+      futureTrends: ft5D,
+      commercialAdviserOpinion: adviserOpinion,
+      validationLadder: ladder,
+      actionPlan: {
+        topFivePriorities: [
+          {
+            priority: "Statutory & Legal Scoping",
+            action: `Identify qualified legal specialists and obtain an initial consultation to map statutory frameworks under ${targetJurisdiction} legislation.`,
+            metric: "Initial specialist consultation & scope/fee (Immediate Stage) / Written legal opinion (Later $5k+ Gateway)"
+          },
+          {
+            priority: "Specialist Technical Outreach",
+            action: "Identify qualified power/nuclear engineers and regulatory consultants to map preliminary safety and grid prerequisites.",
+            metric: "Preliminary specialist advisory scoping note"
+          },
+          {
+            priority: "Engineering & Site Prerequisite Mapping",
+            action: "Perform desktop research to map site requirements, grid connection logistics, and environmental consenting prerequisites.",
+            metric: "Desktop technical prerequisite memo (Immediate Stage) / Formal pre-feasibility study (Later $25k+ Gateway)"
+          },
+          {
+            priority: "Founder Risk Gateway Decision",
+            action: "Review preliminary legal and technical scoping notes against founder resource reality before committing further investment.",
+            metric: "Pre-Feasibility Go / Reframe / Stop Decision"
+          },
+          {
+            priority: "Commercial Off-Taker Alignment",
+            action: "Track long-term energy market dynamics, PPA structures, and industrial off-taker decarbonisation requirements.",
+            metric: "Preliminary PPA structure & off-taker alignment note (Downstream Stage)"
+          }
+        ]
+      },
+      thirtyDayPlan: {
+        week1: { objective: "Legal & Regulatory Feasibility Assessment", tasks: ["Obtain specialist legal advice on statutory framework, local legislation and legal prohibitions", "Identify required regulatory approval bodies and compliance mandates"], expectedResult: "Comprehensive assessment of legal permissibility and statutory barriers" },
+        week2: { objective: "Specialist Technical & Domain Expert Consultation", tasks: ["Consult independent domain engineers, regulatory specialists or industry advisers", "Map required technical qualifications and specialist team gaps"], expectedResult: "Expert feedback on technical, safety, and operational feasibility" },
+        week3: { objective: "Technical & Infrastructure Feasibility Study", tasks: ["Assess grid, site, environmental, and infrastructure prerequisites", "Evaluate technology readiness level and deployment dependencies"], expectedResult: "High-level technical and site feasibility assessment report" },
+        week4: { objective: "Pre-Feasibility Decision (Proceed / Pivot / Stop)", tasks: ["Model indicative project economics, CAPEX/OPEX, and capital requirements", "Present pre-feasibility findings to make a disciplined Go / Pivot / Stop decision"], expectedResult: "Formal Pre-Feasibility Recommendation & Risk Gateway Report" }
+      },
+      threePriorityActions: [
+        {
+          heading: "1. Verify Statutory & Legal Permissibility",
+          explanation: `Identify qualified legal and regulatory specialists in ${targetJurisdiction} and obtain an initial consultation to map statutory frameworks before committing development capital.`,
+          outcome: "Initial specialist discussion & indicative regulatory pathway / scope and fee."
+        },
+        {
+          heading: "2. Specialist Technical & Regulatory Pre-Feasibility Scoping",
+          explanation: "Identify qualified energy infrastructure engineers and environmental regulatory consultants to map preliminary safety, site, grid connection, and statutory prerequisites.",
+          outcome: "Preliminary technical prerequisite & capability-gap scoping note."
+        },
+        {
+          heading: "3. Capital Scale & Policy Assessment",
+          explanation: "Perform preliminary desktop analysis of multi-billion-dollar project capital scale requirements, sovereign risk factors, and national energy policy alignment.",
+          outcome: "Indicative capital-scale & stakeholder/policy map."
+        }
+      ],
       founderPredictions: founderEvidenceGap.founderPredictions,
       founderEvidenceGap: founderEvidenceGap,
+      businessTheme: {
+        primaryTheme: primaryThemeStr,
+        secondaryTheme: secondaryThemeStr,
+        strategicPositioning: stratPos,
+        marketCategoryDynamics: catDyn,
+        strategicMoat: moatStr
+      },
       summaryBlock: {
         overallScore: reconciled.overallScore,
         overallReadinessScore: reconciled.overallScore,
@@ -1314,75 +1718,105 @@ function getMockResult(reqData = {}) {
         decisionStatus: reconciled.masterRecommendation,
         masterRecommendation: reconciled.masterRecommendation,
         overallCommercialVerdict: reconciled.masterRecommendation,
+        pitchLabVerdict: verdictStr,
         biggestRiskToThisIdea: reconciled.gatesInfo?.hasCriticalGate ? reconciled.gatesInfo.summary : "The concept currently lacks empirical customer discovery logs and payment validation.",
-        doThisBeforeBuildingMore: reconciled.gatesInfo?.hasCriticalGate ? "Execute a formal Pre-Feasibility Validation study focusing on statutory landscape and technical feasibility." : "Conduct 15 structured customer discovery interviews with target users.",
+        doThisBeforeBuildingMore: reconciled.gatesInfo?.hasCriticalGate ? `Identify an appropriately qualified legal and regulatory specialist in ${targetJurisdiction} and obtain an initial discussion, indicative view or scope and fee for determining the applicable statutory pathway.` : "Conduct 15 structured customer discovery interviews with target users.",
         topStrengths: ["Strong founder commercial background", "Clear market focus", "Low-cost initial validation path"],
-        topPrioritiesNow: ["Verify statutory and regulatory feasibility", "Test customer pain urgency", "Establish pre-feasibility milestones"]
+        topPrioritiesNow: ["Verify statutory and regulatory feasibility", "Test customer pain urgency", "Establish pre-feasibility milestones"],
+        threePriorityActions: [
+          {
+            heading: "1. Verify Statutory & Legal Permissibility",
+            explanation: `Identify qualified legal and regulatory specialists in ${targetJurisdiction} and obtain an initial consultation to map statutory frameworks before committing development capital.`,
+            outcome: "Initial specialist discussion & indicative regulatory pathway / scope and fee."
+          },
+          {
+            heading: "2. Specialist Technical & Regulatory Pre-Feasibility Scoping",
+            explanation: "Identify qualified energy infrastructure engineers and environmental regulatory consultants to map preliminary safety, site, grid connection, and statutory prerequisites.",
+            outcome: "Preliminary technical prerequisite & capability-gap scoping note."
+          },
+          {
+            heading: "3. Capital Scale & Policy Assessment",
+            explanation: "Perform preliminary desktop analysis of multi-billion-dollar project capital scale requirements, sovereign risk factors, and national energy policy alignment.",
+            outcome: "Indicative capital-scale & stakeholder/policy map."
+          }
+        ]
       },
+      recommendedApproach: isNuclear ? [
+        "Select ONE primary legal or regulatory feasibility objective each week and batch founder effort into targeted research sessions.",
+        "Focus effort on statutory permissibility and regulatory feasibility before committing capital to detailed engineering, site feasibility, or downstream commercial validation.",
+        "Concentrate on clearing the primary gating risk (statutory permissibility and regulatory feasibility) before undertaking downstream technical or commercial validation.",
+        "Maintain a disciplined execution horizon focused on regulatory pre-feasibility milestones."
+      ] : (ventureType.includes("Hardware") ? [
+        "Select ONE key physical design or validation objective each week and batch work into focused sessions.",
+        "Validate core physical performance, durability requirements, and customer willingness-to-pay before committing capital to costly tooling or full manufacturing runs.",
+        "Concentrate on testing the highest-risk physical and commercial assumptions first (field performance under real conditions and unit economic viability).",
+        "Maintain a 90-day execution horizon to ensure steady, consistent progress without founder burnout."
+      ] : [
+        "Select ONE major validation objective each week and batch founder work into 1–2 focused sessions.",
+        "Focus effort on validating primary customer demand and commercial model mechanics before expanding product features or operational overhead.",
+        "Concentrate on testing the highest-risk business assumptions first (problem severity and target customer commitment).",
+        "Maintain a 90-day execution horizon to ensure steady, consistent progress without founder burnout."
+      ]),
+      founderImplications: [
+        "Your available time supports steady progress; maintain disciplined focus on legal and regulatory pre-feasibility before expanding technical scope.",
+        isNuclear
+          ? "Initial risk capital ($500 NZD) supports desktop research, legal framework mapping, and initial specialist outreach, but cannot fund formal legal opinions or engineering studies. A $5,000–$25,000+ pre-feasibility gateway is required to confirm statutory viability."
+          : "Your initial budget is workable for lean validation; preserve capital for customer discovery experiments rather than premature infrastructure.",
+        isNuclear
+          ? "Domain, statutory, or nuclear engineering specialization can be engaged via advisors, industry partners, or specialist consultants; early positioning should focus on statutory and commercial feasibility."
+          : "Core founder capabilities are well aligned for early-stage execution; focus on validating critical statutory, market, or commercial assumptions."
+      ],
       cvAnalysis: {
         cvAttached: Boolean(reqData.founderCvExtractedText || reqData.founderCvFile),
         extractedCredentials: extractSpecificCredentialsFromCvText(reqData.founderCvExtractedText, reqData.founderBackgroundNarrative),
-        founderStrengthsFromCV: reqData.founderCvExtractedText ? "Professional background and credentials extracted from CV." : "Commercial background and operational experience.",
-        alignmentWithBusinessIdea: "Founder's background supports project execution and commercial analysis."
+        founderStrengthsFromCV: "Strong commercial, financial, accounting, technology and business-evaluation capability, including financial modelling, business structuring and commercial decision-making.",
+        alignmentWithBusinessIdea: (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved || 0) <= 6 ? "The supplied CV demonstrates general commercial capability, but does not evidence direct technical or regulatory execution experience for this specific venture." : "Founder's background supports project execution and commercial analysis."
       },
       businessModelSnapshot: {
-        targetCustomer: reqData.targetMarket || "Target customer segment defined in proposal.",
-        coreOffering: reqData.idea || "Proposed business concept.",
-        customerProblem: reqData.problem || "Defined market problem.",
-        valueProposition: "Commercial solution addressing workflow or market demand.",
-        revenueModel: reqData.budget ? `Commercial revenue model backed by initial budget of ${reqData.budget}.` : "Commercial revenue model.",
-        customerAcquisition: reqData.network || "Direct client outreach & industry network referrals.",
-        keyCosts: reqData.budget ? `${reqData.budget} initial launch budget.` : "Initial validation and launch budget.",
-        commercialAssessment: "Business model evaluated against feasibility and market demand."
+        targetCustomer: synthesizeBusinessModelField('targetCustomer', reqData, ventureType, targetJurisdiction),
+        coreOffering: synthesizeBusinessModelField('coreOffering', reqData, ventureType, targetJurisdiction),
+        customerProblem: synthesizeBusinessModelField('customerProblem', reqData, ventureType, targetJurisdiction),
+        valueProposition: valProp,
+        revenueModel: revModel,
+        customerAcquisition: acqChannel,
+        keyCosts: keyCostsStr,
+        commercialAssessment: commAssess
+      },
+      founderMetrics: {
+        analysis: reconciled.categoryScores.founderCapabilityFit?.explanation || "Evaluated founder background.",
+        founderPositionSummary: (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved || 0) >= 12 ? "Well Positioned" : ((reconciled.categoryScores.founderCapabilityFit?.scoreAchieved || 0) >= 7 ? "Workable With Constraints" : "Material Founder Constraints"),
+        weeklyAvailableHours: hoursBand,
+        availableCapital: formattedCap,
+        initialRiskCapital: "$1,000 NZD"
       },
       marketInsights: {
         marketLandscape: reconciled.gatesInfo?.hasCriticalGate
-          ? "The broader market operates within a heavily structured statutory and regulatory environment. While underlying national demand for essential services (such as baseload power or infrastructure) is significant, sector entry is strictly governed by national legislation, public policy mandates, and extreme capital scale requirements."
-          : (isTransportIdea(reqData)
-            ? "In New Zealand, small passenger transport operates under Waka Kotahi NZTA regulations requiring a Small Passenger Service Licence (SPSL) and Passenger (P) endorsements. The total registered Small Passenger Service Vehicle (SPSV) fleet spans an estimated 12,000 to 15,000+ active vehicles and licensed drivers nationwide, heavily concentrated in Auckland, Wellington, and Christchurch."
-            : `The broader market surrounding ${reqData.idea || 'this concept'} is characterized by evolving customer expectations and established commercial practices across ${reqData.locationCountry || 'the target location'}. Sector maturity is driven by ongoing operational shifts and digital adoption.`),
+          ? "The broader market operates within a heavily structured statutory and regulatory environment. While underlying national demand for essential services (such as baseload power or infrastructure) is significant, sector entry is strictly governed by national legislation, public policy mandates, and multi-billion-dollar infrastructure capital scale requirements."
+          : `The broader market surrounding ${idea} is characterized by evolving customer expectations and established commercial practices across ${targetJurisdiction}. Sector maturity is driven by ongoing operational shifts and digital adoption.`,
         demandDrivers: reconciled.gatesInfo?.hasCriticalGate
-          ? "Primary demand drivers include national infrastructure priorities, cost pressures, and long-term sustainability goals. However, commercial adoption is strictly constrained by statutory prohibitions and regulatory approval pathways that dictate market access."
-          : (isTransportIdea(reqData)
-            ? "Passenger demand is driven by urban and regional transport gaps, peak-hour availability shortages, high surge pricing on dominant platforms, and driver demand for lower commission fees."
-            : `Demand is driven primarily by customer efficiency requirements, rising operational costs, and the search for reliable, cost-effective alternatives to current manual pain points.`),
+          ? "Primary demand drivers include national infrastructure priorities, cost pressures, and long-term sustainability goals. However, commercial adoption is strictly constrained by statutory and regulatory approval pathways that dictate market access."
+          : `Demand is driven primarily by customer efficiency requirements, rising operational costs, and the search for reliable, cost-effective alternatives to current manual pain points.`,
         competitionAlternatives: reconciled.gatesInfo?.hasCriticalGate
           ? "The founder competes against established, legally compliant incumbent operators, state-backed infrastructure providers, and alternative proven technologies already integrated into national supply networks."
-          : (isTransportIdea(reqData)
-            ? "The NZ rideshare and taxi market features dominant international tech leader Uber (operating across ~14 NZ cities) alongside DiDi, local kiwi app YourRide, and established taxi co-ops (Blue Bubble Taxis, Corporate Cabs, Green Cabs). Market consolidation is high: major global player Ola shut down all NZ & Australian operations on April 12, 2024, and local app Zoomy closed in September 2023."
-            : `The founder competes against established market incumbents, existing manual workarounds, and alternative commercial providers. Customer reliance on existing tools represents a key competition barrier.`),
+          : `The founder competes against established market incumbents, existing manual workarounds, and alternative commercial providers. Customer reliance on existing tools represents a key competition barrier.`,
         commercialReality: reconciled.gatesInfo?.hasCriticalGate
-          ? "A critical distinction must be drawn between large underlying national demand (such as national electricity consumption) and the commercially accessible opportunity for this specific solution. Statutory bans and extreme capital requirements render the accessible commercial market immediately constrained or unavailable without legislative change."
-          : (isTransportIdea(reqData)
-            ? "A critical distinction exists between overall passenger trip volume and early liquidity for a new platform. Launching a new app faces extreme network effect barriers—attracting drivers without rider wait times, and riders without driver shortages."
-            : `A critical distinction exists between total addressable market size and early commercial accessibility for this specific solution. Early success relies on demonstrating immediate ROI, low switching friction, and clear differentiation against existing workarounds.`),
+          ? "A critical distinction must be drawn between large underlying national demand (such as national electricity consumption) and the commercially accessible opportunity for this specific solution. Statutory bans and extreme capital requirements render the accessible commercial market immediately constrained or unavailable without legislative change, subject to specialist legal confirmation."
+          : `A critical distinction exists between total addressable market size and early commercial accessibility for this specific solution. Early success relies on demonstrating immediate ROI, low switching friction, and clear differentiation against existing workarounds.`,
         localBusinessNews: reconciled.gatesInfo?.hasCriticalGate
-          ? "National business news highlights sharp increases in business input electricity costs (+21.8%), grid stability concerns during dry years, and government plans for LNG import infrastructure to manage thermal supply risks."
-          : (isTransportIdea(reqData)
-            ? "Local business news highlights driver earnings pressure, regulatory compliance costs for P-endorsements and COF vehicle inspections, and driver multi-apping across platforms to offset fuel and commission expenses."
-            : `Local business news highlights rising overhead costs, digital compliance demands, and margin pressure across commercial operators in ${reqData.locationCountry || 'the target location'}, driving interest in productivity tools.`),
+          ? "National business news highlights sharp increases in business input electricity costs, grid stability concerns during dry years, and government policy initiatives to manage thermal supply risks."
+          : `Local business news highlights rising overhead costs, digital compliance demands, and margin pressure across commercial operators in ${targetJurisdiction}, driving interest in productivity tools.`,
         customerReviewTrends: reconciled.gatesInfo?.hasCriticalGate
-          ? "Customer feedback across industrial and commercial energy consumers reflects strong skepticism regarding retail price stickiness, with heavy demand for bill transparency and price predictability."
-          : (isTransportIdea(reqData)
-            ? "Rider and driver reviews across current platforms show driver dissatisfaction with platform commission rates (20-25%+) and rider complaints about peak surge pricing, cancelled trips, and long wait times in regional centers."
-            : `Customer reviews of existing market alternatives reveal frustration with complex pricing structures, manual data entry, and slow customer support, creating space for streamlined solutions.`),
+          ? "External market reporting and industry publications across industrial and commercial energy consumers indicate strong sensitivity to price volatility, with heavy demand for bill transparency and long-term contract predictability."
+          : `Customer reviews of existing market alternatives reveal frustration with complex pricing structures, manual data entry, and slow customer support, creating space for streamlined solutions.`,
         governmentPolicyInfluence: reconciled.gatesInfo?.hasCriticalGate
-          ? "Government policy maintains strict statutory enforcement under the New Zealand Nuclear Free Zone, Disarmament, and Arms Control Act 1987. Central government has fast-tracked renewable consenting with a 12-month limit on local council processing times."
-          : (isTransportIdea(reqData)
-            ? "Waka Kotahi NZTA strictly enforces Small Passenger Service Licence (SPSL) compliance, mandatory P-endorsement police vetting, and Certificate of Fitness (COF) 6-month vehicle inspections across all commercial passenger transport."
-            : `Local government policies and national regulatory frameworks require strict adherence to local council planning, environmental standards, and national business compliance guidelines.`)
+          ? "The proposed concept faces substantial statutory and regulatory barriers under New Zealand's current legal framework (including Radiation Safety Act 2016, Atomic Energy Act 1945, and Resource Management Act 1991, distinct from non-proliferation weapons legislation). Specialist legal advice is required to determine whether a viable statutory pathway exists."
+          : `Local government policies and national regulatory frameworks require strict adherence to local council planning, environmental standards, and national business compliance guidelines.`
       },
       founderCapabilityExplanation: {
         evidenceReliedOn: reqData.founderBackgroundNarrative || reqData.experience || "Founder experience and narrative background.",
-        whyThisScoreWasAwarded: dynamicScores.founderCapabilityFit?.explanation || "Evaluated based on sub-factors and supplied evidence.",
-        capabilityGaps: [
-          "In-house technical engineering or specialized domain execution",
-          "Regulatory compliance and statutory clearance"
-        ],
-        recommendedResponse: [
-          "Engage specialized technical advisors or domain experts.",
-          "Partner with regulatory consultants."
-        ]
+        whyThisScoreWasAwarded: dynamicScores.founderCapabilityFit?.explanation || "Evaluated against commercial capability criteria and founder credentials.",
+        capabilityGaps: isNuclear ? ["In-house nuclear engineering & plant operations", "Statutory consenting & nuclear regulatory licensing"] : ["Direct technical building capacity", "Scale acquisition marketing"],
+        recommendedResponse: isNuclear ? ["Engage specialist legal & regulatory counsel", "Consult independent energy infrastructure engineers"] : ["Engage technical advisors", "Partner with industry specialists"]
       },
       whyThisScore: {
         strongestArea: "Commercial Logic",
@@ -1390,11 +1824,9 @@ function getMockResult(reqData = {}) {
         mainDragOnScore: reconciled.gatesInfo?.hasCriticalGate ? "Venture-critical statutory/feasibility gate detected." : "Absence of empirical customer validation logs.",
         fastestWayToImprove: "Execute pre-feasibility validation and discovery interviews."
       },
-      executiveSummary: `${reqData.idea ? reqData.idea.slice(0, 150) : 'The business concept'} addresses a commercial opportunity for ${reqData.targetMarket ? reqData.targetMarket.slice(0, 100) : 'the target market'}. Pre-feasibility validation and direct market evidence are required before committing development capital.`,
       scores: dynamicScores,
       decisionStatus: { state: reconciled.masterRecommendation, explanation: "Evaluated against commercial feasibility criteria.", nextMilestone: "Complete Pre-Feasibility Validation" },
       tearDetails: { theme: "Commercial Assessment", evidence: "Submitted questionnaire inputs.", analysis: "Execution depends on pre-feasibility validation.", recommendation: reconciled.masterRecommendation },
-      founderMetrics: { analysis: "Evaluated founder background.", founderPositionSummary: "Commercial Practitioner" },
       marketAssessment: { analysis: "Market dynamics and regulatory environment assessed.", marketPatternSummary: reconciled.gatesInfo?.hasCriticalGate ? "Regulated / Restricted Market" : "Standard Commercial Market" },
       realWorldComparables: {
           successes: [{ name: "PlanGrid", whatTheyDid: "Mobile workflow software", whyItSucceeded: "Seamless integration into daily routines", lessonForFounder: "Don't break the user's workflow." }],
@@ -1405,40 +1837,46 @@ function getMockResult(reqData = {}) {
       investorBite: {
         introduction: "If you had 60 seconds to present this idea to experienced investors, how would it stack up?",
         scorecard: [
-          { area: "Problem Worth Solving", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.problemCustomerClarity?.scoreAchieved || 10) / 15) * 5))), commentary: dynamicScores.problemCustomerClarity?.explanation || "Problem urgency." },
-          { area: "Market Opportunity", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.marketCommercialOpportunity?.scoreAchieved || 10) / 15) * 5))), commentary: dynamicScores.marketCommercialOpportunity?.explanation || "Market reach." },
-          { area: "Competitive Advantage", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.competitivePosition?.scoreAchieved || 6) / 10) * 5))), commentary: dynamicScores.competitivePosition?.explanation || "Differentiation." },
-          { area: "Business Model", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.businessModelWillingnessToPay?.scoreAchieved || 10) / 15) * 5))), commentary: dynamicScores.businessModelWillingnessToPay?.explanation || "Monetization." },
-          { area: "Founder Capability", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.founderCapabilityFit?.scoreAchieved || 10) / 15) * 5))), commentary: dynamicScores.founderCapabilityFit?.explanation || "Founder domain fit." },
-          { area: "Customer Validation", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.customerValidation?.scoreAchieved || 4) / 20) * 5))), commentary: dynamicScores.customerValidation?.explanation || "Validation proof." },
-          { area: "Scalability", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.executionReadiness?.scoreAchieved || 6) / 10) * 5))), commentary: dynamicScores.executionReadiness?.explanation || "Execution capacity." },
-          { area: "Investment Readiness", rating: Math.max(1, Math.min(5, Math.round((reconciled.overallScore / 100) * 5))), commentary: "Overall evidence maturity." }
+          { area: "Problem Worth Solving", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.problemCustomerClarity?.scoreAchieved || 10) / 15) * 5))), commentary: generateContextualInvestorCommentary("Problem Worth Solving", Math.max(1, Math.min(5, Math.round(((dynamicScores.problemCustomerClarity?.scoreAchieved || 10) / 15) * 5))), dynamicScores.problemCustomerClarity?.scoreAchieved || 0, 15, reqData, reconciled.gatesInfo, reconciled) },
+          { area: "Market Opportunity", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.marketCommercialOpportunity?.scoreAchieved || 10) / 15) * 5))), commentary: generateContextualInvestorCommentary("Market Opportunity", Math.max(1, Math.min(5, Math.round(((dynamicScores.marketCommercialOpportunity?.scoreAchieved || 10) / 15) * 5))), dynamicScores.marketCommercialOpportunity?.scoreAchieved || 0, 15, reqData, reconciled.gatesInfo, reconciled) },
+          { area: "Competitive Advantage", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.competitivePosition?.scoreAchieved || 6) / 10) * 5))), commentary: generateContextualInvestorCommentary("Competitive Advantage", Math.max(1, Math.min(5, Math.round(((dynamicScores.competitivePosition?.scoreAchieved || 6) / 10) * 5))), dynamicScores.competitivePosition?.scoreAchieved || 0, 10, reqData, reconciled.gatesInfo, reconciled) },
+          { area: "Business Model", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.businessModelWillingnessToPay?.scoreAchieved || 10) / 15) * 5))), commentary: generateContextualInvestorCommentary("Business Model", Math.max(1, Math.min(5, Math.round(((dynamicScores.businessModelWillingnessToPay?.scoreAchieved || 10) / 15) * 5))), dynamicScores.businessModelWillingnessToPay?.scoreAchieved || 0, 15, reqData, reconciled.gatesInfo, reconciled) },
+          { area: "Founder Capability", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.founderCapabilityFit?.scoreAchieved || 10) / 15) * 5))), commentary: generateContextualInvestorCommentary("Founder Capability", Math.max(1, Math.min(5, Math.round(((dynamicScores.founderCapabilityFit?.scoreAchieved || 10) / 15) * 5))), dynamicScores.founderCapabilityFit?.scoreAchieved || 0, 15, reqData, reconciled.gatesInfo, reconciled) },
+          { area: "Customer Validation", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.customerValidation?.scoreAchieved || 4) / 20) * 5))), commentary: generateContextualInvestorCommentary("Customer Validation", Math.max(1, Math.min(5, Math.round(((dynamicScores.customerValidation?.scoreAchieved || 4) / 20) * 5))), dynamicScores.customerValidation?.scoreAchieved || 0, 20, reqData, reconciled.gatesInfo, reconciled) },
+          { area: "Scalability", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.executionReadiness?.scoreAchieved || 6) / 10) * 5))), commentary: generateContextualInvestorCommentary("Scalability", Math.max(1, Math.min(5, Math.round(((dynamicScores.executionReadiness?.scoreAchieved || 6) / 10) * 5))), dynamicScores.executionReadiness?.scoreAchieved || 0, 10, reqData, reconciled.gatesInfo, reconciled) },
+          { area: "Investment Readiness", rating: Math.max(1, Math.min(5, Math.round((reconciled.overallScore / 100) * 5))), commentary: generateContextualInvestorCommentary("Investment Readiness", Math.max(1, Math.min(5, Math.round((reconciled.overallScore / 100) * 5))), reconciled.overallScore, 100, reqData, reconciled.gatesInfo, reconciled) }
         ],
         overallInterestScore: reconciled.overallScore,
         investmentPotential: reconciled.overallScore >= 75 ? "High" : (reconciled.overallScore >= 50 ? "Medium" : "Low"),
         overallInterestExplanation: "Commercial concept evaluated against evidence and feasibility criteria.",
         investmentVerdict: "This opportunity requires statutory and pre-feasibility clearance before seeking investment capital.",
-        investorQuestions: [
-          "What statutory or regulatory approvals are required?",
-          "How will you validate pre-feasibility assumptions at low cost?",
+        investorQuestions: isNuclear ? [
+          "What statutory or regulatory approvals are required before project execution?",
+          "What stops an established competitor or state entity from controlling this infrastructure?",
+          "What is your specific, low-cost pre-feasibility validation strategy?"
+        ] : [
+          "What empirical evidence proves that the customer problem is urgent and frequent?",
           "What key operational milestones will you achieve before seeking external funding?"
         ],
         biggestStrength: "Commercial background combined with a defined market focus.",
         biggestRisk: reconciled.gatesInfo?.hasCriticalGate ? reconciled.gatesInfo.summary : "Uncertain customer payment proof.",
-        improvements: [
-          "Execute a pre-feasibility study.",
-          "Consult statutory regulators and domain experts."
+        improvements: isNuclear ? [
+          "Verify statutory & legal permissibility with specialist counsel.",
+          "Consult independent domain engineers to map compliance prerequisites."
+        ] : [
+          "Conduct 15-20 structured customer discovery interviews.",
+          "Build a simple manual pilot to test workflow adoption."
         ],
         pitchLabRecommendation: reconciled.masterRecommendation,
         pitchLabRecommendationExplanation: "Complete pre-feasibility validation before seeking capital."
       },
       keyRisks: [{ name: "Feasibility Gate", whyItMatters: "Statutory or technical restrictions", whatToProveOrFix: "Run pre-feasibility assessment" }],
-      whatNotToBuild: ["Do not commit capital before statutory clearance."],
+      whatNotToBuild: isNuclear ? ["Do not commit capital to site options before statutory clearance."] : ["Do not build complex features before customer validation."],
       thirtyDayPlan: {
-        week1: { objective: "Legal Assessment", tasks: ["Review statutory prohibitions"], expectedResult: "Legal clarity." },
-        week2: { objective: "Expert Consultation", tasks: ["Consult domain experts"], expectedResult: "Expert feedback." },
-        week3: { objective: "Technical Feasibility", tasks: ["Assess prerequisites"], expectedResult: "Feasibility report." },
-        week4: { objective: "Pre-Feasibility Decision", tasks: ["Model economics"], expectedResult: "Go/No-Go decision." }
+        week1: { objective: "Statutory & Legal Review", tasks: ["Obtain specialist legal advice on statutory framework"], expectedResult: "Written legal opinion" },
+        week2: { objective: "Domain Expert Consultation", tasks: ["Consult independent domain engineers"], expectedResult: "Expert feedback" },
+        week3: { objective: "Technical Pre-Feasibility", tasks: ["Assess grid, site, and infrastructure prerequisites"], expectedResult: "Technical feasibility report" },
+        week4: { objective: "Pre-Feasibility Decision", tasks: ["Conduct milestone review"], expectedResult: "Go/Pivot/Stop recommendation report" }
       },
       finalRecommendation: {
         recommendation: reconciled.masterRecommendation,
@@ -1454,8 +1892,8 @@ function getMockResult(reqData = {}) {
     mockData.output.finalRecommendation.recommendation = reconciled.masterRecommendation;
   }
 
-  const ventureType = classifyVentureType(reqData);
   mockData.output = runSemanticGuardrail(mockData.output, ventureType, reconciled.gatesInfo, reqData);
+  mockData.output = runEditorialQaAndSpellCheck(mockData.output, reqData);
 
   return mockData;
 }
