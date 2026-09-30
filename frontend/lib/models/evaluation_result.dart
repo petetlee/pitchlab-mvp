@@ -28,7 +28,7 @@ class EvaluationResult {
   // Version Control & Deployment Metadata
   String get appVersion => _str(raw['appVersion'], fallback: 'v0.9.3');
   String get fullVersionString => _str(raw['fullVersionString'], fallback: 'PitchLab MVP v0.9.3');
-  String get buildId => _str(raw['buildId'], fallback: '885aa22');
+  String get buildId => _str(raw['buildId'], fallback: '1ef9fa0');
   String get assessmentGeneratedAtFormatted => _str(raw['assessmentGeneratedAtFormatted'], fallback: '01 Oct 2026 NZST');
   String get assessmentDate => _str(raw['assessmentDate'] ?? raw['assessmentGeneratedAtFormatted'] ?? raw['meta']?['date'], fallback: '01 Oct 2026');
   String get versionMarker => '$fullVersionString • Build $buildId';
@@ -276,14 +276,14 @@ class EvaluationResult {
 
   // Business Model Snapshot
   Map<String, dynamic> get businessModelSnapshot => (raw['businessModelSnapshot'] as Map<String, dynamic>?) ?? {};
-  String get bmTargetCustomer => _cleanBusinessModelField(_str(businessModelSnapshot['targetCustomer'], fallback: 'Target customer segment defined'), fallback: 'Target customer segment defined');
-  String get bmCoreOffering => _cleanBusinessModelField(_str(businessModelSnapshot['coreOffering'], fallback: 'Core product concept'), fallback: 'Core product concept');
-  String get bmCustomerProblem => _cleanBusinessModelField(_str(businessModelSnapshot['customerProblem'], fallback: 'Customer problem defined'), fallback: 'Customer problem defined');
-  String get bmValueProposition => _str(businessModelSnapshot['valueProposition'] ?? leanCanvas['uniqueValueProp'], fallback: 'Proactive, automated solution addressing customer friction');
-  String get bmRevenueModel => _str(businessModelSnapshot['revenueModel'] ?? raw['revenueModel'], fallback: 'Predictable monthly subscription / SaaS model');
-  String get bmCustomerAcquisition => _str(businessModelSnapshot['customerAcquisition'] ?? raw['network'], fallback: 'Direct outreach & network referrals');
-  String get bmKeyCosts => _str(businessModelSnapshot['keyCosts'] ?? raw['budget'], fallback: 'Initial software development & hosting');
-  String get bmCommercialAssessment => _str(businessModelSnapshot['commercialAssessment'] ?? pitchLabVerdict, fallback: 'Logical business model addressing a clear workflow problem.');
+  String get bmTargetCustomer => _cleanBusinessModelField(_str(businessModelSnapshot['targetCustomer'], fallback: isNuclear ? 'Electricity retailers, large industrial off-takers and public-sector energy purchasers.' : 'Target customer segment defined'), fallback: isNuclear ? 'Electricity retailers, large industrial off-takers and public-sector energy purchasers.' : 'Target customer segment defined');
+  String get bmCoreOffering => _cleanBusinessModelField(_str(businessModelSnapshot['coreOffering'], fallback: isNuclear ? 'SMR-based firm, low-carbon electricity generation supplied into New Zealand\'s national grid.' : 'Core product concept'), fallback: isNuclear ? 'SMR-based firm, low-carbon electricity generation supplied into New Zealand\'s national grid.' : 'Core product concept');
+  String get bmCustomerProblem => _cleanBusinessModelField(_str(businessModelSnapshot['customerProblem'], fallback: isNuclear ? 'Increasing electricity demand, reliability requirements, wholesale price volatility and demand for additional firm low-carbon generation.' : 'Customer problem defined'), fallback: isNuclear ? 'Increasing electricity demand, reliability requirements, wholesale price volatility and demand for additional firm low-carbon generation.' : 'Customer problem defined');
+  String get bmValueProposition => _str(businessModelSnapshot['valueProposition'] ?? leanCanvas['uniqueValueProp'], fallback: isNuclear ? 'Continuous, low-carbon firm electricity generation providing long-term price predictability, grid stability, and industrial decarbonisation.' : 'Proactive, automated solution addressing customer friction');
+  String get bmRevenueModel => _str(businessModelSnapshot['revenueModel'] ?? raw['revenueModel'], fallback: isNuclear ? 'Wholesale electricity market sales, long-term Power Purchase Agreements (PPAs) with industrial off-takers, and ancillary grid support fees, subject to statutory feasibility.' : 'Predictable monthly subscription / SaaS model');
+  String get bmCustomerAcquisition => _str(businessModelSnapshot['customerAcquisition'] ?? raw['network'], fallback: isNuclear ? 'Direct long-term PPA contracting with electricity retailers, heavy industrial energy users, and national grid operators.' : 'Direct outreach & network referrals');
+  String get bmKeyCosts => _str(businessModelSnapshot['keyCosts'] ?? raw['budget'], fallback: isNuclear ? 'Technology licensing, site development, regulatory consenting, plant engineering, construction, grid interconnection, operation, security, and decommissioning.' : 'Initial software development & hosting');
+  String get bmCommercialAssessment => _str(businessModelSnapshot['commercialAssessment'] ?? pitchLabVerdict, fallback: isNuclear ? 'Business model viability is strictly governed by statutory permissibility, regulatory consenting, and multi-billion-dollar project financing gateways.' : 'Logical business model addressing a clear workflow problem.');
 
   // Market Insights (NEW SECTION)
   Map<String, dynamic> get marketInsightsMap => (raw['marketInsights'] as Map<String, dynamic>?) ?? {};
@@ -300,7 +300,7 @@ class EvaluationResult {
 
   String get competitionAlternatives => _str(
     marketInsightsMap['competitionAlternatives'],
-    fallback: 'The founder competes against established market incumbents, existing manual workarounds, and alternative commercial providers.'
+    fallback: 'The proposed solution would compete with established market incumbents, existing manual workarounds, and alternative commercial providers.'
   );
 
   String get commercialReality => _str(
@@ -1291,9 +1291,9 @@ class EvaluationResult {
     }
     if (isNuclear) {
       return [
-        {'priority': 'Statutory & Legal Feasibility', 'action': 'Identify qualified legal specialists and obtain an initial consultation to map statutory frameworks under New Zealand legislation.', 'metric': 'Initial specialist consultation & scope/fee (Immediate Stage) / Written legal opinion (Later $5k+ Gateway)'},
+        {'priority': 'Statutory & Legal Feasibility', 'action': 'Identify qualified legal specialists and obtain an initial consultation to map statutory frameworks under New Zealand legislation.', 'metric': 'Initial specialist consultation & scope/fee (Immediate Stage) / Written legal opinion (Later \$5k+ Gateway)'},
         {'priority': 'Specialist Technical Outreach', 'action': 'Engage qualified power/nuclear engineers and regulatory consultants to map safety and grid prerequisites.', 'metric': 'Preliminary specialist advisory scoping note'},
-        {'priority': 'Engineering & Site Prerequisite Scoping', 'action': 'Perform desktop research to map site requirements, grid connection logistics, and environmental consenting prerequisites.', 'metric': 'Desktop technical prerequisite memo (Immediate Stage) / Formal pre-feasibility study (Later $25k+ Gateway)'},
+        {'priority': 'Engineering & Site Prerequisite Scoping', 'action': 'Perform desktop research to map site requirements, grid connection logistics, and environmental consenting prerequisites.', 'metric': 'Desktop technical prerequisite memo (Immediate Stage) / Formal pre-feasibility study (Later \$25k+ Gateway)'},
         {'priority': 'Risk Gateway Decision', 'action': 'Review preliminary legal and technical scoping notes against founder resource reality before committing further investment.', 'metric': 'Pre-Feasibility Go / Reframe / Stop Decision'},
         {'priority': 'Capital & Policy Scoping', 'action': 'Model multi-billion-dollar project capital scale requirements, sovereign risk factors, and national energy policy alignment.', 'metric': 'Indicative capital-scale & policy map'}
       ];
@@ -1508,10 +1508,13 @@ class EvaluationResult {
   static String _cleanBusinessModelField(String text, {required String fallback}) {
     if (text.isEmpty || text == fallback) return fallback;
     var cleaned = text.trim();
+    if (cleaned == '.' || cleaned == '-' || cleaned == '--' || cleaned == 'N/A' || cleaned == 'TBD' || cleaned == 'null' || cleaned == 'undefined' || cleaned == '[placeholder]') {
+      return fallback;
+    }
     cleaned = cleaned.replaceAll(RegExp(r'^["\“\‘](.*)["\”\’]$'), r'$1').trim();
     cleaned = cleaned.replaceAll(RegExp(r'^(i\s+want\s+to\s+(develop|build|create|launch)|developing|i\s+am\s+building|we\s+are\s+building|my\s+startup\s+idea\s+is|the\s+problem\s+is|customer\s+problem\s+is|my\s+target\s+market\s+is|i\s+want\s+to\s+target|our\s+target\s+customers\s+are)\s+', caseSensitive: false), '');
     cleaned = cleaned.trim();
-    if (cleaned.isEmpty) return fallback;
+    if (cleaned.isEmpty || cleaned == '.' || cleaned == '-') return fallback;
     cleaned = cleaned[0].toUpperCase() + cleaned.substring(1);
     if (!cleaned.endsWith('.')) cleaned += '.';
     return cleaned;

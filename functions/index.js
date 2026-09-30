@@ -142,6 +142,8 @@ function runSemanticGuardrail(data, ventureType = "", gatesInfo = {}, reqData = 
       s = s.replace(/regional markets/gi, `domestic markets`);
 
       // Fix 3: Evidence certainty guardrail calibration
+      s = s.replace(/Statutory bans and extreme capital requirements render the accessible commercial market immediately constrained or unavailable without legislative change, subject to specialist legal confirmation\./gi, "The commercially accessible opportunity for this specific solution appears materially constrained by statutory, regulatory and capital barriers. The extent of those constraints, and whether legislative or regulatory change would be required, should be confirmed through specialist legal advice.");
+      s = s.replace(/Statutory bans and extreme capital requirements render the accessible commercial market immediately constrained or unavailable without legislative change/gi, "The commercially accessible opportunity for this specific solution appears materially constrained by statutory, regulatory and capital barriers.");
       s = s.replace(/requires statutory legislative reform/gi, "appears to face substantial statutory and regulatory barriers, subject to specialist legal confirmation");
       s = s.replace(/currently block commercial nuclear generation/gi, "present material regulatory barriers to commercial nuclear generation, subject to specialist legal confirmation");
       s = s.replace(/currently block commercial/gi, "present material regulatory barriers to commercial, subject to specialist legal confirmation");
@@ -162,6 +164,8 @@ function runSemanticGuardrail(data, ventureType = "", gatesInfo = {}, reqData = 
       s = s.replace(/essential services \(such as baseload power or infrastructure\)/gi, "baseload power and grid reliability infrastructure");
       s = s.replace(/the founder competes against/gi, "the proposed solution would compete with");
       s = s.replace(/competitor or state entity from controlling this infrastructure/gi, "competing provider or established entity from entering this market");
+      s = s.replace(/off-take economics/gi, "statutory permissibility");
+      s = s.replace(/execute a formal pre-feasibility study/gi, "complete preliminary legal/regulatory and technical scoping to determine the requirements, specialist inputs and likely cost of a formal pre-feasibility study");
 
       // Generic SaaS term scrubbing
       s = s.replace(/\blanding page testing\b/gi, isNuclear ? "statutory permissibility assessment" : (isHardware ? "physical prototype testing" : "preliminary market investigation"));
@@ -212,43 +216,76 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
   const isTax = Boolean((data.idea || "").toLowerCase().match(/tax|gst|ird|bookkeep|accounting/) || (data.category || "").toLowerCase().match(/fintech|tax/));
   const isHw = Boolean(vType.includes("Hardware") || (data.idea || "").toLowerCase().match(/moor|boat|hardware|device|sensor|solar/));
 
+  const cleanVal = (val, fallback) => {
+    if (!val || typeof val !== 'string') return fallback;
+    let s = val.trim();
+    if (s === '' || s === '.' || s === '-' || s === '--' || s === 'N/A' || s === 'TBD' || s === '[placeholder]' || s === 'null' || s === 'undefined' || s === 'Not yet evidenced') {
+      return fallback;
+    }
+    s = s.replace(/^["\“\‘](.*)["\”\’]$/, '$1').trim();
+    s = s.replace(/^(i\s+want\s+to\s+(develop|build|create|launch|target)|my\s+target\s+market\s+is|targeting|the\s+target\s+customer\s+is|we\s+target|our\s+target\s+customers\s+are|developing|i\s+am\s+building|we\s+are\s+building|a\s+new|we\s+offer|my\s+startup\s+idea\s+is|the\s+problem\s+is|customer\s+problem\s+is|users\s+suffer\s+from)\s+/i, '');
+    s = s.trim();
+    if (!s || s === '.' || s === '-') return fallback;
+    s = s.charAt(0).toUpperCase() + s.slice(1);
+    if (!s.endsWith('.')) s += '.';
+    return s;
+  };
+
   if (fieldType === 'targetCustomer') {
     if (isNuc) return "Electricity retailers, large industrial off-takers and public-sector energy purchasers.";
     if (isTax) return "Kiwi small-to-medium businesses (SMBs), sole traders, and accounting practitioners.";
     if (isHw) return "Commercial vessel operators, marine infrastructure owners, and recreational boating consumers.";
-    let raw = (data.targetMarket || data.market || "Target commercial customer segment").trim();
-    raw = raw.replace(/^["\“\‘](.*)["\”\’]$/, '$1').trim();
-    raw = raw.replace(/^(i\s+want\s+to\s+target|my\s+target\s+market\s+is|targeting|the\s+target\s+customer\s+is|we\s+target|our\s+target\s+customers\s+are)\s+/i, '');
-    raw = raw.charAt(0).toUpperCase() + raw.slice(1);
-    if (raw.length > 150) raw = raw.slice(0, 150).replace(/\s+\S*$/, '') + '...';
-    if (!raw.endsWith('.')) raw += '.';
-    return raw;
+    const fallback = data.category ? `${data.category} commercial customers and key decision makers.` : "Target commercial customer segment defined by clear operational friction.";
+    return cleanVal(data.targetMarket || data.market, fallback);
   }
+
   if (fieldType === 'coreOffering') {
     if (isNuc) return `SMR-based firm, low-carbon electricity generation supplied into ${jurisdiction}'s national grid.`;
     if (isTax) return "Automated GST calculation, tax compliance filing, and financial reporting software.";
     if (isHw) return "Solar-powered automated marine mooring and asset protection device.";
-    let raw = (data.idea || "Proposed commercial concept").trim();
-    raw = raw.replace(/^["\“\‘](.*)["\”\’]$/, '$1').trim();
-    raw = raw.replace(/^(i\s+want\s+to\s+build|i\s+want\s+to\s+develop|developing|i\s+am\s+building|we\s+are\s+building|a\s+new|we\s+offer|my\s+startup\s+idea\s+is)\s+/i, '');
-    raw = raw.charAt(0).toUpperCase() + raw.slice(1);
-    if (raw.length > 150) raw = raw.slice(0, 150).replace(/\s+\S*$/, '') + '...';
-    if (!raw.endsWith('.')) raw += '.';
-    return raw;
+    const fallback = "Commercial product and service solution targeting operational efficiency.";
+    return cleanVal(data.idea, fallback);
   }
+
   if (fieldType === 'customerProblem') {
     if (isNuc) return "Increasing electricity demand, reliability requirements, wholesale price volatility and demand for additional firm low-carbon generation.";
     if (isTax) return "Manual GST calculation errors, unexpected IRD tax penalties, and cash flow strain for commercial SMBs.";
     if (isHw) return "Mooring line failures, vessel collision damage risk, and manual maintenance overheads.";
-    let raw = (data.problem || "Defined commercial market problem").trim();
-    raw = raw.replace(/^["\“\‘](.*)["\”\’]$/, '$1').trim();
-    raw = raw.replace(/^(the\s+problem\s+is|customer\s+problem\s+is|users\s+suffer\s+from|new\s+zealand\s+faces)\s+/i, '');
-    raw = raw.charAt(0).toUpperCase() + raw.slice(1);
-    if (raw.length > 180) raw = raw.slice(0, 180).replace(/\s+\S*$/, '') + '...';
-    if (!raw.endsWith('.')) raw += '.';
-    return raw;
+    const fallback = "Operational friction, cost inefficiency, and unaddressed market workflow requirements.";
+    return cleanVal(data.problem, fallback);
   }
-  return "";
+
+  if (fieldType === 'valueProposition') {
+    if (isNuc) return "Continuous, low-carbon firm electricity generation providing long-term price predictability, grid stability, and industrial decarbonisation.";
+    if (isHw) return "Durable physical solution delivering direct operational efficiency and asset protection.";
+    return "Commercial solution delivering direct operational efficiency, cost reduction, and low switching friction.";
+  }
+
+  if (fieldType === 'revenueModel') {
+    if (isNuc) return "Wholesale electricity market sales, long-term Power Purchase Agreements (PPAs) with industrial off-takers, and ancillary grid support fees, subject to statutory feasibility.";
+    if (isHw) return "Direct hardware sales, distributor margins, or optional maintenance support agreements.";
+    return "Commercial revenue model based on subscription, transaction fee, or direct service billing.";
+  }
+
+  if (fieldType === 'customerAcquisition') {
+    if (isNuc) return "Direct long-term PPA contracting with electricity retailers, heavy industrial energy users, and national grid operators.";
+    if (isHw) return "Direct commercial outreach, industry trade channels, and field demonstration trials.";
+    return "Direct client outreach, industry network referrals, and targeted commercial marketing.";
+  }
+
+  if (fieldType === 'keyCosts') {
+    if (isNuc) return "Technology licensing, site development, regulatory consenting, plant engineering, construction, grid interconnection, operation, security, and decommissioning.";
+    if (isHw) return "Component sourcing, tooling, manufacturing assembly, quality certification, and field testing.";
+    return "Solution development, customer acquisition, operational support, and ongoing service delivery.";
+  }
+
+  if (fieldType === 'commercialAssessment') {
+    if (isNuc) return "Business model viability is strictly governed by statutory permissibility, regulatory consenting, and multi-billion-dollar project financing gateways.";
+    if (isHw) return "Commercial viability depends on prototype durability testing and verified manufacturing unit economics.";
+    return "Business model evaluated against customer willingness to pay and low-friction adoption.";
+  }
+
+  return "Defined commercial component.";
 }
 
 /**
@@ -284,7 +321,15 @@ function runEditorialQaAndSpellCheck(data, reqData = {}) {
     "founderPositionSummary",
     "marketPatternSummary",
     "verdict",
-    "name"
+    "name",
+    "assessmentId",
+    "appVersion",
+    "fullVersionString",
+    "buildId",
+    "deployedAt",
+    "deployedAtFormatted",
+    "assessmentGeneratedAt",
+    "assessmentGeneratedAtFormatted"
   ]);
 
   const editString = (str, key = "") => {
@@ -382,6 +427,63 @@ function runEditorialQaAndSpellCheck(data, reqData = {}) {
   };
 
   return traverseAndEdit(data);
+}
+
+/**
+ * Required-Field Business Model Integrity Gate
+ * Ensures ALL 8 Business Model fields contain valid, non-placeholder analytical outputs.
+ */
+function validateAndEnforceBusinessModelSnapshot(data, reqData = {}) {
+  if (!data || typeof data !== "object") return data;
+  data.businessModelSnapshot = data.businessModelSnapshot || {};
+  const ventureType = classifyVentureType(reqData);
+  const targetJurisdiction = getJurisdictionName(reqData);
+
+  const requiredFields = [
+    'targetCustomer',
+    'coreOffering',
+    'customerProblem',
+    'valueProposition',
+    'revenueModel',
+    'customerAcquisition',
+    'keyCosts',
+    'commercialAssessment'
+  ];
+
+  const isInvalid = (val) => {
+    if (!val || typeof val !== 'string') return true;
+    const trimmed = val.trim();
+    return (
+      trimmed === '' ||
+      trimmed === '.' ||
+      trimmed === '-' ||
+      trimmed === '--' ||
+      trimmed === 'N/A' ||
+      trimmed === 'TBD' ||
+      trimmed === '[placeholder]' ||
+      trimmed === 'null' ||
+      trimmed === 'undefined' ||
+      trimmed === 'Not yet evidenced' ||
+      trimmed.length < 5
+    );
+  };
+
+  for (const field of requiredFields) {
+    if (isInvalid(data.businessModelSnapshot[field])) {
+      console.warn(`PitchLab INTEGRITY GATE: businessModelSnapshot.${field} was invalid ("${data.businessModelSnapshot[field]}"). Re-synthesizing from context...`);
+      data.businessModelSnapshot[field] = synthesizeBusinessModelField(field, reqData, ventureType, targetJurisdiction);
+    }
+  }
+
+  // Final quality assertion
+  for (const field of requiredFields) {
+    if (isInvalid(data.businessModelSnapshot[field])) {
+      console.error(`PITCHLAB QUALITY GATE FAILURE: businessModelSnapshot.${field} remains invalid.`);
+      data.businessModelSnapshot[field] = synthesizeBusinessModelField(field, reqData, ventureType, targetJurisdiction);
+    }
+  }
+
+  return data;
 }
 
 // Initialize AI lazily to prevent discovery timeouts
@@ -1196,9 +1298,9 @@ exports.pitchLabEvaluation = onCall({
       };
 
       evaluationData.marketInsights = {
-        marketLandscape: `The broader market operates within a heavily structured statutory and regulatory environment. While underlying regional demand for baseload power and grid reliability is significant, sector entry is strictly governed by national legislation, public policy mandates, and extreme capital scale requirements.`,
-        demandDrivers: `Primary demand drivers include rising electricity demand, decarbonisation targets, dry-year hydro risk, and peak demand volatility. However, commercial adoption is strictly constrained by statutory prohibitions and regulatory approval pathways.`,
-        competitionAlternatives: `The founder competes against established state-backed hydro, geothermal, and wind generation incumbents, as well as alternative grid stability solutions integrated into national energy networks.`,
+        marketLandscape: `The broader market operates within a heavily structured statutory and regulatory environment. While underlying regional demand for baseload power and grid reliability is significant, sector entry is strictly governed by national legislation, public policy mandates, and multi-billion-dollar infrastructure capital scale requirements.`,
+        demandDrivers: `Primary demand drivers include rising electricity demand, decarbonisation targets, dry-year hydro risk, and peak demand volatility. However, commercial adoption is strictly constrained by statutory and regulatory approval pathways.`,
+        competitionAlternatives: `The proposed solution would compete with established state-backed hydro, geothermal, and wind generation incumbents, as well as alternative grid stability solutions integrated into national energy networks.`,
         commercialReality: `A critical distinction exists between large national electricity demand and the commercially accessible opportunity for this specific solution. The commercially accessible market appears effectively unavailable under the current assessed regulatory environment, subject to specialist legal confirmation.`,
         localBusinessNews: `Local energy market news highlights rising electricity demand, dry-year hydro volatility, wholesale power price spikes, and policy debates surrounding New Zealand energy security.`,
         customerReviewTrends: `Energy sector feedback and commercial off-taker reviews reveal concerns over long-term price predictability, grid reliability during peak winter demand, and industrial carbon tax exposure.`,
@@ -1420,7 +1522,7 @@ exports.pitchLabEvaluation = onCall({
     const cleanProbStr = problem || "a defined commercial pain point";
 
     if (isNuclear || reconciled.gatesInfo?.hasCriticalGate) {
-      evaluationData.executiveSummary = `The concept addresses a strategic energy and infrastructure opportunity in ${targetJurisdiction}, targeting ${cleanProbStr}. While underlying national demand for baseload power is high, commercial feasibility is strictly governed by statutory prohibitions and regulatory approval pathways. The primary gating risk centers on statutory permissibility and extreme capital requirements. Pre-feasibility validation and specialist legal advice are required before committing development capital.`;
+      evaluationData.executiveSummary = `The concept addresses a strategic energy and infrastructure opportunity in ${targetJurisdiction}, targeting ${cleanProbStr}. While underlying national demand for baseload power is high, commercial feasibility is strictly governed by statutory and regulatory approval pathways. The primary gating risk centers on statutory permissibility and multi-billion-dollar project capital requirements. Pre-feasibility validation and specialist legal advice are required before committing development capital.`;
     } else {
       evaluationData.executiveSummary = `The business concept addresses a commercial opportunity targeting ${cleanMarketStr}, focusing on ${cleanProbStr}. Current evidence remains early stage with core commercial assumptions requiring empirical verification. The primary gating risk centers on ${reconciled.gatesInfo?.primaryGatingRisk || 'customer demand and willingness to pay'}. Structured validation and evidence gathering are recommended before committing development capital.`;
     }
@@ -1428,7 +1530,7 @@ exports.pitchLabEvaluation = onCall({
     // Professional PitchLab Verdict Prose Synthesizer
     evaluationData.summaryBlock = evaluationData.summaryBlock || {};
     if (isNuclear || reconciled.gatesInfo?.hasCriticalGate) {
-      evaluationData.summaryBlock.pitchLabVerdict = `The concept addresses a genuine long-term energy and infrastructure challenge, but it is not commercially actionable in its current formulation. The principal barriers are statutory and regulatory feasibility, specialist technical capability, extreme capital requirements, and public policy alignment. Before committing meaningful development capital, the founder should establish whether a credible statutory and regulatory pathway exists in ${targetJurisdiction} and complete an initial technical pre-feasibility assessment.`;
+      evaluationData.summaryBlock.pitchLabVerdict = `The concept addresses a genuine long-term energy and infrastructure challenge, but it is not commercially actionable in its current formulation. The principal barriers are statutory and regulatory feasibility, specialist technical capability, multi-billion-dollar infrastructure capital requirements, and public policy alignment. Before committing meaningful development capital, the founder should establish whether a credible statutory and regulatory pathway exists in ${targetJurisdiction} and complete an initial technical pre-feasibility assessment.`;
     } else {
       const topStr = evaluationData.summaryBlock.topStrengths?.[0] || "strong problem clarity";
       const mainRisk = reconciled.gatesInfo?.primaryGatingRisk || "customer demand and willingness to pay";
@@ -1451,6 +1553,9 @@ exports.pitchLabEvaluation = onCall({
 
     // Apply Editorial QA Pass for NZ English spelling, grammar, and sentence completeness
     evaluationData = runEditorialQaAndSpellCheck(evaluationData, reqData);
+
+    // Apply Required-Field Business Model Integrity Gate
+    evaluationData = validateAndEnforceBusinessModelSnapshot(evaluationData, reqData);
 
     // PRE-SAVE SCORE INTEGRITY ASSERTION: overallScore MUST strictly equal sum of category scores
     const sumCategoryScores = Object.values(reconciled.categoryScores).reduce((acc, cat) => acc + (cat.scoreAchieved || cat.score || 0), 0);
@@ -1554,8 +1659,8 @@ function getMockResult(reqData = {}) {
   let verdictStr = "";
 
   if (isNuclear || reconciled.gatesInfo?.hasCriticalGate) {
-    execSummary = `The concept proposes using small modular reactor technology to provide reliable, low-carbon firm electricity within ${targetJurisdiction}. It addresses a legitimate long-term challenge involving electricity reliability, increasing industrial demand, and decarbonisation goals. However, the opportunity is not presently commercially actionable because statutory and regulatory feasibility remains unresolved, specialist nuclear capability is unevidenced, and likely capital requirements are extreme. The immediate priority is statutory and regulatory pre-feasibility rather than downstream customer validation.`;
-    verdictStr = `The concept addresses a genuine long-term energy and infrastructure challenge, but it is not commercially actionable in its current formulation. The principal barriers are statutory and regulatory feasibility, specialist technical capability, extreme capital requirements, and public policy alignment. Before committing meaningful development capital, the founder should establish whether a credible statutory and regulatory pathway exists in ${targetJurisdiction} and complete an initial technical pre-feasibility assessment.`;
+    execSummary = `The concept proposes using small modular reactor technology to provide reliable, low-carbon firm electricity within ${targetJurisdiction}. It addresses a legitimate long-term challenge involving electricity reliability, increasing industrial demand, and decarbonisation goals. However, the opportunity is not presently commercially actionable because statutory and regulatory feasibility remains unresolved, specialist nuclear capability is unevidenced, and multi-billion-dollar project capital requirements are exceptionally high. The immediate priority is statutory and regulatory pre-feasibility rather than downstream customer validation.`;
+    verdictStr = `The concept addresses a genuine long-term energy and infrastructure challenge, but it is not commercially actionable in its current formulation. The principal barriers are statutory and regulatory feasibility, specialist technical capability, multi-billion-dollar infrastructure capital requirements, and public policy alignment. Before committing meaningful development capital, the founder should establish whether a credible statutory and regulatory pathway exists in ${targetJurisdiction} and complete an initial technical pre-feasibility assessment.`;
   } else {
     execSummary = `The business concept addresses a commercial opportunity in ${targetJurisdiction} targeting ${targetMarket}. It addresses a genuine operational friction point. Current commercial evidence remains early stage with core assumptions requiring empirical verification. The primary gating risk centers on ${reconciled.gatesInfo?.primaryGatingRisk || 'customer demand and willingness to pay'}. Structured validation and evidence gathering are recommended before committing development capital.`;
     verdictStr = `This concept addresses a genuine customer problem. However, customer demand, willingness to pay, and competitive defensibility remain insufficiently validated. The primary commercial risk centers on ${reconciled.gatesInfo?.primaryGatingRisk || 'customer demand and willingness to pay'}. The founder should validate these core assumptions through structured customer discovery interviews and pilot trials before committing significant development capital.`;
@@ -1791,16 +1896,16 @@ function getMockResult(reqData = {}) {
       },
       marketInsights: {
         marketLandscape: reconciled.gatesInfo?.hasCriticalGate
-          ? "The broader market operates within a heavily structured statutory and regulatory environment. While underlying national demand for essential services (such as baseload power or infrastructure) is significant, sector entry is strictly governed by national legislation, public policy mandates, and multi-billion-dollar infrastructure capital scale requirements."
+          ? "The broader market operates within a heavily structured statutory and regulatory environment. While underlying national demand for firm electricity generation and grid reliability infrastructure is significant, sector entry is strictly governed by national legislation, public policy mandates, and multi-billion-dollar infrastructure capital scale requirements."
           : `The broader market surrounding ${idea} is characterized by evolving customer expectations and established commercial practices across ${targetJurisdiction}. Sector maturity is driven by ongoing operational shifts and digital adoption.`,
         demandDrivers: reconciled.gatesInfo?.hasCriticalGate
           ? "Primary demand drivers include national infrastructure priorities, cost pressures, and long-term sustainability goals. However, commercial adoption is strictly constrained by statutory and regulatory approval pathways that dictate market access."
           : `Demand is driven primarily by customer efficiency requirements, rising operational costs, and the search for reliable, cost-effective alternatives to current manual pain points.`,
         competitionAlternatives: reconciled.gatesInfo?.hasCriticalGate
-          ? "The founder competes against established, legally compliant incumbent operators, state-backed infrastructure providers, and alternative proven technologies already integrated into national supply networks."
-          : `The founder competes against established market incumbents, existing manual workarounds, and alternative commercial providers. Customer reliance on existing tools represents a key competition barrier.`,
+          ? "The proposed solution would compete with established, legally compliant incumbent operators, state-backed infrastructure providers, and alternative proven technologies already integrated into national supply networks."
+          : `The proposed solution would compete with established market incumbents, existing manual workarounds, and alternative commercial providers. Customer reliance on existing tools represents a key competition barrier.`,
         commercialReality: reconciled.gatesInfo?.hasCriticalGate
-          ? "A critical distinction must be drawn between large underlying national demand (such as national electricity consumption) and the commercially accessible opportunity for this specific solution. Statutory bans and extreme capital requirements render the accessible commercial market immediately constrained or unavailable without legislative change, subject to specialist legal confirmation."
+          ? "The commercially accessible opportunity for this specific solution appears materially constrained by statutory, regulatory and capital barriers. The extent of those constraints, and whether legislative or regulatory change would be required, should be confirmed through specialist legal advice."
           : `A critical distinction exists between total addressable market size and early commercial accessibility for this specific solution. Early success relies on demonstrating immediate ROI, low switching friction, and clear differentiation against existing workarounds.`,
         localBusinessNews: reconciled.gatesInfo?.hasCriticalGate
           ? "National business news highlights sharp increases in business input electricity costs, grid stability concerns during dry years, and government policy initiatives to manage thermal supply risks."
@@ -1894,6 +1999,7 @@ function getMockResult(reqData = {}) {
 
   mockData.output = runSemanticGuardrail(mockData.output, ventureType, reconciled.gatesInfo, reqData);
   mockData.output = runEditorialQaAndSpellCheck(mockData.output, reqData);
+  mockData.output = validateAndEnforceBusinessModelSnapshot(mockData.output, reqData);
 
   return mockData;
 }

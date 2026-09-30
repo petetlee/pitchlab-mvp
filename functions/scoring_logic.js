@@ -1127,7 +1127,7 @@ function reconcileScores(rawCategories = {}, rawInputs = {}) {
         howToImprove = "Benchmark solution feasibility and capital intensity against existing compliant energy generation alternatives under current national policy.";
       } else if (key === 'executionReadiness') {
         missingEvidence = "Detailed statutory compliance roadmap, site environmental assessment, and multi-stage capital allocation plan.";
-        howToImprove = "Execute a formal pre-feasibility study focusing on legal permissibility, site prerequisites, and expert consultation before scoping technical execution.";
+        howToImprove = "Complete preliminary legal/regulatory and technical scoping to determine the requirements, specialist inputs and likely cost of a formal pre-feasibility study.";
       }
     } else {
       if (ventureType === 'Heavy Industrial' || ventureType === 'Energy & Infrastructure') {
