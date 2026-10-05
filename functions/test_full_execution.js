@@ -23,7 +23,7 @@ const data = JSON.stringify({
 const options = {
   hostname: '127.0.0.1',
   port: 5001,
-  path: '/antigravity-pitchlab/us-central1/pitchLabEvaluation',
+  path: '/demo-pitchlab/us-central1/pitchLabEvaluation',
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',

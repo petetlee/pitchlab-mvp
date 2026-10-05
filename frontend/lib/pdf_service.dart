@@ -1093,7 +1093,6 @@ class PdfService {
     final fullDocText = [
       res.executiveSummary,
       res.pitchLabVerdict,
-      res.biggestRiskToThisIdea,
       res.ibIntro,
       res.ibInvestmentVerdict,
       res.ibBiggestRisk,
