@@ -328,7 +328,7 @@ class EvaluationResult {
       return _cleanNarrativeText(rawTrends, isHardware: isHardware);
     }
     if (isNuclear) {
-      return 'Energy sector feedback and commercial off-taker reviews reveal concerns over long-term price predictability, grid reliability during peak winter demand, and industrial carbon tax exposure.';
+      return 'Published industry commentary and energy sector analysis highlight concerns over long-term price predictability, grid reliability during peak winter demand, and industrial carbon tax exposure. No direct off-taker commercial validation has been conducted by the venture.';
     }
     if (isHardware) {
       return 'Customer reviews across existing physical deterrents reveal frustration with short product lifespan, high maintenance needs, and ineffective pest barrier coverage.';
@@ -340,7 +340,7 @@ class EvaluationResult {
     final rawPolicy = _str(marketInsightsMap['governmentPolicyInfluence'], fallback: '');
     if (rawPolicy.isNotEmpty) return _cleanNarrativeText(rawPolicy, isHardware: isHardware);
     if (isNuclear) {
-      return 'National statutory policy and legislative frameworks govern power generation, environmental protection, fast-track consenting, and specific nuclear prohibitions under New Zealand law.';
+      return 'National statutory policy and legislative frameworks govern power generation, environmental protection, fast-track consenting, and nuclear-related statutory requirements and restrictions requiring specialist interpretation for the proposed commercial generation model.';
     }
     return 'Local government policies and national statutory frameworks govern resource consents, environmental standards, fast-track approvals, and regional compliance mandates.';
   }
@@ -472,7 +472,7 @@ class EvaluationResult {
     }
     if (isNuclear) {
       return {
-        'demandTrend': 'National demand for 24/7 low-carbon firm electricity is expanding rapidly driven by electrification and climate targets.',
+        'demandTrend': 'National demand for 24/7 low-carbon firm electricity is expected to increase driven by electrification and climate targets.',
         'technologyTrend': 'SMR technologies continue to progress internationally, although commercial maturity, deployment timelines and economics vary materially by technology and jurisdiction.',
         'regulatoryTrend': 'Significant statutory and regulatory frameworks (e.g. Radiation Safety Act 2016, Atomic Energy Act 1945) present material regulatory barriers to commercial nuclear generation in NZ, subject to specialist legal confirmation.',
         'competitionTrend': 'Traditional grid generators (hydro, geothermal, wind) dominate under current regulatory architecture.',
@@ -516,7 +516,9 @@ class EvaluationResult {
 
   String get ibIntro => _str(
     investorBite['introduction'],
-    fallback: 'If you had 60 seconds to present this idea to experienced investors, how would it stack up? This assessment evaluates the strengths, weaknesses and investment readiness of your business using the same commercial thinking applied by experienced angel investors and venture capital providers.'
+    fallback: isNuclear
+      ? 'New Zealand faces increasing electricity demand, security-of-supply challenges and continued decarbonisation requirements. The proposed SMR solution faces substantial statutory, regulatory, technical and capital barriers, and its legal/regulatory feasibility remains subject to specialist confirmation.'
+      : 'If you had 60 seconds to present this idea to experienced investors, how would it stack up? This assessment evaluates the strengths, weaknesses and investment readiness of your business using the same commercial thinking applied by experienced angel investors and venture capital providers.'
   );
 
   int get ibOverallInterestScore {
@@ -537,7 +539,9 @@ class EvaluationResult {
 
   String get ibInvestmentVerdict => _str(
     investorBite['investmentVerdict'],
-    fallback: 'This opportunity addresses a genuine market problem and demonstrates commercial potential. The business model is logical and the founder possesses relevant experience. However, investors would expect stronger evidence of customer demand before committing capital. Completing customer interviews, securing early users and validating pricing would substantially strengthen the investment proposition.'
+    fallback: isNuclear
+      ? 'Investor interest is currently low because statutory/regulatory feasibility, specialist technical capability, capital structure and project delivery pathways remain unresolved. The founder brings useful transferable commercial and financial capability, but a credible venture would require substantial specialist nuclear, engineering, regulatory and infrastructure leadership alongside that capability. Investment consideration should remain deferred until the primary legal/regulatory gateway has been resolved.'
+      : 'This opportunity addresses a genuine market problem and demonstrates commercial potential. The business model is logical and the founder possesses relevant experience. However, investors would expect stronger evidence of customer demand before committing capital. Completing customer interviews, securing early users and validating pricing would substantially strengthen the investment proposition.'
   );
 
   List<Map<String, dynamic>> get ibScorecard {
@@ -626,17 +630,25 @@ class EvaluationResult {
 
   String get ibBiggestRisk => _str(
     investorBite['biggestRisk'],
-    fallback: 'The concept currently lacks sufficient empirical market validation and customer payment proof.'
+    fallback: isNuclear
+      ? 'The proposed venture faces substantial statutory, regulatory, consenting, public-policy and capital barriers. Whether a viable legal/regulatory pathway exists under the current framework, or whether legislative change would ultimately be required, remains subject to specialist legal confirmation.'
+      : 'The concept currently lacks sufficient empirical market validation and customer payment proof.'
   );
 
   List<String> get ibImprovements => _list(
     investorBite['improvements'],
-    fallback: [
-      'Conduct 15-20 structured customer discovery interviews.',
-      'Build a simple manual concierge MVP to test workflow adoption.',
-      'Validate pricing terms directly with prospective buyers.',
-      'Secure signed Letters of Intent or early pilot commitments.'
-    ]
+    fallback: isNuclear
+      ? [
+          'Verify Legal & Regulatory Feasibility with specialist legal advisers.',
+          'Consult independent domain engineers and regulatory specialists to map compliance prerequisites.',
+          'Scope the requirements, specialist inputs and likely cost of a formal pre-feasibility study, with the formal study proceeding only if the statutory/legal gateway produces a sufficiently positive result.'
+        ]
+      : [
+          'Conduct 15-20 structured customer discovery interviews.',
+          'Build a simple manual concierge MVP to test workflow adoption.',
+          'Validate pricing terms directly with prospective buyers.',
+          'Secure signed Letters of Intent or early pilot commitments.'
+        ]
   );
 
   String get ibPitchLabRecommendation {
@@ -765,7 +777,15 @@ class EvaluationResult {
   String get evidenceReliedOn => _str(founderCapabilityExplanation['evidenceReliedOn'], fallback: 'Founder experience, domain background, and customer access.');
   String get whyThisScoreWasAwarded => _str(founderCapabilityExplanation['whyThisScoreWasAwarded'], fallback: 'Recognises relevant domain knowledge and commercial capability.');
   List<String> get capabilityGaps => _list(founderCapabilityExplanation['capabilityGaps'], fallback: isHardware ? ['Mass manufacturing setup', 'Industrial design tooling'] : ['Software development build', 'Digital marketing reach']);
-  List<String> get recommendedGapResponses => _list(founderCapabilityExplanation['recommendedResponse'], fallback: isHardware ? ['Engage an industrial design contractor for prototype enclosure', 'Partner with a local electronics manufacturer'] : ['Contract a specialist software developer for the MVP', 'Engage an advisory mentor for growth']);
+  List<String> get recommendedGapResponses => _list(
+    founderCapabilityExplanation['recommendedResponse'],
+    fallback: isNuclear
+      ? [
+          'Identify and begin engaging appropriately credentialled nuclear engineering, energy infrastructure and regulatory specialists who could support a later pre-feasibility stage if the statutory pathway proves viable.',
+          'Obtain specialist legal advice regarding the statutory and consenting framework before building or recruiting a dedicated project team.'
+        ]
+      : (isHardware ? ['Engage an industrial design contractor for prototype enclosure', 'Partner with a local electronics manufacturer'] : ['Contract a specialist software developer for the MVP', 'Engage an advisory mentor for growth'])
+  );
 
   // Helper for Founder Capability Score
   int get founderCapabilityScore {
@@ -1427,6 +1447,34 @@ class EvaluationResult {
       s = s.replaceAll(RegExp(r'concierge pilot', caseSensitive: false), 'controlled field pilot');
       s = s.replaceAll(RegExp(r'writing code', caseSensitive: false), 'investing in product development & manufacturing');
     }
+
+    // FIX PL-FIX-20261005-v0.9.5-01: Prohibited phrases & legal certainty tone calibration
+    s = s.replaceAll(RegExp(r'looming energy crisis', caseSensitive: false), 'increasing electricity demand and security-of-supply challenges');
+    s = s.replaceAll(RegExp(r'currently blocked by legislative barriers', caseSensitive: false), 'faces substantial statutory and regulatory barriers, subject to specialist legal confirmation');
+    s = s.replaceAll(RegExp(r'currently blocked by legislative', caseSensitive: false), 'faces substantial statutory and regulatory barriers, subject to specialist legal confirmation');
+    s = s.replaceAll(RegExp(r'insurmountable legislative and regulatory barriers', caseSensitive: false), 'substantial statutory and regulatory barriers, subject to specialist legal confirmation');
+    s = s.replaceAll(RegExp(r'insurmountable legislative', caseSensitive: false), 'substantial statutory');
+    s = s.replaceAll(RegExp(r'\binsurmountable\b', caseSensitive: false), 'substantial');
+    s = s.replaceAll(RegExp(r'non-starter in the current New Zealand context', caseSensitive: false), 'early-stage concept facing unresolved primary feasibility gateways');
+    s = s.replaceAll(RegExp(r'categoriz(e|ing) this as a non-starter', caseSensitive: false), 'viewing this as constrained pending primary gateway resolution');
+    s = s.replaceAll(RegExp(r'as a non-starter', caseSensitive: false), 'as constrained pending primary gateway resolution');
+    s = s.replaceAll(RegExp(r'non-starter because of legislation', caseSensitive: false), 'constrained pending specialist legal confirmation');
+    s = s.replaceAll(RegExp(r'\bnon-starter\b', caseSensitive: false), 'early-stage concept requiring primary gateway resolution');
+    s = s.replaceAll(RegExp(r'explicit statutory and regulatory framework effectively prohibits land-based commercial nuclear power, rendering the venture unfeasible without legislative reform\.?', caseSensitive: false), 'The proposed venture faces substantial statutory, regulatory, consenting, public-policy and capital barriers. Whether a viable legal/regulatory pathway exists under the current framework, or whether legislative change would ultimately be required, remains subject to specialist legal confirmation.');
+    s = s.replaceAll(RegExp(r'\beffectively prohibits\b', caseSensitive: false), 'presents material statutory barriers to, subject to specialist legal confirmation,');
+    s = s.replaceAll(RegExp(r'rendering the venture unfeasible without legislative reform\.?', caseSensitive: false), 'requiring specialist legal confirmation to determine whether a viable statutory pathway exists.');
+    s = s.replaceAll(RegExp(r'\bunfeasible without legislative reform\b', caseSensitive: false), 'constrained pending specialist legal confirmation');
+    s = s.replaceAll(RegExp(r'commercial off-taker reviews', caseSensitive: false), 'published industry commentary');
+    s = s.replaceAll(RegExp(r'specific nuclear prohibitions under (national|New Zealand) law', caseSensitive: false), 'nuclear-related statutory requirements and restrictions requiring specialist interpretation for the proposed commercial generation model');
+    s = s.replaceAll(RegExp(r'specific nuclear prohibitions', caseSensitive: false), 'nuclear-related statutory requirements and restrictions');
+    s = s.replaceAll(RegExp(r'expanding rapidly driven by electrification', caseSensitive: false), 'expected to increase driven by electrification');
+    s = s.replaceAll(RegExp(r'\bexpanding rapidly\b', caseSensitive: false), 'expected to increase');
+    s = s.replaceAll(RegExp(r'immediately recruit a core leadership team with irrefutable, deep expertise in nuclear science, engineering, and energy regulation', caseSensitive: false), 'identify and begin engaging appropriately credentialled nuclear engineering, energy infrastructure and regulatory specialists who could support a later pre-feasibility stage if the statutory pathway proves viable');
+    s = s.replaceAll(RegExp(r'immediately recruit a core leadership team with irrefutable, deep expertise', caseSensitive: false), 'identify and begin engaging appropriately credentialled specialists');
+    s = s.replaceAll(RegExp(r'irrefutable, deep expertise', caseSensitive: false), 'verifiable specialist expertise');
+    s = s.replaceAll(RegExp(r'irrefutable expertise', caseSensitive: false), 'specialist expertise');
+    s = s.replaceAll(RegExp(r'immediately recruit a core leadership team', caseSensitive: false), 'identify and begin engaging specialist advisers');
+    s = s.replaceAll(RegExp(r'conduct a formal pre-feasibility study evaluating project capital requirements and site constraints\.?', caseSensitive: false), 'scope the requirements, specialist inputs and likely cost of a formal pre-feasibility study, with the formal study proceeding only if the statutory/legal gateway produces a sufficiently positive result.');
 
     // Fix 3 Root Cause: Dart replaceAllMapped for duplicate words
     s = s.replaceAllMapped(RegExp(r'\b(\w+)\s+\1\b', caseSensitive: false), (match) => match.group(1)!);

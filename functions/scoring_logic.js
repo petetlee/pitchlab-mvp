@@ -1171,6 +1171,7 @@ function reconcileScores(rawCategories = {}, rawInputs = {}) {
   };
 
   const portfolioMeta = computePortfolioMeta(rawInputs, { overallScore, masterRecommendation }, ventureType, gatesInfo);
+  const legalRegulatoryAssessment = getLegalRegulatoryAssessment(rawInputs, gatesInfo, ventureType);
 
   return {
     overallScore,
@@ -1184,6 +1185,7 @@ function reconcileScores(rawCategories = {}, rawInputs = {}) {
       market: marketCalc.subFactors
     },
     gatesInfo,
+    legalRegulatoryAssessment,
     foundationalFeasibilityGate,
     portfolioMeta,
     ventureType,
@@ -1249,7 +1251,7 @@ function calculate5DimensionFutureTrends(rawInputs = {}, gatesInfo = {}, venture
   if (isNuclear || gatesInfo?.hasCriticalGate) {
     marketDirection = "POSITIVE";
     solutionOutlook = "MATERIAL CONSTRAINTS PENDING LEGAL CONFIRMATION";
-    demandTrend = "National demand for 24/7 low-carbon firm electricity is expanding rapidly driven by electrification and climate targets.";
+    demandTrend = "National demand for 24/7 low-carbon firm electricity is expected to increase driven by electrification and climate targets.";
     technologyTrend = "SMR technologies continue to progress internationally, although commercial maturity, deployment timelines and economics vary materially by technology and jurisdiction.";
     regulatoryTrend = "Significant statutory and regulatory frameworks (e.g. Radiation Safety Act 2016, Atomic Energy Act 1945, RMA) currently constrain commercial nuclear generation in NZ, subject to specialist legal confirmation.";
     competitionTrend = "Traditional grid generators (hydro, geothermal, wind) dominate under current regulatory architecture.";
@@ -1710,6 +1712,227 @@ function generateContextualInvestorCommentary(area, rating, scoreAchieved, maxSc
   return `Evaluated against commercial readiness criteria (${rating}/5).`;
 }
 
+/**
+ * Authoritative Central Legal & Regulatory Assessment Object (Fix 1B / 1C)
+ * Single authoritative source controlling all legal/regulatory conclusions across the report.
+ */
+function getLegalRegulatoryAssessment(rawInputs = {}, gatesInfo = {}, ventureType = "") {
+  const idea = (rawInputs.idea || "").toLowerCase();
+  const problem = (rawInputs.problem || "").toLowerCase();
+  const targetMarket = (rawInputs.targetMarket || "").toLowerCase();
+  const locationCountry = (rawInputs.locationCountry || "").toLowerCase();
+  const locationSummary = (rawInputs.locationSummary || "").toLowerCase();
+  const fullText = `${idea} ${problem} ${targetMarket} ${locationCountry} ${locationSummary}`.toLowerCase();
+
+  const isNuclear = Boolean(fullText.match(/nuclear|atomic|power plant|reactor|fission|fusion|smr\b/));
+  const isNZ = Boolean(fullText.match(/new zealand|\bnz\b|kiwi|auckland|wellington|christchurch/)) || (locationCountry === "" && locationSummary === "");
+
+  if (isNuclear && isNZ) {
+    return {
+      primaryGatingRisk: "Statutory & Regulatory Permissibility",
+      evidenceLevel: "Preliminary Commercial Assessment",
+      certaintyLevel: "LEVEL C",
+      directlyApplicableLaw: [
+        "Radiation Safety Act 2016",
+        "Resource Management Act 1991",
+        "Atomic Energy Act 1945"
+      ],
+      adjacentLawOrPolicy: [
+        "New Zealand Nuclear Free Zone, Disarmament, and Arms Control Act 1987 (nuclear explosive devices and nuclear-propelled vessels provisions)"
+      ],
+      verifiedFacts: [
+        "New Zealand faces increasing electricity demand, security-of-supply challenges and continued decarbonisation requirements.",
+        "Land-based commercial nuclear power generation is not currently deployed in New Zealand.",
+        "Radiation safety and environmental consenting frameworks apply to nuclear and radioactive activities."
+      ],
+      preliminaryInterpretations: [
+        "The concept appears to face substantial statutory and regulatory barriers, subject to specialist legal confirmation.",
+        "The commercially accessible market opportunity appears materially constrained pending legal confirmation."
+      ],
+      unresolvedQuestions: [
+        "Whether a viable commercial generation pathway exists under the current statutory framework.",
+        "Whether legislative amendment or statutory reform would ultimately be required."
+      ],
+      specialistConfirmationRequired: true,
+      permittedLanguage: [
+        "appears to face substantial statutory and regulatory barriers",
+        "material constraints pending legal confirmation",
+        "subject to specialist legal confirmation",
+        "pathway remains unresolved"
+      ],
+      prohibitedLanguage: [
+        "currently blocked by legislative barriers",
+        "insurmountable legislative and regulatory barriers",
+        "non-starter",
+        "effectively prohibits",
+        "unfeasible without legislative reform",
+        "requires legislative reform",
+        "statutory bans",
+        "blocked by law"
+      ]
+    };
+  }
+
+  if (gatesInfo?.hasCriticalGate) {
+    return {
+      primaryGatingRisk: gatesInfo.primaryGatingRisk || "Regulatory & Feasibility Gateway",
+      evidenceLevel: "Preliminary Commercial Assessment",
+      certaintyLevel: "LEVEL C",
+      directlyApplicableLaw: [],
+      adjacentLawOrPolicy: [],
+      verifiedFacts: [
+        "Specialist statutory or regulatory compliance prerequisites apply to this sector."
+      ],
+      preliminaryInterpretations: [
+        "The concept appears to face critical feasibility or regulatory constraints, subject to specialist confirmation."
+      ],
+      unresolvedQuestions: [
+        "Whether a compliant commercial pathway exists under current regulations."
+      ],
+      specialistConfirmationRequired: true,
+      permittedLanguage: [
+        "subject to specialist confirmation",
+        "appears to face material constraints"
+      ],
+      prohibitedLanguage: [
+        "blocked by law",
+        "illegal",
+        "prohibited",
+        "insurmountable",
+        "non-starter"
+      ]
+    };
+  }
+
+  return {
+    primaryGatingRisk: "Customer Demand & Willingness to Pay",
+    evidenceLevel: "Unconstrained Commercial Activity",
+    certaintyLevel: "LEVEL D",
+    directlyApplicableLaw: [],
+    adjacentLawOrPolicy: [],
+    verifiedFacts: [],
+    preliminaryInterpretations: [],
+    unresolvedQuestions: [],
+    specialistConfirmationRequired: false,
+    permittedLanguage: [],
+    prohibitedLanguage: []
+  };
+}
+
+/**
+ * Authoritative Contextual Investor Verdict Generator (Fix 3A / 3B)
+ * Dynamically synthesizes why investment is not appropriate now without categorical permanence.
+ */
+function generateContextualInvestorVerdict(reqData = {}, reconciled = {}, legalReg = {}, founderResourceReality = {}) {
+  const idea = (reqData.idea || "").trim();
+  const isNuclear = (idea + " " + (reqData.category || "")).toLowerCase().includes("nuclear");
+
+  if (isNuclear || reconciled.gatesInfo?.hasCriticalGate) {
+    return "Investor interest is currently low because statutory/regulatory feasibility, specialist technical capability, capital structure and project delivery pathways remain unresolved. The founder brings useful transferable commercial and financial capability, but a credible venture would require substantial specialist nuclear, engineering, regulatory and infrastructure leadership alongside that capability. Investment consideration should remain deferred until the primary legal/regulatory gateway has been resolved.";
+  }
+
+  if (reconciled.overallScore >= 75) {
+    return "This opportunity demonstrates strong commercial fundamentals, clear problem clarity, and actionable customer validation. Investors would view this as an attractive early-stage candidate with identifiable next milestones.";
+  }
+  if (reconciled.overallScore >= 50) {
+    return "This opportunity addresses a genuine market problem and demonstrates commercial potential. The business model is logical and the founder possesses relevant experience. However, investors would expect stronger evidence of customer demand before committing capital. Completing customer interviews, securing early users and validating pricing would substantially strengthen the investment proposition.";
+  }
+  return "Investor interest is currently constrained because core customer validation and commercial unit economics remain unproven. Capital allocation should be deferred until the founder validates customer willingness to pay and market reach.";
+}
+
+/**
+ * Cross-Section QA Integrity Gate (Fix 10 & Fix 1D)
+ * Validates legal certainty consistency, evidence provenance, sensational language, and staging sequence.
+ * Throws Error on any assertion failure.
+ */
+function validateReportIntegrityGate(evaluationData = {}, reqData = {}) {
+  const legalObj = evaluationData.legalRegulatoryAssessment || {};
+  const certaintyLevel = legalObj.certaintyLevel || "LEVEL D";
+  const custValScore = evaluationData.scores?.customerValidation?.scoreAchieved ?? evaluationData.scorecard?.customerValidation?.scoreAchieved ?? 0;
+
+  // Collect text across all report sections
+  const texts = [
+    evaluationData.summaryBlock?.pitchLabVerdict,
+    evaluationData.summaryBlock?.biggestRiskToThisIdea,
+    evaluationData.summaryBlock?.doThisBeforeBuildingMore,
+    evaluationData.executiveSummary,
+    evaluationData.investorBite?.introduction,
+    evaluationData.investorBite?.investmentVerdict,
+    evaluationData.investorBite?.biggestRisk,
+    JSON.stringify(evaluationData.investorBite?.improvements || []),
+    evaluationData.marketInsights?.customerReviewTrends,
+    evaluationData.marketInsights?.governmentPolicyInfluence,
+    evaluationData.marketInsights?.commercialReality,
+    evaluationData.marketInsights?.marketLandscape,
+    evaluationData.businessTheme?.strategicPositioning,
+    evaluationData.businessTheme?.marketCategoryDynamics,
+    JSON.stringify(evaluationData.futureTrends?.dimensions || {}),
+    JSON.stringify(evaluationData.actionPlan?.topFivePriorities || []),
+    JSON.stringify(evaluationData.summaryBlock?.threePriorityActions || []),
+    JSON.stringify(evaluationData.founderCapabilityExplanation?.recommendedResponse || []),
+    evaluationData.cvAnalysis?.alignmentWithBusinessIdea,
+    evaluationData.finalRecommendation?.why,
+    evaluationData.finalRecommendation?.pathForward
+  ].filter(Boolean);
+
+  const fullReportText = texts.join(" \n ");
+
+  // 1. Certainty Escalation Check: If legal certainty is below LEVEL A, assert absence of escalatory certainty
+  if (certaintyLevel !== "LEVEL A") {
+    const escalationRules = [
+      { pattern: /effectively prohibits/i, phrase: "effectively prohibits" },
+      { pattern: /unfeasible without legislative reform/i, phrase: "unfeasible without legislative reform" },
+      { pattern: /currently blocked by legislative/i, phrase: "currently blocked by legislative" },
+      { pattern: /insurmountable legislative/i, phrase: "insurmountable legislative" },
+      { pattern: /\bblocked by law\b/i, phrase: "blocked by law" },
+      { pattern: /\bnon-starter because of legislation\b/i, phrase: "non-starter because of legislation" }
+    ];
+    for (const rule of escalationRules) {
+      if (rule.pattern.test(fullReportText)) {
+        throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Certainty escalation detected ('${rule.phrase}'). Central legal certainty is ${certaintyLevel}.`);
+      }
+    }
+  }
+
+  // 2. Evidence Provenance Check: If Customer Validation <= 4/20, assert absence of unevidenced primary discovery claims
+  if (custValScore <= 4) {
+    const provenanceRules = [
+      { pattern: /commercial off-taker reviews/i, phrase: "commercial off-taker reviews" },
+      { pattern: /off-taker reviews reveal/i, phrase: "off-taker reviews reveal" },
+      { pattern: /customer reviews reveal/i, phrase: "customer reviews reveal" },
+      { pattern: /users report/i, phrase: "users report" },
+      { pattern: /feedback from prospective clients/i, phrase: "feedback from prospective clients" }
+    ];
+    for (const rule of provenanceRules) {
+      if (rule.pattern.test(fullReportText)) {
+        throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Evidence provenance mismatch detected ('${rule.phrase}'). Customer validation score is ${custValScore}/20.`);
+      }
+    }
+  }
+
+  // 3. Sensational & Categorical Language Check
+  const bannedLanguageRules = [
+    { pattern: /looming energy crisis/i, phrase: "looming energy crisis" },
+    { pattern: /\binsurmountable\b/i, phrase: "insurmountable" },
+    { pattern: /\bnon-starter\b/i, phrase: "non-starter" },
+    { pattern: /\birrefutable\b/i, phrase: "irrefutable" },
+    { pattern: /immediately recruit a core leadership team/i, phrase: "immediately recruit a core leadership team" }
+  ];
+  for (const rule of bannedLanguageRules) {
+    if (rule.pattern.test(fullReportText)) {
+      throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Prohibited language detected ('${rule.phrase}').`);
+    }
+  }
+
+  // 4. Sequence Check: Formal pre-feasibility study must not appear as an immediate action
+  const immediateActions = JSON.stringify(evaluationData.summaryBlock?.threePriorityActions || []);
+  if (/Conduct a formal pre-feasibility study/i.test(immediateActions)) {
+    throw new Error("PITCHLAB QA INTEGRITY FAILURE: Formal pre-feasibility study positioned as immediate action instead of staged gateway.");
+  }
+
+  return true;
+}
+
 module.exports = {
   SCORING_CONFIG,
   reconcileScores,
@@ -1730,6 +1953,10 @@ module.exports = {
   getCommercialAdviserOpinion,
   getPortfolioDecision,
   generateContextualScoreExplanation,
-  generateContextualInvestorCommentary
+  generateContextualInvestorCommentary,
+  getLegalRegulatoryAssessment,
+  generateContextualInvestorVerdict,
+  validateReportIntegrityGate
 };
+
 

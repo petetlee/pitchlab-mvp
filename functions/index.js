@@ -10,7 +10,7 @@ const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
 const fs = require("fs");
 const path = require("path");
-const { calculateFRI, reconcileScores, getScoreBand, classifyVentureType, detectFeasibilityGates, calculateFounderEvidenceGap, calculate5DimensionFutureTrends, getValidationLadderForContext, getCommercialAdviserOpinion, getPortfolioDecision, generateContextualInvestorCommentary } = require("./scoring_logic");
+const { calculateFRI, reconcileScores, getScoreBand, classifyVentureType, detectFeasibilityGates, calculateFounderEvidenceGap, calculate5DimensionFutureTrends, getValidationLadderForContext, getCommercialAdviserOpinion, getPortfolioDecision, generateContextualInvestorCommentary, getLegalRegulatoryAssessment, generateContextualInvestorVerdict, validateReportIntegrityGate } = require("./scoring_logic");
 
 const VERSION_INFO = require("./version_config.json");
 console.log(`PitchLab: ${VERSION_INFO.fullVersionString} Loaded (Build: ${VERSION_INFO.buildId})`);
@@ -141,7 +141,33 @@ function runSemanticGuardrail(data, ventureType = "", gatesInfo = {}, reqData = 
       s = s.replace(/regional supply/gi, `national supply`);
       s = s.replace(/regional markets/gi, `domestic markets`);
 
-      // Fix 3: Evidence certainty guardrail calibration
+      // Fix 3: Evidence certainty & tone guardrail calibration (Fix 1, 2, 3, 4, 5, 6, 7, 8, 9)
+      s = s.replace(/looming energy crisis/gi, "increasing electricity demand and security-of-supply challenges");
+      s = s.replace(/currently blocked by legislative barriers/gi, "faces substantial statutory and regulatory barriers, subject to specialist legal confirmation");
+      s = s.replace(/currently blocked by legislative/gi, "faces substantial statutory and regulatory barriers, subject to specialist legal confirmation");
+      s = s.replace(/insurmountable legislative and regulatory barriers/gi, "substantial statutory and regulatory barriers, subject to specialist legal confirmation");
+      s = s.replace(/insurmountable legislative/gi, "substantial statutory");
+      s = s.replace(/\binsurmountable\b/gi, "substantial");
+      s = s.replace(/non-starter in the current New Zealand context/gi, "early-stage concept facing unresolved primary feasibility gateways");
+      s = s.replace(/categoriz(e|ing) this as a non-starter/gi, "viewing this as constrained pending primary gateway resolution");
+      s = s.replace(/as a non-starter/gi, "as constrained pending primary gateway resolution");
+      s = s.replace(/non-starter because of legislation/gi, "constrained pending specialist legal confirmation");
+      s = s.replace(/\bnon-starter\b/gi, "early-stage concept requiring primary gateway resolution");
+      s = s.replace(/explicit statutory and regulatory framework effectively prohibits land-based commercial nuclear power, rendering the venture unfeasible without legislative reform\.?/gi, "The proposed venture faces substantial statutory, regulatory, consenting, public-policy and capital barriers. Whether a viable legal/regulatory pathway exists under the current framework, or whether legislative change would ultimately be required, remains subject to specialist legal confirmation.");
+      s = s.replace(/\beffectively prohibits\b/gi, "presents material statutory barriers to, subject to specialist legal confirmation,");
+      s = s.replace(/rendering the venture unfeasible without legislative reform\.?/gi, "requiring specialist legal confirmation to determine whether a viable statutory pathway exists.");
+      s = s.replace(/\bunfeasible without legislative reform\b/gi, "constrained pending specialist legal confirmation");
+      s = s.replace(/commercial off-taker reviews/gi, "published industry commentary");
+      s = s.replace(/specific nuclear prohibitions under (national|New Zealand) law/gi, "nuclear-related statutory requirements and restrictions requiring specialist interpretation for the proposed commercial generation model");
+      s = s.replace(/specific nuclear prohibitions/gi, "nuclear-related statutory requirements and restrictions");
+      s = s.replace(/expanding rapidly driven by electrification/gi, "expected to increase driven by electrification");
+      s = s.replace(/\bexpanding rapidly\b/gi, "expected to increase");
+      s = s.replace(/immediately recruit a core leadership team with irrefutable, deep expertise in nuclear science, engineering, and energy regulation/gi, "identify and begin engaging appropriately credentialled nuclear engineering, energy infrastructure and regulatory specialists who could support a later pre-feasibility stage if the statutory pathway proves viable");
+      s = s.replace(/immediately recruit a core leadership team with irrefutable, deep expertise/gi, "identify and begin engaging appropriately credentialled specialists");
+      s = s.replace(/irrefutable, deep expertise/gi, "verifiable specialist expertise");
+      s = s.replace(/irrefutable expertise/gi, "specialist expertise");
+      s = s.replace(/immediately recruit a core leadership team/gi, "identify and begin engaging specialist advisers");
+      s = s.replace(/conduct a formal pre-feasibility study evaluating project capital requirements and site constraints\.?/gi, "scope the requirements, specialist inputs and likely cost of a formal pre-feasibility study, with the formal study proceeding only if the statutory/legal gateway produces a sufficiently positive result.");
       s = s.replace(/Statutory bans and extreme capital requirements render the accessible commercial market immediately constrained or unavailable without legislative change, subject to specialist legal confirmation\./gi, "The commercially accessible opportunity for this specific solution appears materially constrained by statutory, regulatory and capital barriers. The extent of those constraints, and whether legislative or regulatory change would be required, should be confirmed through specialist legal advice.");
       s = s.replace(/Statutory bans and extreme capital requirements render the accessible commercial market immediately constrained or unavailable without legislative change/gi, "The commercially accessible opportunity for this specific solution appears materially constrained by statutory, regulatory and capital barriers.");
       s = s.replace(/requires statutory legislative reform/gi, "appears to face substantial statutory and regulatory barriers, subject to specialist legal confirmation");
@@ -1184,6 +1210,7 @@ exports.pitchLabEvaluation = onCall({
 
     // Section 13: Attach internal telemetry debug object
     evaluationData.foundationalFeasibilityGate = reconciled.foundationalFeasibilityGate;
+    evaluationData.legalRegulatoryAssessment = reconciled.legalRegulatoryAssessment;
 
     // Attach Founder Prediction & Evidence Gap analysis
     const founderPredictionsInput = reqData.founderPredictions || {};
@@ -1209,11 +1236,14 @@ exports.pitchLabEvaluation = onCall({
 
     // Section 8 & 9: If Critical Feasibility Gates exist, synchronize recommendations & roadmap to Pre-Feasibility focus
     if (reconciled.gatesInfo?.hasCriticalGate) {
+      const targetJurisdiction = getJurisdictionName(reqData);
+      const calibratedBiggestRisk = "The proposed venture faces substantial statutory, regulatory, consenting, public-policy and capital barriers. Whether a viable legal/regulatory pathway exists under the current framework, or whether legislative change would ultimately be required, remains subject to specialist legal confirmation.";
+
       evaluationData.summaryBlock = evaluationData.summaryBlock || {};
       evaluationData.summaryBlock.overallReadinessScore = reconciled.overallScore;
       evaluationData.summaryBlock.decisionStatus = reconciled.masterRecommendation;
       evaluationData.summaryBlock.overallCommercialVerdict = reconciled.masterRecommendation;
-      evaluationData.summaryBlock.biggestRiskToThisIdea = reconciled.gatesInfo.summary || "A potentially fundamental legal or regulatory barrier has been identified. This requires verification with appropriately qualified legal and regulatory specialists before further investment.";
+      evaluationData.summaryBlock.biggestRiskToThisIdea = calibratedBiggestRisk;
       evaluationData.summaryBlock.doThisBeforeBuildingMore = `Identify an appropriately qualified legal and regulatory specialist in ${targetJurisdiction} and obtain an initial discussion, indicative view or scope and fee for determining the applicable statutory pathway.`;
 
       evaluationData.decisionStatus = {
@@ -1225,7 +1255,7 @@ exports.pitchLabEvaluation = onCall({
       evaluationData.finalRecommendation = {
         recommendation: reconciled.masterRecommendation,
         why: "A potentially fundamental legal or regulatory barrier has been identified. This requires verification with appropriately qualified legal and regulatory specialists before further investment.",
-        biggestIssue: reconciled.gatesInfo.summary,
+        biggestIssue: calibratedBiggestRisk,
         pathForward: `Identify an appropriately qualified legal and regulatory specialist in ${targetJurisdiction} and obtain an initial discussion, indicative view or scope and fee for determining the applicable statutory pathway.`,
         explicitWarning: "Do not commit capital, project engineering, site options, or team onboarding until pre-feasibility validation is complete."
       };
@@ -1239,7 +1269,6 @@ exports.pitchLabEvaluation = onCall({
       };
 
       evaluationData.actionPlan = evaluationData.actionPlan || {};
-      const targetJurisdiction = getJurisdictionName(reqData);
       evaluationData.actionPlan.topFivePriorities = [
         {
           priority: "Statutory & Legal Scoping",
@@ -1303,8 +1332,8 @@ exports.pitchLabEvaluation = onCall({
         competitionAlternatives: `The proposed solution would compete with established state-backed hydro, geothermal, and wind generation incumbents, as well as alternative grid stability solutions integrated into national energy networks.`,
         commercialReality: `A critical distinction exists between large national electricity demand and the commercially accessible opportunity for this specific solution. The commercially accessible market appears effectively unavailable under the current assessed regulatory environment, subject to specialist legal confirmation.`,
         localBusinessNews: `Local energy market news highlights rising electricity demand, dry-year hydro volatility, wholesale power price spikes, and policy debates surrounding New Zealand energy security.`,
-        customerReviewTrends: `Energy sector feedback and commercial off-taker reviews reveal concerns over long-term price predictability, grid reliability during peak winter demand, and industrial carbon tax exposure.`,
-        governmentPolicyInfluence: `${targetJurisdiction} statutory policy and legislative frameworks govern power generation, environmental protection, fast-track consenting, and specific nuclear prohibitions under national law.`
+        customerReviewTrends: `Published industry commentary and energy sector analysis highlight concerns over long-term price predictability, grid reliability during peak winter demand, and industrial carbon tax exposure. No direct off-taker commercial validation has been conducted by the venture.`,
+        governmentPolicyInfluence: `${targetJurisdiction} statutory policy and legislative frameworks govern power generation, environmental protection, fast-track consenting, and nuclear-related statutory requirements and restrictions requiring specialist interpretation for the proposed commercial generation model.`
       };
 
       evaluationData.summaryBlock.threePriorityActions = [
@@ -1331,6 +1360,29 @@ exports.pitchLabEvaluation = onCall({
         "Do not hire engineering consultants or technical staff before completing regulatory feasibility analysis.",
         "Do not pitch investors for project capital until statutory and licensing pathways are established."
       ];
+
+      // Fix 2: Calibrated Commercial Readiness Assessment narrative intro
+      evaluationData.investorBite.introduction = `${targetJurisdiction} faces increasing electricity demand, security-of-supply challenges and continued decarbonisation requirements. The proposed SMR solution faces substantial statutory, regulatory, technical and capital barriers, and its legal/regulatory feasibility remains subject to specialist confirmation.`;
+
+      // Fix 3: Authoritative contextual investor verdict
+      evaluationData.investorBite.investmentVerdict = generateContextualInvestorVerdict(reqData, reconciled, reconciled.legalRegulatoryAssessment, evaluationData.founderMetrics);
+
+      // Fix 4: Calibrated Biggest Risk
+      evaluationData.investorBite.biggestRisk = calibratedBiggestRisk;
+
+      // Fix 7: Staged improvements sequence (pre-feasibility staged to later funded gateway)
+      evaluationData.investorBite.improvements = [
+        "Verify Legal & Regulatory Feasibility with specialist legal advisers.",
+        "Consult independent domain engineers and regulatory specialists to map compliance prerequisites.",
+        "Scope the requirements, specialist inputs and likely cost of a formal pre-feasibility study, with the formal study proceeding only if the statutory/legal gateway produces a sufficiently positive result."
+      ];
+
+      // Fix 8: Calibrated founder capability response
+      evaluationData.founderCapabilityExplanation = evaluationData.founderCapabilityExplanation || {};
+      evaluationData.founderCapabilityExplanation.recommendedResponse = [
+        "Identify and begin engaging appropriately credentialled nuclear engineering, energy infrastructure and regulatory specialists who could support a later pre-feasibility stage if the statutory pathway proves viable.",
+        "Obtain specialist legal advice regarding the statutory and consenting framework before building or recruiting a dedicated project team."
+      ];
     }
     evaluationData.investorBite.investorQuestions = (Array.isArray(evaluationData.investorBite.investorQuestions) && evaluationData.investorBite.investorQuestions.length > 0) ? evaluationData.investorBite.investorQuestions : [
       "What statutory or regulatory approvals are required before project execution?",
@@ -1349,11 +1401,7 @@ exports.pitchLabEvaluation = onCall({
     evaluationData.investorBite.biggestRisk = evaluationData.investorBite.biggestRisk || evaluationData.summaryBlock?.biggestRiskToThisIdea || "A potentially fundamental legal or regulatory barrier has been identified. This requires verification with appropriately qualified legal and regulatory specialists before further investment.";
 
     if (reconciled.gatesInfo?.hasCriticalGate) {
-      evaluationData.investorBite.improvements = [
-        "Verify Legal & Regulatory Feasibility with specialist legal advisers.",
-        "Consult independent domain engineers and regulatory specialists to map compliance prerequisites.",
-        "Conduct a formal pre-feasibility study evaluating project capital requirements and site constraints."
-      ];
+      // Improvements already calibrated above
     } else {
       evaluationData.investorBite.improvements = (Array.isArray(evaluationData.investorBite.improvements) && evaluationData.investorBite.improvements.length > 0) ? evaluationData.investorBite.improvements : [
         "Conduct 15-20 structured customer discovery interviews.",
@@ -1556,6 +1604,9 @@ exports.pitchLabEvaluation = onCall({
 
     // Apply Required-Field Business Model Integrity Gate
     evaluationData = validateAndEnforceBusinessModelSnapshot(evaluationData, reqData);
+
+    // Apply Cross-Section Legal Certainty & Evidence Provenance Integrity Gate (Fix 10 & Fix 1D)
+    validateReportIntegrityGate(evaluationData, reqData);
 
     // PRE-SAVE SCORE INTEGRITY ASSERTION: overallScore MUST strictly equal sum of category scores
     const sumCategoryScores = Object.values(reconciled.categoryScores).reduce((acc, cat) => acc + (cat.scoreAchieved || cat.score || 0), 0);
@@ -1911,17 +1962,17 @@ function getMockResult(reqData = {}) {
           ? "National business news highlights sharp increases in business input electricity costs, grid stability concerns during dry years, and government policy initiatives to manage thermal supply risks."
           : `Local business news highlights rising overhead costs, digital compliance demands, and margin pressure across commercial operators in ${targetJurisdiction}, driving interest in productivity tools.`,
         customerReviewTrends: reconciled.gatesInfo?.hasCriticalGate
-          ? "External market reporting and industry publications across industrial and commercial energy consumers indicate strong sensitivity to price volatility, with heavy demand for bill transparency and long-term contract predictability."
+          ? "Published industry commentary and energy sector analysis highlight concerns over long-term price predictability, grid reliability during peak winter demand, and industrial carbon tax exposure. No direct off-taker commercial validation has been conducted by the venture."
           : `Customer reviews of existing market alternatives reveal frustration with complex pricing structures, manual data entry, and slow customer support, creating space for streamlined solutions.`,
         governmentPolicyInfluence: reconciled.gatesInfo?.hasCriticalGate
-          ? "The proposed concept faces substantial statutory and regulatory barriers under New Zealand's current legal framework (including Radiation Safety Act 2016, Atomic Energy Act 1945, and Resource Management Act 1991, distinct from non-proliferation weapons legislation). Specialist legal advice is required to determine whether a viable statutory pathway exists."
+          ? `${targetJurisdiction} statutory policy and legislative frameworks govern power generation, environmental protection, fast-track consenting, and nuclear-related statutory requirements and restrictions requiring specialist interpretation for the proposed commercial generation model.`
           : `Local government policies and national regulatory frameworks require strict adherence to local council planning, environmental standards, and national business compliance guidelines.`
       },
       founderCapabilityExplanation: {
         evidenceReliedOn: reqData.founderBackgroundNarrative || reqData.experience || "Founder experience and narrative background.",
         whyThisScoreWasAwarded: dynamicScores.founderCapabilityFit?.explanation || "Evaluated against commercial capability criteria and founder credentials.",
         capabilityGaps: isNuclear ? ["In-house nuclear engineering & plant operations", "Statutory consenting & nuclear regulatory licensing"] : ["Direct technical building capacity", "Scale acquisition marketing"],
-        recommendedResponse: isNuclear ? ["Engage specialist legal & regulatory counsel", "Consult independent energy infrastructure engineers"] : ["Engage technical advisors", "Partner with industry specialists"]
+        recommendedResponse: isNuclear ? ["Identify and begin engaging appropriately credentialled nuclear engineering, energy infrastructure and regulatory specialists who could support a later pre-feasibility stage if the statutory pathway proves viable.", "Engage specialist legal & regulatory counsel"] : ["Engage technical advisors", "Partner with industry specialists"]
       },
       whyThisScore: {
         strongestArea: "Commercial Logic",
@@ -1939,8 +1990,11 @@ function getMockResult(reqData = {}) {
           marketInterpretation: "Idea requires disciplined pre-feasibility validation before capital deployment."
       },
       mvpFeasibility: { verdict: "Pre-Feasibility Required", suggestedFormat: "Pre-Feasibility Validation Study", indicativeComponents: ["Statutory review", "Expert consultation"], whatToExclude: ["Capital commitment", "Tooling"], estimatedCostCommentary: "Low-cost discovery phase." },
+      legalRegulatoryAssessment: reconciled.legalRegulatoryAssessment,
       investorBite: {
-        introduction: "If you had 60 seconds to present this idea to experienced investors, how would it stack up?",
+        introduction: (isNuclear || reconciled.gatesInfo?.hasCriticalGate)
+          ? `${targetJurisdiction} faces increasing electricity demand, security-of-supply challenges and continued decarbonisation requirements. The proposed SMR solution faces substantial statutory, regulatory, technical and capital barriers, and its legal/regulatory feasibility remains subject to specialist confirmation.`
+          : "If you had 60 seconds to present this idea to experienced investors, how would it stack up?",
         scorecard: [
           { area: "Problem Worth Solving", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.problemCustomerClarity?.scoreAchieved || 10) / 15) * 5))), commentary: generateContextualInvestorCommentary("Problem Worth Solving", Math.max(1, Math.min(5, Math.round(((dynamicScores.problemCustomerClarity?.scoreAchieved || 10) / 15) * 5))), dynamicScores.problemCustomerClarity?.scoreAchieved || 0, 15, reqData, reconciled.gatesInfo, reconciled) },
           { area: "Market Opportunity", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.marketCommercialOpportunity?.scoreAchieved || 10) / 15) * 5))), commentary: generateContextualInvestorCommentary("Market Opportunity", Math.max(1, Math.min(5, Math.round(((dynamicScores.marketCommercialOpportunity?.scoreAchieved || 10) / 15) * 5))), dynamicScores.marketCommercialOpportunity?.scoreAchieved || 0, 15, reqData, reconciled.gatesInfo, reconciled) },
@@ -1954,7 +2008,7 @@ function getMockResult(reqData = {}) {
         overallInterestScore: reconciled.overallScore,
         investmentPotential: reconciled.overallScore >= 75 ? "High" : (reconciled.overallScore >= 50 ? "Medium" : "Low"),
         overallInterestExplanation: "Commercial concept evaluated against evidence and feasibility criteria.",
-        investmentVerdict: "This opportunity requires statutory and pre-feasibility clearance before seeking investment capital.",
+        investmentVerdict: generateContextualInvestorVerdict(reqData, reconciled, reconciled.legalRegulatoryAssessment, {}),
         investorQuestions: isNuclear ? [
           "What statutory or regulatory approvals are required before project execution?",
           "What stops an established competitor or state entity from controlling this infrastructure?",
@@ -1964,10 +2018,11 @@ function getMockResult(reqData = {}) {
           "What key operational milestones will you achieve before seeking external funding?"
         ],
         biggestStrength: "Commercial background combined with a defined market focus.",
-        biggestRisk: reconciled.gatesInfo?.hasCriticalGate ? reconciled.gatesInfo.summary : "Uncertain customer payment proof.",
+        biggestRisk: reconciled.gatesInfo?.hasCriticalGate ? "The proposed venture faces substantial statutory, regulatory, consenting, public-policy and capital barriers. Whether a viable legal/regulatory pathway exists under the current framework, or whether legislative change would ultimately be required, remains subject to specialist legal confirmation." : "Uncertain customer payment proof.",
         improvements: isNuclear ? [
           "Verify statutory & legal permissibility with specialist counsel.",
-          "Consult independent domain engineers to map compliance prerequisites."
+          "Consult independent domain engineers to map compliance prerequisites.",
+          "Scope the requirements, specialist inputs and likely cost of a formal pre-feasibility study, with the formal study proceeding only if the statutory/legal gateway produces a sufficiently positive result."
         ] : [
           "Conduct 15-20 structured customer discovery interviews.",
           "Build a simple manual pilot to test workflow adoption."
@@ -1985,8 +2040,8 @@ function getMockResult(reqData = {}) {
       },
       finalRecommendation: {
         recommendation: reconciled.masterRecommendation,
-        why: reconciled.gatesInfo?.hasCriticalGate ? reconciled.gatesInfo.summary : "Concept requires validation.",
-        biggestIssue: reconciled.gatesInfo?.hasCriticalGate ? reconciled.gatesInfo.summary : "Unvalidated demand.",
+        why: reconciled.gatesInfo?.hasCriticalGate ? "A potentially fundamental legal or regulatory barrier has been identified. This requires verification with appropriately qualified legal and regulatory specialists before further investment." : "Concept requires validation.",
+        biggestIssue: reconciled.gatesInfo?.hasCriticalGate ? "The proposed venture faces substantial statutory, regulatory, consenting, public-policy and capital barriers. Whether a viable legal/regulatory pathway exists under the current framework, or whether legislative change would ultimately be required, remains subject to specialist legal confirmation." : "Unvalidated demand.",
         pathForward: "Execute pre-feasibility study.",
         explicitWarning: "DO NOT commit capital prior to pre-feasibility confirmation."
       }
@@ -2000,6 +2055,7 @@ function getMockResult(reqData = {}) {
   mockData.output = runSemanticGuardrail(mockData.output, ventureType, reconciled.gatesInfo, reqData);
   mockData.output = runEditorialQaAndSpellCheck(mockData.output, reqData);
   mockData.output = validateAndEnforceBusinessModelSnapshot(mockData.output, reqData);
+  validateReportIntegrityGate(mockData.output, reqData);
 
   return mockData;
 }

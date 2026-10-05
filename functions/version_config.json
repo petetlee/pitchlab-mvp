@@ -1,7 +1,8 @@
 {
-  "appVersion": "v0.9.4",
-  "fullVersionString": "PitchLab MVP v0.9.4",
-  "buildId": "6ed6755",
-  "deployedAt": "2026-10-01T10:47:00+13:00",
-  "deployedAtFormatted": "01 Oct 2026 10:47 NZST"
+  "appVersion": "v0.9.5",
+  "fullVersionString": "PitchLab MVP v0.9.5",
+  "changeId": "PL-FIX-20261005-v0.9.5-01",
+  "buildId": "4bf89d2",
+  "deployedAt": "2026-10-05T22:00:00+13:00",
+  "deployedAtFormatted": "05 Oct 2026 22:00 NZST"
 }
