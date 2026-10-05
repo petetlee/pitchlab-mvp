@@ -8,7 +8,7 @@ import 'models/evaluation_result.dart';
 import 'pdf_downloader.dart';
 
 class PdfService {
-  static Future<void> generateReport(Map<String, dynamic> rawEvaluation) async {
+  static Future<Uint8List> buildPdfBytes(Map<String, dynamic> rawEvaluation) async {
     final res = EvaluationResult.fromMap(rawEvaluation);
     _validatePrePdfIntegrity(res);
     final pdf = pw.Document();
@@ -110,7 +110,6 @@ class PdfService {
               padding: const pw.EdgeInsets.all(12),
               decoration: const pw.BoxDecoration(
                 color: PdfColors.grey100,
-                borderRadius: pw.BorderRadius.all(pw.Radius.circular(8)),
                 border: pw.Border(left: pw.BorderSide(color: PdfColors.blueGrey900, width: 4))
               ),
               child: pw.Row(
@@ -639,6 +638,12 @@ class PdfService {
     );
 
     final bytes = await pdf.save();
+    return bytes;
+  }
+
+  static Future<void> generateReport(Map<String, dynamic> rawEvaluation) async {
+    final bytes = await buildPdfBytes(rawEvaluation);
+    final res = EvaluationResult.fromMap(rawEvaluation);
     final String filename = buildPdfFilename(rawEvaluation, res.assessmentDate);
 
     // Trigger local browser download immediately so user experience is instant
