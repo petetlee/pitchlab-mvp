@@ -386,7 +386,7 @@ function getCommercialAdviserOpinion(reconciled = {}, ventureType = "", gatesInf
   if (isNuclear || gatesInfo?.hasCriticalGate) {
     return {
       encouraging: "The underlying national energy-security problem is legitimate and strategically important.",
-      caution: "The proposed solution faces extraordinary statutory, political, technical and capital barriers.",
+      caution: "The proposed solution faces substantial statutory, political, technical and capital barriers.",
       unproven: "Whether a credible legal/regulatory pathway exists for commercial nuclear generation in New Zealand, subject to specialist legal confirmation.",
       masterRecommendation: reconciled.masterRecommendation || "STOP - Current Formulation",
       portfolioDecision: "PARK",
@@ -1268,7 +1268,7 @@ function calculate5DimensionFutureTrends(rawInputs = {}, gatesInfo = {}, venture
     competitionTrend = "Moderate competition from established traditional equipment suppliers.";
     capitalTrend = "Requires upfront tooling and prototype risk capital prior to revenue.";
     whatThisMeansForFounder = "Validate physical prototype durability and secure customer pre-orders before committing tooling capital.";
-    adjacentOpportunities = ["Software-enabled equipment monitoring", "Component supply partnerships", "Aftermarket servicing & maintenance"];
+    adjacentOpportunities = ["No adjacent opportunity should currently be prioritised. Validate the core business first."];
     trendAlignmentScore = 6;
   } else if (ventureType.includes("Trade") || ventureType.includes("Local Service")) {
     marketDirection = "STABLE";
@@ -1287,7 +1287,22 @@ function calculate5DimensionFutureTrends(rawInputs = {}, gatesInfo = {}, venture
     whatThisMeansForFounder = rawFutureTrends.whatThisMeansForFounder;
   }
   if (Array.isArray(rawFutureTrends.adjacentOpportunities) && rawFutureTrends.adjacentOpportunities.length > 0 && !isNuclear) {
-    adjacentOpportunities = rawFutureTrends.adjacentOpportunities;
+    const isHardware = ventureType.includes("Hardware") || ventureType.includes("Manufacturing");
+    const filtered = rawFutureTrends.adjacentOpportunities.filter(op => {
+      if (typeof op !== 'string') return false;
+      const lower = op.toLowerCase();
+      if (isHardware && (lower.includes("compliance reporting module") || lower.includes("regulatory bodies") || lower.includes("saas") || lower.includes("software-enabled") || lower.includes("white-label partner integration") || lower.includes("platform integration"))) {
+        return false;
+      }
+      return true;
+    });
+    if (filtered.length > 0) {
+      adjacentOpportunities = filtered.slice(0, 3);
+    } else {
+      adjacentOpportunities = ["No adjacent opportunity should currently be prioritised. Validate the core business first."];
+    }
+  } else if (ventureType.includes("Hardware") || ventureType.includes("Manufacturing")) {
+    adjacentOpportunities = ["No adjacent opportunity should currently be prioritised. Validate the core business first."];
   }
 
   const currentCommercialAccessibility = (isNuclear || gatesInfo?.hasCriticalGate) ? 1 : Math.round((trendAlignmentScore / 10) * 10);
@@ -1680,6 +1695,12 @@ function generateContextualInvestorCommentary(area, rating, scoreAchieved, maxSc
     if (isNuclear || gatesInfo?.hasCriticalGate) {
       return "Strong transferable commercial capability is present, but venture-specific nuclear, engineering and regulatory execution capability is not evidenced.";
     }
+    const isHardware = ventureType.includes("Hardware") || ventureType.includes("Manufacturing");
+    if (isHardware) {
+      return rating >= 4
+        ? "Founder demonstrates strong commercial background and execution leadership, with specialist engineering capability to be engaged as hardware design matures."
+        : "Founder brings transferable commercial capability; direct hardware engineering, electrical design, and manufacturing specialist capability should be engaged to support execution.";
+    }
     return rating >= 4
       ? "Founder demonstrates strong domain credentials, relevant operational background, and execution capability."
       : "Founder possesses useful general commercial skills, but lacks direct domain execution experience for this venture.";
@@ -1696,9 +1717,28 @@ function generateContextualInvestorCommentary(area, rating, scoreAchieved, maxSc
     if (isNuclear || gatesInfo?.hasCriticalGate) {
       return "The theoretical generation opportunity is large, but practical scalability is constrained by capital, regulation, site development and infrastructure requirements.";
     }
+    const isHardware = ventureType.includes("Hardware") || ventureType.includes("Manufacturing");
+    const isService = ventureType.includes("Trade") || ventureType.includes("Local Service") || ventureType.includes("Professional Services");
+    const isMarketplace = ventureType.includes("Marketplace");
+
+    if (isHardware) {
+      return rating >= 4
+        ? "Scalability is supported by standardised hardware manufacturing and channel distribution, though unit gross margins and tooling investments govern capital efficiency."
+        : "Scalability is constrained by hardware manufacturing tooling costs, physical inventory working capital, and supply chain lead times.";
+    }
+    if (isService) {
+      return rating >= 4
+        ? "Scalability is supported by standardised operating procedures and workflow delegability, balancing labour utilisation and capacity."
+        : "Scalability is constrained by direct labour dependence, service delivery capacity, and linear staffing requirements.";
+    }
+    if (isMarketplace) {
+      return rating >= 4
+        ? "Scalability is driven by platform network effects and two-sided liquidity without proportional marginal servicing costs."
+        : "Scalability is constrained by dual-sided acquisition friction, chicken-and-egg liquidity hurdles, and local supply retention.";
+    }
     return rating >= 4
-      ? "Business model displays capacity for software or operational leverage without proportional linear costs."
-      : "Scalability is constrained by initial capital intensity, high-touch sales cycles, or manual service delivery.";
+      ? "Business model displays capacity for software scalability with low marginal distribution and hosting costs."
+      : "Scalability is constrained by initial capital intensity, high customer acquisition costs, or manual service delivery.";
   }
   if (area === "Investment Readiness") {
     if (isNuclear || gatesInfo?.hasCriticalGate) {
@@ -1828,7 +1868,7 @@ function generateContextualInvestorVerdict(reqData = {}, reconciled = {}, legalR
   const isNuclear = (idea + " " + (reqData.category || "")).toLowerCase().includes("nuclear");
 
   if (isNuclear || reconciled.gatesInfo?.hasCriticalGate) {
-    return "Investor interest is currently low because statutory/regulatory feasibility, specialist technical capability, capital structure and project delivery pathways remain unresolved. The founder brings useful transferable commercial and financial capability, but a credible venture would require substantial specialist nuclear, engineering, regulatory and infrastructure leadership alongside that capability. Investment consideration should remain deferred until the primary legal/regulatory gateway has been resolved.";
+    return "In its current conceptual state, the opportunity is not presently suitable for conventional venture-capital investment. Statutory and regulatory feasibility, specialist technical capability, capital structure and delivery pathways remain unresolved. The founder brings useful transferable commercial and financial capability, but a credible venture would require substantial specialist nuclear, engineering, regulatory and infrastructure capability alongside it. Investment consideration should remain deferred until the primary statutory/legal gateway has been investigated.";
   }
 
   if (reconciled.overallScore >= 75) {
@@ -1885,7 +1925,12 @@ function validateReportIntegrityGate(evaluationData = {}, reqData = {}) {
       { pattern: /currently blocked by legislative/i, phrase: "currently blocked by legislative" },
       { pattern: /insurmountable legislative/i, phrase: "insurmountable legislative" },
       { pattern: /\bblocked by law\b/i, phrase: "blocked by law" },
-      { pattern: /\bnon-starter because of legislation\b/i, phrase: "non-starter because of legislation" }
+      { pattern: /\bnon-starter because of legislation\b/i, phrase: "non-starter because of legislation" },
+      { pattern: /\bdeeply hostile\b/i, phrase: "deeply hostile" },
+      { pattern: /legislative pathway were conceivable/i, phrase: "legislative pathway were conceivable" },
+      { pattern: /societal shifts before any commercial/i, phrase: "societal shifts before any commercial" },
+      { pattern: /effectively unavailable/i, phrase: "effectively unavailable" },
+      { pattern: /make this venture currently non-viable/i, phrase: "make this venture currently non-viable" }
     ];
     for (const rule of escalationRules) {
       if (rule.pattern.test(fullReportText)) {
@@ -1901,7 +1946,9 @@ function validateReportIntegrityGate(evaluationData = {}, reqData = {}) {
       { pattern: /off-taker reviews reveal/i, phrase: "off-taker reviews reveal" },
       { pattern: /customer reviews reveal/i, phrase: "customer reviews reveal" },
       { pattern: /users report/i, phrase: "users report" },
-      { pattern: /feedback from prospective clients/i, phrase: "feedback from prospective clients" }
+      { pattern: /feedback from prospective clients/i, phrase: "feedback from prospective clients" },
+      { pattern: /energy sector feedback/i, phrase: "energy sector feedback" },
+      { pattern: /off-taker feedback/i, phrase: "off-taker feedback" }
     ];
     for (const rule of provenanceRules) {
       if (rule.pattern.test(fullReportText)) {
@@ -1916,7 +1963,9 @@ function validateReportIntegrityGate(evaluationData = {}, reqData = {}) {
     { pattern: /\binsurmountable\b/i, phrase: "insurmountable" },
     { pattern: /\bnon-starter\b/i, phrase: "non-starter" },
     { pattern: /\birrefutable\b/i, phrase: "irrefutable" },
-    { pattern: /immediately recruit a core leadership team/i, phrase: "immediately recruit a core leadership team" }
+    { pattern: /immediately recruit a core leadership team/i, phrase: "immediately recruit a core leadership team" },
+    { pattern: /recruit a highly specialised co-founder/i, phrase: "recruit a highly specialised co-founder" },
+    { pattern: /\bextraordinary statutory\b/i, phrase: "extraordinary statutory" }
   ];
   for (const rule of bannedLanguageRules) {
     if (rule.pattern.test(fullReportText)) {
@@ -1928,6 +1977,76 @@ function validateReportIntegrityGate(evaluationData = {}, reqData = {}) {
   const immediateActions = JSON.stringify(evaluationData.summaryBlock?.threePriorityActions || []);
   if (/Conduct a formal pre-feasibility study/i.test(immediateActions)) {
     throw new Error("PITCHLAB QA INTEGRITY FAILURE: Formal pre-feasibility study positioned as immediate action instead of staged gateway.");
+  }
+
+  // 5. Business-Context & Problem Grounding Check (MoorSafe Fix 1)
+  const custProblem = evaluationData.businessModelSnapshot?.customerProblem || "";
+  const preservedProb = (reqData.problem || evaluationData.problem || "").toLowerCase();
+  if (preservedProb && (preservedProb.includes("pest") || preservedProb.includes("rodent") || preservedProb.includes("rat"))) {
+    if (custProblem.toLowerCase().includes("collision") || custProblem.toLowerCase().includes("mooring line failure")) {
+      throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Business Model Customer Problem grounding mismatch. Found '${custProblem}' which conflicts with preserved pest/rodent problem.`);
+    }
+  }
+
+  // 6. Raw Variable & Broken Placeholder Integrity Check (MoorSafe Fix 9 & 10)
+  if (/\$riskCapital/i.test(fullReportText)) {
+    throw new Error("PITCHLAB QA INTEGRITY FAILURE: Raw template variable '$riskCapital' leaked into report output.");
+  }
+  if (/\$\{[^}]+\}/.test(fullReportText) || /\{\{[^}]+\}\}/.test(fullReportText)) {
+    throw new Error("PITCHLAB QA INTEGRITY FAILURE: Unresolved template placeholder detected in report output.");
+  }
+  if (/\b(?:undefined|null|\[object Object\])\b/.test(fullReportText)) {
+    throw new Error("PITCHLAB QA INTEGRITY FAILURE: Raw undefined/null/[object Object] detected in report output.");
+  }
+  if (/(?:^|[^\$])\s*,\s*500\b/.test(fullReportText) || /,\s*500\s*[-–]/.test(fullReportText)) {
+    throw new Error("PITCHLAB QA INTEGRITY FAILURE: Malformed currency range starting with ',500' detected in report output.");
+  }
+
+  // 7. Unsupported Factual Claims & Evidence-State Language Controls (MoorSafe Fix 3 & 4)
+  if (custValScore <= 4) {
+    const unverifiedClaimRules = [
+      { pattern: /There is no effective,? automated solution currently on the market/i, phrase: "There is no effective automated solution currently on the market" },
+      { pattern: /clear,? willing-to-pay market segment/i, phrase: "clear, willing-to-pay market segment" },
+      { pattern: /\bproven demand\b/i, phrase: "proven demand" },
+      { pattern: /\bcustomers will pay\b/i, phrase: "customers will pay" },
+      { pattern: /\bstrong willingness to pay\b/i, phrase: "strong willingness to pay" },
+      { pattern: /\bconfirmed customer need\b/i, phrase: "confirmed customer need" },
+      { pattern: /\bvalidated market\b/i, phrase: "validated market" }
+    ];
+    for (const rule of unverifiedClaimRules) {
+      if (rule.pattern.test(fullReportText)) {
+        throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Unsupported factual claim detected ('${rule.phrase}') when customer validation is ${custValScore}/20.`);
+      }
+    }
+  }
+
+  // 8. Business-Type Contamination Check (MoorSafe Fix 6)
+  const ventureType = classifyVentureType(reqData);
+  if (!ventureType.includes("SaaS") && !ventureType.includes("Software")) {
+    if (/software or operational leverage without proportional linear costs/i.test(fullReportText)) {
+      throw new Error("PITCHLAB QA INTEGRITY FAILURE: Software scalability language detected in non-software venture assessment.");
+    }
+  }
+
+  // 9. Stage & Recommendation Taxonomy Reconciliation (MoorSafe Fix 8)
+  const undeclaredStages = [
+    { pattern: /\bAlmost Ready\b/i, phrase: "Almost Ready" },
+    { pattern: /\bReady to Pitch\b/i, phrase: "Ready to Pitch" },
+    { pattern: /\bNeeds More Validation\b/i, phrase: "Needs More Validation" },
+    { pattern: /\bEarly Stage Idea\b/i, phrase: "Early Stage Idea" }
+  ];
+  for (const rule of undeclaredStages) {
+    if (rule.pattern.test(fullReportText)) {
+      throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Undeclared maturity stage label detected ('${rule.phrase}'). Must use canonical PitchLab taxonomy.`);
+    }
+  }
+
+  // 10. Founder Time Constraint Preservation Check (MoorSafe Fix 11)
+  const timeInput = (reqData.timeCommitment || reqData.capacity || "").toLowerCase();
+  if (timeInput.includes("0-5") || timeInput.includes("0–5") || timeInput.includes("<5")) {
+    if (/Block 5-10 hours\/week/i.test(fullReportText)) {
+      throw new Error("PITCHLAB QA INTEGRITY FAILURE: Founder time constraint overridden (found 'Block 5-10 hours/week' for 0-5 hrs/wk availability).");
+    }
   }
 
   return true;

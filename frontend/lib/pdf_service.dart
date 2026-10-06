@@ -952,7 +952,21 @@ class PdfService {
     s = s.replaceAll(RegExp(r'irrefutable, deep expertise', caseSensitive: false), 'verifiable specialist expertise');
     s = s.replaceAll(RegExp(r'irrefutable expertise', caseSensitive: false), 'specialist expertise');
     s = s.replaceAll(RegExp(r'immediately recruit a core leadership team', caseSensitive: false), 'identify and begin engaging specialist advisers');
-    s = s.replaceAll(RegExp(r'conduct a formal pre-feasibility study evaluating project capital requirements and site constraints\.?', caseSensitive: false), 'scope the requirements, specialist inputs and likely cost of a formal pre-feasibility study, with the formal study proceeding only if the statutory/legal gateway produces a sufficiently positive result.');
+    s = s.replaceAll(RegExp(r'The commercially accessible market appears effectively unavailable under the current assessed regulatory environment, subject to specialist legal confirmation', caseSensitive: false), 'The commercially accessible opportunity appears materially constrained under the current assessed regulatory environment, with the extent of those constraints subject to specialist legal confirmation');
+    s = s.replaceAll(RegExp(r'effectively unavailable', caseSensitive: false), 'materially constrained pending legal confirmation');
+    s = s.replaceAll(RegExp(r'deeply hostile legal and regulatory environment', caseSensitive: false), 'complex and heavily structured statutory and regulatory environment');
+    s = s.replaceAll(RegExp(r'\bdeeply hostile\b', caseSensitive: false), 'heavily regulated');
+    s = s.replaceAll(RegExp(r'Even if a legislative pathway were conceivable[^\.]*\.', caseSensitive: false), 'Statutory and regulatory feasibility, specialist technical capability, capital structure and delivery pathways remain unresolved.');
+    s = s.replaceAll(RegExp(r'fundamental legislative and societal shifts before any commercial consideration', caseSensitive: false), 'specialist confirmation of statutory feasibility before committing development capital');
+    s = s.replaceAll(RegExp(r'Energy sector feedback and published industry commentary reveal', caseSensitive: false), 'Published energy-sector reporting and industry commentary indicate');
+    s = s.replaceAll(RegExp(r'Energy sector feedback and', caseSensitive: false), 'Published energy-sector reporting and');
+    s = s.replaceAll(RegExp(r'\benergy sector feedback\b', caseSensitive: false), 'published energy-sector reporting');
+    s = s.replaceAll(RegExp(r'Recruit a highly specialised co-founder or an executive team[^\.]*\.', caseSensitive: false), 'Identify and begin engaging appropriately credentialled specialists for preliminary advice, scoping and potential future involvement.');
+    s = s.replaceAll(RegExp(r'The foundational legal and regulatory barriers in New Zealand make this venture currently non-viable', caseSensitive: false), 'The unresolved legal and regulatory barriers mean the venture is not currently commercially actionable');
+    s = s.replaceAll(RegExp(r'make this venture currently non-viable', caseSensitive: false), 'mean the venture is not currently commercially actionable');
+    s = s.replaceAll(RegExp(r'\bextraordinary statutory\b', caseSensitive: false), 'substantial statutory');
+    s = s.replaceAll(RegExp(r'\bscope the requirements\b'), 'Scope the requirements');
+    s = s.replaceAll(RegExp(r'conduct a formal pre-feasibility study evaluating project capital requirements and site constraints\.?', caseSensitive: false), 'Scope the requirements, specialist inputs and likely cost of a formal pre-feasibility study, with the formal study proceeding only if the statutory/legal gateway produces a sufficiently positive result.');
 
     s = s.replaceAllMapped(RegExp(r'\b(\w+)\s+\1\b', caseSensitive: false), (match) => match.group(1)!);
     s = s.replaceAll(RegExp(r'\s+'), ' ');
@@ -1118,7 +1132,15 @@ class PdfService {
       'specific nuclear prohibitions',
       'expanding rapidly',
       'irrefutable',
-      'immediately recruit a core leadership team'
+      'immediately recruit a core leadership team',
+      'deeply hostile',
+      'legislative pathway were conceivable',
+      'societal shifts before any commercial',
+      'effectively unavailable',
+      'make this venture currently non-viable',
+      'energy sector feedback',
+      'recruit a highly specialised co-founder',
+      'extraordinary statutory'
     ];
 
     for (final phrase in prohibitedPatterns) {

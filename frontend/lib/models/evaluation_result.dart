@@ -303,10 +303,14 @@ class EvaluationResult {
     fallback: 'The proposed solution would compete with established market incumbents, existing manual workarounds, and alternative commercial providers.'
   );
 
-  String get commercialReality => _str(
-    marketInsightsMap['commercialReality'],
-    fallback: 'A critical distinction exists between large underlying market demand and the commercially accessible opportunity for this specific solution.'
-  );
+  String get commercialReality {
+    final rawVal = _str(marketInsightsMap['commercialReality'], fallback: '');
+    if (rawVal.isNotEmpty) return _cleanNarrativeText(rawVal, isHardware: isHardware);
+    if (isNuclear) {
+      return 'A critical distinction exists between large national electricity demand and the commercially accessible opportunity for this specific solution. The commercially accessible opportunity appears materially constrained under the current assessed regulatory environment, with the extent of those constraints subject to specialist legal confirmation.';
+    }
+    return 'A critical distinction exists between large underlying market demand and the commercially accessible opportunity for this specific solution.';
+  }
 
   String get localBusinessNews {
     final rawNews = _str(marketInsightsMap['localBusinessNews'], fallback: '');
@@ -328,7 +332,7 @@ class EvaluationResult {
       return _cleanNarrativeText(rawTrends, isHardware: isHardware);
     }
     if (isNuclear) {
-      return 'Published industry commentary and energy sector analysis highlight concerns over long-term price predictability, grid reliability during peak winter demand, and industrial carbon tax exposure. No direct off-taker commercial validation has been conducted by the venture.';
+      return 'Published energy-sector reporting and industry commentary indicate demand for firm low-carbon baseload power, but direct customer/off-taker validation has not yet been established by the venture.';
     }
     if (isHardware) {
       return 'Customer reviews across existing physical deterrents reveal frustration with short product lifespan, high maintenance needs, and ineffective pest barrier coverage.';
@@ -537,12 +541,12 @@ class EvaluationResult {
     fallback: pitchLabVerdict
   );
 
-  String get ibInvestmentVerdict => _str(
+  String get ibInvestmentVerdict => _cleanNarrativeText(_str(
     investorBite['investmentVerdict'],
     fallback: isNuclear
-      ? 'Investor interest is currently low because statutory/regulatory feasibility, specialist technical capability, capital structure and project delivery pathways remain unresolved. The founder brings useful transferable commercial and financial capability, but a credible venture would require substantial specialist nuclear, engineering, regulatory and infrastructure leadership alongside that capability. Investment consideration should remain deferred until the primary legal/regulatory gateway has been resolved.'
+      ? 'In its current conceptual state, the opportunity is not presently suitable for conventional venture-capital investment. Statutory and regulatory feasibility, specialist technical capability, capital structure and delivery pathways remain unresolved. The founder brings useful transferable commercial and financial capability, but a credible venture would require substantial specialist nuclear, engineering, regulatory and infrastructure capability alongside it. Investment consideration should remain deferred until the primary statutory/legal gateway has been investigated.'
       : 'This opportunity addresses a genuine market problem and demonstrates commercial potential. The business model is logical and the founder possesses relevant experience. However, investors would expect stronger evidence of customer demand before committing capital. Completing customer interviews, securing early users and validating pricing would substantially strengthen the investment proposition.'
-  );
+  ));
 
   List<Map<String, dynamic>> get ibScorecard {
     final rawData = investorBite['scorecard'];
@@ -628,12 +632,12 @@ class EvaluationResult {
     fallback: 'Deep industry experience combined with a clearly defined customer problem.'
   );
 
-  String get ibBiggestRisk => _str(
+  String get ibBiggestRisk => _cleanNarrativeText(_str(
     investorBite['biggestRisk'],
     fallback: isNuclear
-      ? 'The proposed venture faces substantial statutory, regulatory, consenting, public-policy and capital barriers. Whether a viable legal/regulatory pathway exists under the current framework, or whether legislative change would ultimately be required, remains subject to specialist legal confirmation.'
+      ? 'Unresolved statutory and regulatory feasibility in New Zealand, combined with the absence of directly experienced specialist project capability.'
       : 'The concept currently lacks sufficient empirical market validation and customer payment proof.'
-  );
+  ));
 
   List<String> get ibImprovements => _list(
     investorBite['improvements'],
@@ -660,10 +664,12 @@ class EvaluationResult {
     return 'Early Stage Idea';
   }
 
-  String get ibPitchLabRecommendationExplanation => _str(
+  String get ibPitchLabRecommendationExplanation => _cleanNarrativeText(_str(
     investorBite['pitchLabRecommendationExplanation'],
-    fallback: 'Focus on validating customer demand and securing early proof of willingness to pay before raising external capital.'
-  );
+    fallback: isNuclear
+      ? 'The unresolved legal and regulatory barriers mean the venture is not currently commercially actionable. Complete specialist pre-feasibility work to determine whether a credible statutory pathway exists before committing development capital.'
+      : 'Focus on validating customer demand and securing early proof of willingness to pay before raising external capital.'
+  ));
 
   // KISS Review
   Map<String, dynamic> get kissReview => (raw['kissReview'] as Map<String, dynamic>?) ?? {};
@@ -777,15 +783,18 @@ class EvaluationResult {
   String get evidenceReliedOn => _str(founderCapabilityExplanation['evidenceReliedOn'], fallback: 'Founder experience, domain background, and customer access.');
   String get whyThisScoreWasAwarded => _str(founderCapabilityExplanation['whyThisScoreWasAwarded'], fallback: 'Recognises relevant domain knowledge and commercial capability.');
   List<String> get capabilityGaps => _list(founderCapabilityExplanation['capabilityGaps'], fallback: isHardware ? ['Mass manufacturing setup', 'Industrial design tooling'] : ['Software development build', 'Digital marketing reach']);
-  List<String> get recommendedGapResponses => _list(
-    founderCapabilityExplanation['recommendedResponse'],
-    fallback: isNuclear
-      ? [
-          'Identify and begin engaging appropriately credentialled nuclear engineering, energy infrastructure and regulatory specialists who could support a later pre-feasibility stage if the statutory pathway proves viable.',
-          'Obtain specialist legal advice regarding the statutory and consenting framework before building or recruiting a dedicated project team.'
-        ]
-      : (isHardware ? ['Engage an industrial design contractor for prototype enclosure', 'Partner with a local electronics manufacturer'] : ['Contract a specialist software developer for the MVP', 'Engage an advisory mentor for growth'])
-  );
+  List<String> get recommendedGapResponses {
+    final list = _list(
+      founderCapabilityExplanation['recommendedResponse'],
+      fallback: isNuclear
+        ? [
+            'Identify and begin engaging appropriately credentialled specialists for preliminary advice, scoping and potential future involvement.',
+            'Engage specialist legal and regulatory counsel to map statutory pathways before assembling a formal development team.'
+          ]
+        : (isHardware ? ['Engage an industrial design contractor for prototype enclosure', 'Partner with a local electronics manufacturer'] : ['Contract a specialist software developer for the MVP', 'Engage an advisory mentor for growth'])
+    );
+    return list.map((s) => _cleanNarrativeText(s, isHardware: isHardware)).toList();
+  }
 
   // Helper for Founder Capability Score
   int get founderCapabilityScore {
@@ -1140,7 +1149,7 @@ class EvaluationResult {
   String get adviserCaution {
     final backendVal = _str(adviserOpinion['caution'], fallback: '');
     if (backendVal.isNotEmpty) return backendVal;
-    if (isNuclear) return 'The proposed solution faces extraordinary statutory, political, technical and capital barriers.';
+    if (isNuclear) return 'The proposed solution faces substantial statutory, political, technical and capital barriers.';
     if (isHardware) return 'Ensure mass production and tooling costs are delayed until physical prototype field durability and customer deposits are secured.';
     return 'Ensure non-essential features and expenditure are delayed until customer willingness to pay is tested.';
   }
@@ -1474,7 +1483,21 @@ class EvaluationResult {
     s = s.replaceAll(RegExp(r'irrefutable, deep expertise', caseSensitive: false), 'verifiable specialist expertise');
     s = s.replaceAll(RegExp(r'irrefutable expertise', caseSensitive: false), 'specialist expertise');
     s = s.replaceAll(RegExp(r'immediately recruit a core leadership team', caseSensitive: false), 'identify and begin engaging specialist advisers');
-    s = s.replaceAll(RegExp(r'conduct a formal pre-feasibility study evaluating project capital requirements and site constraints\.?', caseSensitive: false), 'scope the requirements, specialist inputs and likely cost of a formal pre-feasibility study, with the formal study proceeding only if the statutory/legal gateway produces a sufficiently positive result.');
+    s = s.replaceAll(RegExp(r'The commercially accessible market appears effectively unavailable under the current assessed regulatory environment, subject to specialist legal confirmation', caseSensitive: false), 'The commercially accessible opportunity appears materially constrained under the current assessed regulatory environment, with the extent of those constraints subject to specialist legal confirmation');
+    s = s.replaceAll(RegExp(r'effectively unavailable', caseSensitive: false), 'materially constrained pending legal confirmation');
+    s = s.replaceAll(RegExp(r'deeply hostile legal and regulatory environment', caseSensitive: false), 'complex and heavily structured statutory and regulatory environment');
+    s = s.replaceAll(RegExp(r'\bdeeply hostile\b', caseSensitive: false), 'heavily regulated');
+    s = s.replaceAll(RegExp(r'Even if a legislative pathway were conceivable[^\.]*\.', caseSensitive: false), 'Statutory and regulatory feasibility, specialist technical capability, capital structure and delivery pathways remain unresolved.');
+    s = s.replaceAll(RegExp(r'fundamental legislative and societal shifts before any commercial consideration', caseSensitive: false), 'specialist confirmation of statutory feasibility before committing development capital');
+    s = s.replaceAll(RegExp(r'Energy sector feedback and published industry commentary reveal', caseSensitive: false), 'Published energy-sector reporting and industry commentary indicate');
+    s = s.replaceAll(RegExp(r'Energy sector feedback and', caseSensitive: false), 'Published energy-sector reporting and');
+    s = s.replaceAll(RegExp(r'\benergy sector feedback\b', caseSensitive: false), 'published energy-sector reporting');
+    s = s.replaceAll(RegExp(r'Recruit a highly specialised co-founder or an executive team[^\.]*\.', caseSensitive: false), 'Identify and begin engaging appropriately credentialled specialists for preliminary advice, scoping and potential future involvement.');
+    s = s.replaceAll(RegExp(r'The foundational legal and regulatory barriers in New Zealand make this venture currently non-viable', caseSensitive: false), 'The unresolved legal and regulatory barriers mean the venture is not currently commercially actionable');
+    s = s.replaceAll(RegExp(r'make this venture currently non-viable', caseSensitive: false), 'mean the venture is not currently commercially actionable');
+    s = s.replaceAll(RegExp(r'\bextraordinary statutory\b', caseSensitive: false), 'substantial statutory');
+    s = s.replaceAll(RegExp(r'\bscope the requirements\b'), 'Scope the requirements');
+    s = s.replaceAll(RegExp(r'conduct a formal pre-feasibility study evaluating project capital requirements and site constraints\.?', caseSensitive: false), 'Scope the requirements, specialist inputs and likely cost of a formal pre-feasibility study, with the formal study proceeding only if the statutory/legal gateway produces a sufficiently positive result.');
 
     // Fix 3 Root Cause: Dart replaceAllMapped for duplicate words
     s = s.replaceAllMapped(RegExp(r'\b(\w+)\s+\1\b', caseSensitive: false), (match) => match.group(1)!);

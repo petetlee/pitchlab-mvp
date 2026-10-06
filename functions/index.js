@@ -167,7 +167,8 @@ function runSemanticGuardrail(data, ventureType = "", gatesInfo = {}, reqData = 
       s = s.replace(/irrefutable, deep expertise/gi, "verifiable specialist expertise");
       s = s.replace(/irrefutable expertise/gi, "specialist expertise");
       s = s.replace(/immediately recruit a core leadership team/gi, "identify and begin engaging specialist advisers");
-      s = s.replace(/conduct a formal pre-feasibility study evaluating project capital requirements and site constraints\.?/gi, "scope the requirements, specialist inputs and likely cost of a formal pre-feasibility study, with the formal study proceeding only if the statutory/legal gateway produces a sufficiently positive result.");
+      s = s.replace(/Recruit a highly specialised co-founder or an executive team[^\.]*\./gi, "Identify and begin engaging appropriately credentialled specialists for preliminary advice, scoping and potential future involvement.");
+      s = s.replace(/conduct a formal pre-feasibility study evaluating project capital requirements and site constraints\.?/gi, "Scope the requirements, specialist inputs and likely cost of a formal pre-feasibility study, with the formal study proceeding only if the statutory/legal gateway produces a sufficiently positive result.");
       s = s.replace(/Statutory bans and extreme capital requirements render the accessible commercial market immediately constrained or unavailable without legislative change, subject to specialist legal confirmation\./gi, "The commercially accessible opportunity for this specific solution appears materially constrained by statutory, regulatory and capital barriers. The extent of those constraints, and whether legislative or regulatory change would be required, should be confirmed through specialist legal advice.");
       s = s.replace(/Statutory bans and extreme capital requirements render the accessible commercial market immediately constrained or unavailable without legislative change/gi, "The commercially accessible opportunity for this specific solution appears materially constrained by statutory, regulatory and capital barriers.");
       s = s.replace(/requires statutory legislative reform/gi, "appears to face substantial statutory and regulatory barriers, subject to specialist legal confirmation");
@@ -175,18 +176,30 @@ function runSemanticGuardrail(data, ventureType = "", gatesInfo = {}, reqData = 
       s = s.replace(/currently block commercial/gi, "present material regulatory barriers to commercial, subject to specialist legal confirmation");
       s = s.replace(/\bis legally prohibited\b/gi, "appears to face significant statutory and regulatory barriers, subject to specialist legal confirmation");
       s = s.replace(/\blegally prohibited\b/gi, "constrained by significant statutory and regulatory barriers");
-      s = s.replace(/statutory bans render the accessible commercial market immediately unavailable/gi, "significant statutory and regulatory barriers render the commercially accessible market effectively unavailable without legislative change, subject to specialist legal confirmation");
+      s = s.replace(/The commercially accessible market appears effectively unavailable under the current assessed regulatory environment, subject to specialist legal confirmation/gi, "The commercially accessible opportunity appears materially constrained under the current assessed regulatory environment, with the extent of those constraints subject to specialist legal confirmation");
+      s = s.replace(/statutory bans render the accessible commercial market immediately unavailable/gi, "significant statutory and regulatory barriers render the commercially accessible opportunity materially constrained under current settings, subject to specialist legal confirmation");
       s = s.replace(/statutory bans severely restrict/gi, "significant statutory and regulatory barriers severely constrain, subject to specialist legal confirmation");
       s = s.replace(/statutory bans remain active/gi, "significant statutory and regulatory barriers remain active, subject to specialist legal confirmation");
       s = s.replace(/\bstatutory bans\b/gi, "statutory and regulatory barriers");
       s = s.replace(/\bstatutory prohibitions\b/gi, "statutory and regulatory barriers");
       s = s.replace(/\bstatutory prohibition\b/gi, "statutory and regulatory barrier");
       s = s.replace(/\bunviable under current law\b/gi, "materially constrained pending legal confirmation");
+      s = s.replace(/\bdeeply hostile legal and regulatory environment\b/gi, "complex and heavily structured statutory and regulatory environment");
+      s = s.replace(/\bdeeply hostile\b/gi, "heavily regulated");
+      s = s.replace(/Even if a legislative pathway were conceivable[^\.]*\./gi, "Statutory and regulatory feasibility, specialist technical capability, capital structure and delivery pathways remain unresolved.");
+      s = s.replace(/fundamental legislative and societal shifts before any commercial consideration/gi, "specialist confirmation of statutory feasibility before committing development capital");
+      s = s.replace(/Energy sector feedback and published industry commentary reveal/gi, "Published energy-sector reporting and industry commentary indicate");
+      s = s.replace(/Energy sector feedback and/gi, "Published energy-sector reporting and");
+      s = s.replace(/energy sector feedback/gi, "published energy-sector reporting");
+      s = s.replace(/The foundational legal and regulatory barriers in New Zealand make this venture currently non-viable/gi, "The unresolved legal and regulatory barriers mean the venture is not currently commercially actionable");
+      s = s.replace(/make this venture currently non-viable/gi, "mean the venture is not currently commercially actionable");
+      s = s.replace(/\bextraordinary statutory\b/gi, "substantial statutory");
+      s = s.replace(/\bscope the requirements\b/g, "Scope the requirements");
       s = s.replace(/\bextreme capital scale requirements\b/gi, "multi-billion-dollar infrastructure capital scale requirements");
       s = s.replace(/\bextreme capital requirements\b/gi, "multi-billion-dollar infrastructure capital requirements");
       s = s.replace(/\bextreme capital scale\b/gi, "very high capital scale");
       s = s.replace(/\bextreme capital\b/gi, "very high capital requirements");
-      s = s.replace(/the accessible market is zero/gi, "the commercially accessible market appears effectively unavailable under current regulatory settings, subject to specialist legal confirmation");
+      s = s.replace(/the accessible market is zero/gi, "the commercially accessible opportunity appears materially constrained under current regulatory settings, subject to specialist legal confirmation");
       s = s.replace(/essential services \(such as baseload power or infrastructure\)/gi, "baseload power and grid reliability infrastructure");
       s = s.replace(/the founder competes against/gi, "the proposed solution would compete with");
       s = s.replace(/competitor or state entity from controlling this infrastructure/gi, "competing provider or established entity from entering this market");
@@ -258,32 +271,42 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
   };
 
   if (fieldType === 'targetCustomer') {
-    if (isNuc) return "Electricity retailers, large industrial off-takers and public-sector energy purchasers.";
-    if (isTax) return "Kiwi small-to-medium businesses (SMBs), sole traders, and accounting practitioners.";
-    if (isHw) return "Commercial vessel operators, marine infrastructure owners, and recreational boating consumers.";
-    const fallback = data.category ? `${data.category} commercial customers and key decision makers.` : "Target commercial customer segment defined by clear operational friction.";
-    return cleanVal(data.targetMarket || data.market, fallback);
+    const rawTarget = data.targetMarket || data.market;
+    const fallback = isNuc
+      ? "Electricity retailers, large industrial off-takers and public-sector energy purchasers."
+      : (isTax
+        ? "Kiwi small-to-medium businesses (SMBs), sole traders, and accounting practitioners."
+        : (isHw
+          ? "Commercial vessel operators, marine infrastructure owners, and recreational boating consumers."
+          : (data.category ? `${data.category} commercial customers and key decision makers.` : "Target commercial customer segment defined by clear operational friction.")));
+    return cleanVal(rawTarget, fallback);
   }
 
   if (fieldType === 'coreOffering') {
-    if (isNuc) return `SMR-based firm, low-carbon electricity generation supplied into ${jurisdiction}'s national grid.`;
-    if (isTax) return "Automated GST calculation, tax compliance filing, and financial reporting software.";
-    if (isHw) return "Solar-powered automated marine mooring and asset protection device.";
-    const fallback = "Commercial product and service solution targeting operational efficiency.";
-    return cleanVal(data.idea, fallback);
+    const rawOffering = data.idea;
+    const fallback = isNuc
+      ? `SMR-based firm, low-carbon electricity generation supplied into ${jurisdiction}'s national grid.`
+      : (isTax
+        ? "Automated GST calculation, tax compliance filing, and financial reporting software."
+        : (isHw
+          ? "Solar-powered automated marine mooring and pest protection device."
+          : "Commercial product and service solution targeting operational efficiency."));
+    return cleanVal(rawOffering, fallback);
   }
 
   if (fieldType === 'customerProblem') {
-    if (isNuc) return "Increasing electricity demand, reliability requirements, wholesale price volatility and demand for additional firm low-carbon generation.";
-    if (isTax) return "Manual GST calculation errors, unexpected IRD tax penalties, and cash flow strain for commercial SMBs.";
-    if (isHw) return "Mooring line failures, vessel collision damage risk, and manual maintenance overheads.";
-    const fallback = "Operational friction, cost inefficiency, and unaddressed market workflow requirements.";
-    return cleanVal(data.problem, fallback);
+    const rawProblem = data.problem;
+    const fallback = isNuc
+      ? "Increasing electricity demand, reliability requirements, wholesale price volatility and demand for additional firm low-carbon generation."
+      : (isTax
+        ? "Manual GST calculation errors, unexpected IRD tax penalties, and cash flow strain for commercial SMBs."
+        : "Operational friction, cost inefficiency, and unaddressed market workflow requirements.");
+    return cleanVal(rawProblem, fallback);
   }
 
   if (fieldType === 'valueProposition') {
     if (isNuc) return "Continuous, low-carbon firm electricity generation providing long-term price predictability, grid stability, and industrial decarbonisation.";
-    if (isHw) return "Durable physical solution delivering direct operational efficiency and asset protection.";
+    if (isHw) return "A reliable, effective, and automated pest deterrent that significantly reduces maintenance, damage, and hygiene concerns on boats.";
     return "Commercial solution delivering direct operational efficiency, cost reduction, and low switching friction.";
   }
 
@@ -501,11 +524,13 @@ function validateAndEnforceBusinessModelSnapshot(data, reqData = {}) {
     }
   }
 
-  // Final quality assertion
-  for (const field of requiredFields) {
-    if (isInvalid(data.businessModelSnapshot[field])) {
-      console.error(`PITCHLAB QUALITY GATE FAILURE: businessModelSnapshot.${field} remains invalid.`);
-      data.businessModelSnapshot[field] = synthesizeBusinessModelField(field, reqData, ventureType, targetJurisdiction);
+  // Grounding & Semantic Consistency Check (MoorSafe Fix 1)
+  const preservedProblem = (reqData.problem || data.problem || "").toLowerCase();
+  const currentProb = (data.businessModelSnapshot.customerProblem || "").toLowerCase();
+  if (preservedProblem && (preservedProblem.includes("pest") || preservedProblem.includes("rodent") || preservedProblem.includes("rat"))) {
+    if (currentProb.includes("collision") || currentProb.includes("mooring line failure") || (!currentProb.includes("pest") && !currentProb.includes("rodent"))) {
+      console.warn("PitchLab INTEGRITY GATE: Grounding failure detected in customerProblem! Overwriting with preserved problem...");
+      data.businessModelSnapshot.customerProblem = synthesizeBusinessModelField('customerProblem', reqData, ventureType, targetJurisdiction);
     }
   }
 
@@ -819,6 +844,8 @@ exports.pitchLabEvaluation = onCall({
       - You MUST explicitly extract specific, identifiable professional credentials, qualifications, degrees, roles, certifications, and named organizations present in the CV text into "cvAnalysis.extractedCredentials" (Array of 3-5 strings).
       - EXPLICIT EXAMPLES: "Chartered Accountant (CA / CAANZ)", "Bachelor of Commerce", "Finance Manager (Clever Core NZ Ltd / Fletcher)", "Xero Certified Advisor", "20+ years senior advisory experience".
       - NEVER output generic placeholders such as "Relevant professional domain experience" or "Industry-specific commercial background" if specific credentials exist in the CV text.
+      - EXCLUDE PERSONAL HOBBIES, SPORTS, AND LEISURE ACTIVITIES (e.g. private pilot, motorcyclist, wind surfing, sports, travel, recreational interests) from "cvAnalysis.extractedCredentials". Only include professional qualifications, academic degrees, commercial roles, financial certifications, and industry domain experience.
+      - EVIDENCE-STATE LANGUAGE CONTROLS: If customer validation proof is early stage / not yet evidenced, DO NOT claim "clear willing-to-pay market segment", "proven demand", or "there is no effective automated solution on the market". Frame market and customer willingness to pay as unvalidated hypotheses requiring empirical confirmation.
 
       LOCATION & REGIONAL SCOPE DIRECTIVE:
       - Submitted Location: Country = "${locationCountry || 'Not specified'}", Region = "${locationRegion || 'Not specified'}", City = "${locationCity || 'Not specified'}", Full Location Summary = "${locationSummary || 'New Zealand'}".
@@ -931,7 +958,7 @@ exports.pitchLabEvaluation = onCall({
           "biggestStrength": "Biggest investment strength call-out",
           "biggestRisk": "Biggest investment risk call-out",
           "improvements": ["Improvement 1", "Improvement 2", "Improvement 3"],
-          "pitchLabRecommendation": "Almost Ready",
+          "pitchLabRecommendation": "INVESTIGATE",
           "pitchLabRecommendationExplanation": "Short explanation for recommendation"
         },
         "scores": {
@@ -1033,7 +1060,7 @@ exports.pitchLabEvaluation = onCall({
         biggestStrength: z.string().describe("One highlighted investor call-out box for biggest strength."),
         biggestRisk: z.string().describe("One highlighted investor warning box for biggest risk."),
         improvements: z.array(z.string()).describe("3 to 5 prioritized recommendations to improve investor appeal."),
-        pitchLabRecommendation: z.string().describe("Ready to Pitch, Almost Ready, Needs More Validation, or Early Stage Idea"),
+        pitchLabRecommendation: z.string().describe("Master Recommendation: INVESTIGATE, PURSUE, REFRAME, PARK, or STOP"),
         pitchLabRecommendationExplanation: z.string().describe("Short explanation for the PitchLab recommendation.")
       }).describe("Proprietary PitchLab Commercial Readiness Assessment framework."),
       executiveSummary: z.string().describe("150-250 words ONLY. Sharp commercial overview. No repetition."),
@@ -1202,7 +1229,7 @@ exports.pitchLabEvaluation = onCall({
       { area: "Market Opportunity", rating: getRating("marketCommercialOpportunity", 15), commentary: generateContextualInvestorCommentary("Market Opportunity", getRating("marketCommercialOpportunity", 15), reconciled.categoryScores.marketCommercialOpportunity?.scoreAchieved || 0, 15, reqData, reconciled.gatesInfo, reconciled) },
       { area: "Competitive Advantage", rating: getRating("competitivePosition", 10), commentary: generateContextualInvestorCommentary("Competitive Advantage", getRating("competitivePosition", 10), reconciled.categoryScores.competitivePosition?.scoreAchieved || 0, 10, reqData, reconciled.gatesInfo, reconciled) },
       { area: "Business Model", rating: getRating("businessModelWillingnessToPay", 15), commentary: generateContextualInvestorCommentary("Business Model", getRating("businessModelWillingnessToPay", 15), reconciled.categoryScores.businessModelWillingnessToPay?.scoreAchieved || 0, 15, reqData, reconciled.gatesInfo, reconciled) },
-      { area: "Founder Capability", rating: (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved >= 13 ? 5 : (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved >= 10 ? 4 : (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved >= 7 ? 3 : (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved >= 4 ? 2 : 1)))), commentary: generateContextualInvestorCommentary("Founder Capability", (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved >= 13 ? 5 : (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved >= 10 ? 4 : (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved >= 7 ? 3 : (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved >= 4 ? 2 : 1)))), reconciled.categoryScores.founderCapabilityFit?.scoreAchieved || 0, 15, reqData, reconciled.gatesInfo, reconciled) },
+      { area: "Founder Capability", rating: getRating("founderCapabilityFit", 15), commentary: generateContextualInvestorCommentary("Founder Capability", getRating("founderCapabilityFit", 15), reconciled.categoryScores.founderCapabilityFit?.scoreAchieved || 0, 15, reqData, reconciled.gatesInfo, reconciled) },
       { area: "Customer Validation", rating: getRating("customerValidation", 20), commentary: generateContextualInvestorCommentary("Customer Validation", getRating("customerValidation", 20), reconciled.categoryScores.customerValidation?.scoreAchieved || 0, 20, reqData, reconciled.gatesInfo, reconciled) },
       { area: "Scalability", rating: getRating("executionReadiness", 10), commentary: generateContextualInvestorCommentary("Scalability", getRating("executionReadiness", 10), reconciled.categoryScores.executionReadiness?.scoreAchieved || 0, 10, reqData, reconciled.gatesInfo, reconciled) },
       { area: "Investment Readiness", rating: Math.max(1, Math.min(5, Math.round((reconciled.overallScore / 100) * 5))), commentary: generateContextualInvestorCommentary("Investment Readiness", Math.max(1, Math.min(5, Math.round((reconciled.overallScore / 100) * 5))), reconciled.overallScore, 100, reqData, reconciled.gatesInfo, reconciled) }
@@ -1237,7 +1264,7 @@ exports.pitchLabEvaluation = onCall({
     // Section 8 & 9: If Critical Feasibility Gates exist, synchronize recommendations & roadmap to Pre-Feasibility focus
     if (reconciled.gatesInfo?.hasCriticalGate) {
       const targetJurisdiction = getJurisdictionName(reqData);
-      const calibratedBiggestRisk = "The proposed venture faces substantial statutory, regulatory, consenting, public-policy and capital barriers. Whether a viable legal/regulatory pathway exists under the current framework, or whether legislative change would ultimately be required, remains subject to specialist legal confirmation.";
+      const calibratedBiggestRisk = `Unresolved statutory and regulatory feasibility in ${targetJurisdiction}, combined with the absence of directly experienced specialist project capability.`;
 
       evaluationData.summaryBlock = evaluationData.summaryBlock || {};
       evaluationData.summaryBlock.overallReadinessScore = reconciled.overallScore;
@@ -1330,9 +1357,9 @@ exports.pitchLabEvaluation = onCall({
         marketLandscape: `The broader market operates within a heavily structured statutory and regulatory environment. While underlying regional demand for baseload power and grid reliability is significant, sector entry is strictly governed by national legislation, public policy mandates, and multi-billion-dollar infrastructure capital scale requirements.`,
         demandDrivers: `Primary demand drivers include rising electricity demand, decarbonisation targets, dry-year hydro risk, and peak demand volatility. However, commercial adoption is strictly constrained by statutory and regulatory approval pathways.`,
         competitionAlternatives: `The proposed solution would compete with established state-backed hydro, geothermal, and wind generation incumbents, as well as alternative grid stability solutions integrated into national energy networks.`,
-        commercialReality: `A critical distinction exists between large national electricity demand and the commercially accessible opportunity for this specific solution. The commercially accessible market appears effectively unavailable under the current assessed regulatory environment, subject to specialist legal confirmation.`,
+        commercialReality: `A critical distinction exists between large national electricity demand and the commercially accessible opportunity for this specific solution. The commercially accessible opportunity appears materially constrained under the current assessed regulatory environment, with the extent of those constraints subject to specialist legal confirmation.`,
         localBusinessNews: `Local energy market news highlights rising electricity demand, dry-year hydro volatility, wholesale power price spikes, and policy debates surrounding New Zealand energy security.`,
-        customerReviewTrends: `Published industry commentary and energy sector analysis highlight concerns over long-term price predictability, grid reliability during peak winter demand, and industrial carbon tax exposure. No direct off-taker commercial validation has been conducted by the venture.`,
+        customerReviewTrends: `Published energy-sector reporting and industry commentary indicate demand for firm low-carbon baseload power, but direct customer/off-taker validation has not yet been established by the venture.`,
         governmentPolicyInfluence: `${targetJurisdiction} statutory policy and legislative frameworks govern power generation, environmental protection, fast-track consenting, and nuclear-related statutory requirements and restrictions requiring specialist interpretation for the proposed commercial generation model.`
       };
 
@@ -1380,9 +1407,13 @@ exports.pitchLabEvaluation = onCall({
       // Fix 8: Calibrated founder capability response
       evaluationData.founderCapabilityExplanation = evaluationData.founderCapabilityExplanation || {};
       evaluationData.founderCapabilityExplanation.recommendedResponse = [
-        "Identify and begin engaging appropriately credentialled nuclear engineering, energy infrastructure and regulatory specialists who could support a later pre-feasibility stage if the statutory pathway proves viable.",
-        "Obtain specialist legal advice regarding the statutory and consenting framework before building or recruiting a dedicated project team."
+        "Identify and begin engaging appropriately credentialled specialists for preliminary advice, scoping and potential future involvement.",
+        "Engage specialist legal and regulatory counsel to map statutory pathways before assembling a formal development team."
       ];
+
+      // Fix 2.6: Calibrated PitchLab Recommendation
+      evaluationData.investorBite.pitchLabRecommendation = reconciled.masterRecommendation;
+      evaluationData.investorBite.pitchLabRecommendationExplanation = "The unresolved legal and regulatory barriers mean the venture is not currently commercially actionable. Complete specialist pre-feasibility work to determine whether a credible statutory pathway exists before committing development capital.";
     }
     evaluationData.investorBite.investorQuestions = (Array.isArray(evaluationData.investorBite.investorQuestions) && evaluationData.investorBite.investorQuestions.length > 0) ? evaluationData.investorBite.investorQuestions : [
       "What statutory or regulatory approvals are required before project execution?",
@@ -1531,6 +1562,11 @@ exports.pitchLabEvaluation = onCall({
 
     // CV Analysis & Language Calibration
     evaluationData.cvAnalysis = evaluationData.cvAnalysis || {};
+    if (Array.isArray(evaluationData.cvAnalysis.extractedCredentials)) {
+      const hobbyRegex = /\b(pilot|private pilot|motorcycle|motorcyclist|wind surfing|surfing|kitesurfing|skiing|golf|tennis|rugby|cricket|hiking|diving|scuba|hobby|hobbies|recreational)\b/i;
+      evaluationData.cvAnalysis.extractedCredentials = evaluationData.cvAnalysis.extractedCredentials.filter(c => !hobbyRegex.test(c));
+    }
+
     if (founderScoreVal <= 6) {
       evaluationData.cvAnalysis.alignmentWithBusinessIdea = "The supplied CV demonstrates general commercial capability, but does not evidence direct technical or regulatory execution experience for this specific venture.";
       if (evaluationData.founderCapabilityExplanation) {
@@ -1538,7 +1574,24 @@ exports.pitchLabEvaluation = onCall({
       }
     } else {
       evaluationData.cvAnalysis.alignmentWithBusinessIdea = evaluationData.cvAnalysis.alignmentWithBusinessIdea || "Founder's background supports commercial analysis and project execution.";
+      if (evaluationData.founderCapabilityExplanation && evaluationData.founderCapabilityExplanation.whyThisScoreWasAwarded) {
+        evaluationData.founderCapabilityExplanation.whyThisScoreWasAwarded = evaluationData.founderCapabilityExplanation.whyThisScoreWasAwarded
+          .replace(/A score of \d+\/15/g, `A score of ${founderScoreVal}/15`)
+          .replace(/making the fit weak despite general commercial strength/g, "highlighting that specialist engineering and manufacturing capability should be bridged via advisers, technical contractors, or engineering partners as validation progresses, while the founder leads commercial strategy, supplier coordination, and customer validation");
+      }
     }
+
+    // Canonical Score Object (MoorSafe Fix 2)
+    evaluationData.canonicalScores = {
+      problemCustomerClarity: { score: reconciled.categoryScores.problemCustomerClarity?.scoreAchieved || 0, max: 15, rating5: getRating("problemCustomerClarity", 15) },
+      founderCapabilityFit: { score: founderScoreVal, max: 15, rating5: getRating("founderCapabilityFit", 15) },
+      customerValidation: { score: reconciled.categoryScores.customerValidation?.scoreAchieved || 0, max: 20, rating5: getRating("customerValidation", 20) },
+      marketCommercialOpportunity: { score: reconciled.categoryScores.marketCommercialOpportunity?.scoreAchieved || 0, max: 15, rating5: getRating("marketCommercialOpportunity", 15) },
+      businessModelWillingnessToPay: { score: reconciled.categoryScores.businessModelWillingnessToPay?.scoreAchieved || 0, max: 15, rating5: getRating("businessModelWillingnessToPay", 15) },
+      competitivePosition: { score: reconciled.categoryScores.competitivePosition?.scoreAchieved || 0, max: 10, rating5: getRating("competitivePosition", 10) },
+      executionReadiness: { score: reconciled.categoryScores.executionReadiness?.scoreAchieved || 0, max: 10, rating5: getRating("executionReadiness", 10) },
+      overallScore: reconciled.overallScore
+    };
 
     // FIX 3: Master Recommendation Everywhere Enforcer & Contradiction Guard
     const masterRec = reconciled.masterRecommendation;
@@ -1549,6 +1602,13 @@ exports.pitchLabEvaluation = onCall({
     if (evaluationData.investorBite) {
       evaluationData.investorBite.pitchLabRecommendation = masterRec;
       evaluationData.investorBite.recommendation = masterRec;
+      if (evaluationData.investorBite.pitchLabRecommendationExplanation) {
+        evaluationData.investorBite.pitchLabRecommendationExplanation = evaluationData.investorBite.pitchLabRecommendationExplanation
+          .replace(/\bAlmost Ready\b/g, reconciled.scoreBand.name)
+          .replace(/\bReady to Pitch\b/g, reconciled.scoreBand.name)
+          .replace(/\bNeeds More Validation\b/g, reconciled.scoreBand.name)
+          .replace(/\bEarly Stage Idea\b/g, reconciled.scoreBand.name);
+      }
       if (Array.isArray(evaluationData.investorBite.investorQuestions)) {
         evaluationData.investorBite.investorQuestions = evaluationData.investorBite.investorQuestions.map(q =>
           q.replace(/circumvent|bypass|evade/gi, "establish a lawful legislative, regulatory or policy pathway for")
