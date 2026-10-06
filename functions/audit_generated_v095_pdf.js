@@ -35,11 +35,11 @@ async function auditPdf() {
 
   // 1. Version and Build check
   const hasVersion = text.includes('v0.9.5');
-  const hasBuild = text.includes('1b52830');
+  const hasBuild = text.includes('df9e473');
   checks.push({
-    test: 'Header/Footer Version & Build ID (v0.9.5, 1b52830)',
+    test: 'Header/Footer Version & Build ID (v0.9.5, df9e473)',
     pass: hasVersion && hasBuild,
-    detail: `v0.9.5 found: ${hasVersion}, 1b52830 found: ${hasBuild}`
+    detail: `v0.9.5 found: ${hasVersion}, df9e473 found: ${hasBuild}`
   });
 
   // 2. Exactly 7 pages
