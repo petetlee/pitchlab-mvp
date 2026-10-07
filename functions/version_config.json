@@ -1,9 +1,9 @@
 {
   "appVersion": "v0.9.6",
   "fullVersionString": "PitchLab MVP v0.9.6",
-  "changeId": "PL-FIX-20261006-SMARTTAX-01",
-  "parentChangeId": "PL-FIX-2026-10-06-MOORSAFE-INT-01",
-  "buildId": "ea29c17",
-  "deployedAt": "2026-10-07T12:00:00+13:00",
-  "deployedAtFormatted": "07 Oct 2026 12:00 NZDT"
+  "changeId": "PL-FIX-2026-10-06-MOORSAFE-INT-01",
+  "parentChangeId": "PL-FIX-20261005-v0.9.5-01-COMPLETE",
+  "buildId": "c4cb9a4",
+  "deployedAt": "2026-10-07T17:48:00+13:00",
+  "deployedAtFormatted": "07 Oct 2026 17:48 NZDT"
 }
