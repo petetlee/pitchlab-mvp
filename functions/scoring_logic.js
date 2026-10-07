@@ -154,13 +154,13 @@ function classifyVentureType(rawInputs = {}) {
   const category = (rawInputs.category || "").toLowerCase();
   const text = `${idea} ${problem} ${category}`;
 
-  if (text.match(/nuclear|atomic|smr\b|fission|fusion|\bpower plant\b|\belectric grid\b|\bdam\b|hydroelectric|geothermal|refinery|pipeline|mining|railway|airport|infrastructure|utility scale/)) {
+  if (text.match(/\b(nuclear|atomic|smr|fission|fusion|power plant|electric grid|dam|hydroelectric|geothermal|refinery|pipeline|mining|railway|airport|infrastructure|utility scale)\b/i)) {
     return 'Energy / Infrastructure / Heavy Industrial';
   }
-  if (text.match(/pharma|drug|clinical trial|medical device|biotech|surgical|implant|gene therapy|diagnostic|health|hospital|medical/)) {
+  if (text.match(/\b(pharma|drug|clinical trial|medical device|biotech|surgical|implant|gene therapy|diagnostic|hospital)\b/i)) {
     return 'Medical / Biotech / Clinical';
   }
-  if (text.match(/quantum|semiconductor|nanotech|fusion|robotics|satellite|aerospace|rocket|deep tech/)) {
+  if (text.match(/\b(quantum|semiconductor|nanotech|fusion|robotics|satellite|aerospace|rocket|deep tech)\b/i)) {
     return 'Deep Technology / Scientific';
   }
   if (text.match(/mooring|solar-powered|device|hardware|sensor|enclosure|physical product|equipment|machinery/)) {
@@ -216,8 +216,8 @@ function detectFeasibilityGates(rawInputs = {}) {
 
   const gates = [];
 
-  const isNuclear = Boolean(fullText.match(/nuclear|atomic|power plant|reactor|fission|fusion/));
-  const isNZ = Boolean(fullText.match(/new zealand|\bnz\b|kiwi|auckland|wellington|christchurch/)) || (locationCountry === "" && locationSummary === "");
+  const isNuclear = Boolean(fullText.match(/\b(nuclear|atomic|power plant|reactor|fission|fusion|smr)\b/i));
+  const isNZ = Boolean(fullText.match(/\b(new zealand|nz|kiwi|auckland|wellington|christchurch)\b/i)) || (locationCountry === "" && locationSummary === "");
 
   // 1. Statutory & Regulatory Framework Barrier
   if (isNuclear && isNZ) {
@@ -227,7 +227,7 @@ function detectFeasibilityGates(rawInputs = {}) {
       severity: 'Critical',
       status: 'Verified Constraint'
     });
-  } else if (fullText.match(/illegal|prohibited|unlawful|banned/)) {
+  } else if (fullText.match(/\b(illegal|prohibited|unlawful|banned)\b/i)) {
     gates.push({
       type: 'Legal & Statutory Framework Barrier',
       label: 'Statutory or regulatory restrictions apply to this activity in the target jurisdiction, subject to specialist legal confirmation',
@@ -237,7 +237,7 @@ function detectFeasibilityGates(rawInputs = {}) {
   }
 
   // 2. Extreme Regulatory & Government Approval
-  if (isNuclear || fullText.match(/clinical trial|drug approval|fda approval|banking license|grid connection/)) {
+  if (isNuclear || fullText.match(/\b(clinical trial|drug approval|fda approval|banking license|grid connection)\b/i)) {
     gates.push({
       type: 'Regulatory Dependency',
       label: 'Venture requires major government, statutory, safety, or environmental regulatory approvals before operating',
@@ -247,7 +247,7 @@ function detectFeasibilityGates(rawInputs = {}) {
   }
 
   // 3. Extreme Capital & Heavy Infrastructure Disproportion
-  if (isNuclear || fullText.match(/\bpower plant\b|\brefinery\b|\bdam\b|\butility scale\b|\bbillion\b|\bhundred million\b|\bheavy infrastructure\b/)) {
+  if (isNuclear || fullText.match(/\b(power plant|refinery|dam|utility scale|billion|hundred million|heavy infrastructure)\b/i)) {
     gates.push({
       type: 'Capital & Infrastructure Dependency',
       label: 'Multi-billion-dollar infrastructure capital requirement relative to founder initial validation budget',
@@ -257,7 +257,7 @@ function detectFeasibilityGates(rawInputs = {}) {
   }
 
   // 4. Unproven Scientific / Deep Tech Feasibility
-  if (fullText.match(/fusion|quantum|novel compound|unproven science|gene editing/)) {
+  if (fullText.match(/\b(fusion|quantum|novel compound|unproven science|gene editing)\b/i)) {
     gates.push({
       type: 'Scientific / Technical Feasibility',
       label: 'Core technology or underlying scientific principle remains unproven or in fundamental R&D stage',
@@ -267,7 +267,7 @@ function detectFeasibilityGates(rawInputs = {}) {
   }
 
   // 5. Social, Political, Public Acceptance & Environmental Feasibility
-  if (isNuclear || fullText.match(/dam|mining|fracking|toxic|landfill|waste disposal|genetically modified/)) {
+  if (isNuclear || fullText.match(/\b(dam|mining|fracking|toxic|landfill|waste disposal|genetically modified)\b/i)) {
     gates.push({
       type: 'Social & Political Feasibility',
       label: 'Venture carries high social licence, community sentiment, public acceptance, or environmental regulatory barriers',
@@ -277,8 +277,8 @@ function detectFeasibilityGates(rawInputs = {}) {
   }
 
   // Check Domain Fit Gap for High Specialization
-  const isHighSpec = fullText.match(/nuclear|atomic|power plant|clinical trial|drug|quantum|fusion|aerospace|satellite/);
-  const hasDomainExp = founderText.match(/nuclear|atomic|energy engineer|radiation|reactor|physicist|phd|md\b|doctor|clinical|oncology|biomedical|aerospace/);
+  const isHighSpec = fullText.match(/\b(nuclear|atomic|power plant|clinical trial|drug|quantum|fusion|aerospace|satellite)\b/i);
+  const hasDomainExp = founderText.match(/\b(nuclear|atomic|energy engineer|radiation|reactor|physicist|phd|md|doctor|clinical|oncology|biomedical|aerospace)\b/i);
 
   if (isHighSpec && !hasDomainExp) {
     gates.push({
@@ -517,10 +517,10 @@ function calculateFounderSubFactors(rawInputs = {}) {
 
   const ventureType = classifyVentureType(rawInputs);
 
-  const isNuclear = Boolean(allVentureText.match(/nuclear|atomic|reactor|fission|fusion|smr\b|radiation/i));
+  const isNuclear = Boolean(allVentureText.match(/\b(nuclear|atomic|reactor|fission|fusion|smr|radiation)\b/i));
   const isHeavyInfrastructure = (isNuclear || Boolean(allVentureText.match(/refinery|\bdam\b|hydroelectric|geothermal|railway|airport|utility scale|grid-scale|\bpower plant\b|\benergy plant\b/i))) && !allVentureText.match(/solar-powered|device|hardware|pest|mooring/i);
-  const isBiotech = Boolean(allVentureText.match(/pharma|drug|clinical trial|medical device|biotech|gene therapy|therapeutics|vaccine|diagnostic/i));
-  const isDeepTech = Boolean(allVentureText.match(/quantum|semiconductor|nanotech|satellite|aerospace|rocket|fusion|deep tech/i));
+  const isBiotech = Boolean(allVentureText.match(/\b(pharma|drug|clinical trial|medical device|biotech|gene therapy|therapeutics|vaccine|diagnostic)\b/i));
+  const isDeepTech = Boolean(allVentureText.match(/\b(quantum|semiconductor|nanotech|satellite|aerospace|rocket|fusion|deep tech)\b/i));
 
   const isVentureCriticalDomainNeeded = isNuclear || isHeavyInfrastructure || isBiotech || isDeepTech;
 
@@ -1238,15 +1238,18 @@ function calculate5DimensionFutureTrends(rawInputs = {}, gatesInfo = {}, venture
   let marketDirection = "POSITIVE";
   let solutionOutlook = "FAVOURABLE";
 
-  let demandTrend = "Growing long-term demand for clean, reliable energy & baseload power.";
-  let technologyTrend = "Advancements in SMR (Small Modular Reactor) design and safety systems.";
-  let regulatoryTrend = "Increasing policy support globally for decarbonisation and nuclear energy.";
-  let competitionTrend = "High barriers to entry with limited commercial competitors in domestic markets.";
-  let capitalTrend = "High upfront capital intensity requiring institutional & sovereign funding.";
+  // Clean default trends for digital/commercial software
+  let demandTrend = "Growing demand for automated workflow efficiency, digital productivity, and reduced manual overhead.";
+  let technologyTrend = "Expansion of cloud integrations, automated workflows, and modern API ecosystems.";
+  let regulatoryTrend = "Standard data privacy, commercial consumer protection, and statutory business guidelines.";
+  let competitionTrend = "Established incumbent solutions create high switching friction, requiring clear niche focus.";
+  let capitalTrend = "Lean software capital model with low initial infrastructure overhead, scaling through subscription economics.";
 
-  let whatThisMeansForFounder = "Monitor global SMR policy and legislative developments while tracking national grid requirements.";
-  let adjacentOpportunities = ["Nuclear supply-chain consulting", "SMR component manufacturing", "Clean energy advisory"];
+  let whatThisMeansForFounder = "Focus on solving a specific workflow friction point and validating customer willingness to pay before expanding development scope.";
+  let adjacentOpportunities = ["Workflow automation tools", "API-driven add-ons", "Enterprise reporting integrations"];
   let trendAlignmentScore = 7;
+
+  const isFinTech = ventureType === "Financial Services / FinTech" || Boolean(text.match(/\b(tax|gst|ird|fintech|accounting|bookkeep|invoic|payroll|banking)\b/i));
 
   if (isNuclear || gatesInfo?.hasCriticalGate) {
     marketDirection = "POSITIVE";
@@ -1259,6 +1262,17 @@ function calculate5DimensionFutureTrends(rawInputs = {}, gatesInfo = {}, venture
     whatThisMeansForFounder = "Preserve the problem definition and track policy developments. Do not deploy private development capital into commercial nuclear generation in NZ until a clear statutory and regulatory pathway has been confirmed by specialist counsel.";
     adjacentOpportunities = ["Off-grid micro-grids and clean energy storage", "Geothermal & hydro grid-firming technologies", "Nuclear technology & regulatory advisory for OECD markets"];
     trendAlignmentScore = 7; // Reflects high structural alignment with 3-10 year decarbonization & energy demand trends
+  } else if (isFinTech) {
+    marketDirection = "POSITIVE";
+    solutionOutlook = "FAVOURABLE";
+    demandTrend = "Growing SME demand for automated cash-flow discipline, automated tax set-aside, and real-time tax compliance support.";
+    technologyTrend = "Expansion of open banking APIs, automated bank transaction feeds, and cloud accounting integrations.";
+    regulatoryTrend = "Inland Revenue (IRD) digital services expansion, Pay-As-You-Earn/GST real-time reporting evolution, and digital tax compliance standards.";
+    competitionTrend = "Incumbent accounting platforms (Xero, MYOB) dominate general ledgers; niche opportunities exist in dedicated cash-flow and automated tax provisioning tools.";
+    capitalTrend = "Lean software capital model with low initial infrastructure overhead, scaling through subscription software economics.";
+    whatThisMeansForFounder = "Validate core customer workflow integration and bank feed connectivity before investing heavily in custom software development.";
+    adjacentOpportunities = ["Automated provisional tax calculator", "SME cash-flow buffer advisory", "Accountant/bookkeeper dashboard integration"];
+    trendAlignmentScore = 8;
   } else if (ventureType.includes("Hardware") || ventureType.includes("Manufacturing")) {
     marketDirection = "POSITIVE";
     solutionOutlook = "PROMISSING";
@@ -1658,6 +1672,7 @@ function generateContextualInvestorCommentary(area, rating, scoreAchieved, maxSc
   const idea = (reqData.idea || "Proposed concept").trim();
   const targetMarket = (reqData.targetMarket || "target customers").trim();
   const isNuclear = (idea + " " + (reqData.category || "")).toLowerCase().includes("nuclear");
+  const ventureType = classifyVentureType(reqData);
 
   if (area === "Problem Worth Solving") {
     if (isNuclear || gatesInfo?.hasCriticalGate) {
@@ -1764,7 +1779,7 @@ function getLegalRegulatoryAssessment(rawInputs = {}, gatesInfo = {}, ventureTyp
   const locationSummary = (rawInputs.locationSummary || "").toLowerCase();
   const fullText = `${idea} ${problem} ${targetMarket} ${locationCountry} ${locationSummary}`.toLowerCase();
 
-  const isNuclear = Boolean(fullText.match(/nuclear|atomic|power plant|reactor|fission|fusion|smr\b/));
+  const isNuclear = Boolean(fullText.match(/\b(nuclear|atomic|power plant|reactor|fission|fusion|smr)\b/i));
   const isNZ = Boolean(fullText.match(/new zealand|\bnz\b|kiwi|auckland|wellington|christchurch/)) || (locationCountry === "" && locationSummary === "");
 
   if (isNuclear && isNZ) {
@@ -2047,6 +2062,77 @@ function validateReportIntegrityGate(evaluationData = {}, reqData = {}) {
     if (/Block 5-10 hours\/week/i.test(fullReportText)) {
       throw new Error("PITCHLAB QA INTEGRITY FAILURE: Founder time constraint overridden (found 'Block 5-10 hours/week' for 0-5 hrs/wk availability).");
     }
+  }
+
+  // 11. No Invented Core Offering Check (PL-FIX-20261006-SMARTTAX-01 Section 1)
+  const founderIdea = (reqData.idea || "").toLowerCase();
+  const coreOffering = (evaluationData.businessModelSnapshot?.coreOffering || "").toLowerCase();
+  if (!founderIdea.includes("filing") && !founderIdea.includes("returns") && !founderIdea.includes("financial reporting")) {
+    if (coreOffering.includes("tax compliance filing") || coreOffering.includes("financial reporting software")) {
+      throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Invented core offering detected ('${evaluationData.businessModelSnapshot.coreOffering}'). Founder concept does not state automated tax filing or financial reporting.`);
+    }
+  }
+
+  // 12. Grounded Founder Moat & Customer Demographic Check (PL-FIX-20261006-SMARTTAX-01 Section 4)
+  const explicitTarget = (reqData.targetMarket || "").toLowerCase();
+  if (!explicitTarget.includes("maori") && !explicitTarget.includes("māori") && !explicitTarget.includes("pacifica") && !explicitTarget.includes("pasifika")) {
+    const stratMoat = (evaluationData.businessTheme?.strategicMoat || "").toLowerCase();
+    const bmCustomer = (evaluationData.businessModelSnapshot?.targetCustomer || "").toLowerCase();
+    if (stratMoat.includes("maori") || stratMoat.includes("māori") || stratMoat.includes("pacifica") || stratMoat.includes("pasifika") ||
+        bmCustomer.includes("maori") || bmCustomer.includes("māori") || bmCustomer.includes("pacifica") || bmCustomer.includes("pasifika")) {
+      throw new Error("PITCHLAB QA INTEGRITY FAILURE: Unsupported demographic inference detected. Māori/Pacifica demographic attributed as customer or moat without explicit founder target definition.");
+    }
+  }
+
+  // 13. Cross-Industry Semantic Contamination Check (PL-FIX-20261006-SMARTTAX-01 Section 2)
+  const isFinTechOrSaaS = ventureType === "Financial Services / FinTech" || ventureType.includes("SaaS") || ventureType.includes("Software");
+  const isNuclearVenture = Boolean((reqData.idea || "").toLowerCase().match(/\b(nuclear|smr|atomic|fission|fusion|power plant)\b/));
+  if (isFinTechOrSaaS && !isNuclearVenture) {
+    const crossIndustryPatterns = [
+      { pattern: /\bresource consents?\b/i, phrase: "resource consents" },
+      { pattern: /\benvironmental standards\b/i, phrase: "environmental standards" },
+      { pattern: /\bfast-track approvals?\b/i, phrase: "fast-track approvals" },
+      { pattern: /\bregional compliance mandates\b/i, phrase: "regional compliance mandates" },
+      { pattern: /\bradiation safety\b/i, phrase: "radiation safety" },
+      { pattern: /\batomic energy\b/i, phrase: "atomic energy" },
+      { pattern: /\bbaseload power\b/i, phrase: "baseload power" },
+      { pattern: /\bsmall modular reactor\b/i, phrase: "small modular reactor" },
+      { pattern: /\bpower plant\b/i, phrase: "power plant" }
+    ];
+    for (const rule of crossIndustryPatterns) {
+      if (rule.pattern.test(fullReportText)) {
+        throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Cross-industry contamination detected ('${rule.phrase}') in ${ventureType} assessment.`);
+      }
+    }
+  }
+
+  // 14. Business Model Snapshot Completeness Check (8 Rows Preserved - Section 9)
+  const bmSnapshot = evaluationData.businessModelSnapshot || {};
+  const requiredBmKeys = ['targetCustomer', 'coreOffering', 'customerProblem', 'valueProposition', 'revenueModel', 'customerAcquisition', 'keyCosts', 'commercialAssessment'];
+  for (const k of requiredBmKeys) {
+    if (!bmSnapshot[k] || typeof bmSnapshot[k] !== 'string' || bmSnapshot[k].trim().length < 5) {
+      throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Business Model Snapshot row '${k}' is missing or empty.`);
+    }
+  }
+
+  // 15. Future Trends 5 Dimensions Completeness Check (5 Dimensions Preserved - Section 10)
+  const ftDimensions = evaluationData.futureTrends?.dimensions || {};
+  const requiredFtDims = ['demandTrend', 'technologyTrend', 'regulatoryTrend', 'competitionTrend', 'capitalTrend'];
+  for (const d of requiredFtDims) {
+    if (!ftDimensions[d] || typeof ftDimensions[d] !== 'string' || ftDimensions[d].trim().length < 5) {
+      throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Future Trends dimension '${d}' is missing or empty.`);
+    }
+  }
+
+  // 16. Executive Summary Synthesized Prose Check (Section 6)
+  const execSummary = evaluationData.executiveSummary || "";
+  if (/targeting\s+the\s+target\s+market/i.test(execSummary) || /focusing\s+on\s+many\s+small\s+businesses/i.test(execSummary) || /the\s+goal\s+is\s+addresses/i.test(execSummary)) {
+    throw new Error("PITCHLAB QA INTEGRITY FAILURE: Executive summary contains ungrammatical raw field concatenation.");
+  }
+
+  // 17. Staged Action Interview Feasibility Check (Section 7)
+  if (/20[–-]30\s+interviews\s+(?:in|within)\s+7\s+days/i.test(fullReportText)) {
+    throw new Error("PITCHLAB QA INTEGRITY FAILURE: Inconsistent action plan demanding 20-30 interviews within 7 days.");
   }
 
   return true;

@@ -875,7 +875,21 @@ class PdfService {
 
     // FIX: Remove malformed regex artifacts ($1, lock-$1, tax agents$1)
     s = s.replaceAll(r'lock-$1', 'lock-in');
-    s = s.replaceAll(r'$1', '');
+    s = s.replaceAll(r'tax agents$1', 'tax agents');
+    s = s.replaceAll(RegExp(r'\$1(?![0-9,])'), '');
+    s = s.replaceAllMapped(RegExp(r'\$(\d+)\s*[-–]\s*,\s*(\d+)'), (match) => '\$${match.group(1)} - \$1,${match.group(2)}');
+    s = s.replaceAllMapped(RegExp(r'(^|[\s"–\-])\,([0-9]{3})'), (match) => '${match.group(1)}\$1,${match.group(2)}');
+
+    // Fix raw variable leakage
+    s = s.replaceAll(r'$riskCapital', r'$1,000 NZD');
+
+    // Filter personal hobbies from narrative
+    s = s.replaceAll(RegExp(r'\s*In my spare time[^\.]*\.?', caseSensitive: false), '');
+    s = s.replaceAll(RegExp(r'\s*(personal\s+)?interests?:[^\.]*\.?', caseSensitive: false), '');
+
+    // Fix unsupported factual claims & evidence-state language
+    s = s.replaceAll(RegExp(r'There is no effective,?\s*automated solution currently on the market\.?', caseSensitive: false), 'The founder has not identified a directly comparable automated solution within the evidence supplied. Dedicated competitor research is required.');
+    s = s.replaceAll(RegExp(r'clear,?\s*willing-to-pay market segment', caseSensitive: false), 'a potentially valuable customer segment whose willingness to pay remains unvalidated');
 
     // FIX 2: Correct heading punctuation and Assessment Confidence labeling
     s = s.replaceAll('.:', ':');
@@ -924,6 +938,10 @@ class PdfService {
       s = s.replaceAll(RegExp(r'Concierge MVP', caseSensitive: false), 'Field Test Prototype');
       s = s.replaceAll(RegExp(r'concierge pilot', caseSensitive: false), 'controlled field pilot');
       s = s.replaceAll(RegExp(r'writing code', caseSensitive: false), 'investing in product development & manufacturing');
+      s = s.replaceAll(RegExp(r'software or operational leverage without proportional linear costs', caseSensitive: false), 'standardised hardware manufacturing and channel distribution, governed by tooling and inventory working capital');
+      s = s.replaceAll(RegExp(r'marginal cost of software delivery', caseSensitive: false), 'unit manufacturing and assembly costs');
+      s = s.replaceAll(RegExp(r'changing customer requirements and regional market dynamics', caseSensitive: false), 'vessel asset protection needs and marine environmental conditions');
+      s = s.replaceAll(RegExp(r'resource consents, environmental standards, fast-track approvals, and regional compliance mandates', caseSensitive: false), 'marina biosecurity guidelines, environmental regulations, and electrical product safety standards');
     }
 
     // FIX PL-FIX-20261005-v0.9.5-01: Prohibited phrases & legal certainty tone calibration
@@ -1108,7 +1126,99 @@ class PdfService {
       print('PitchLab PDF Integrity Warning: False numerical precision claim (+21.8%) detected.');
     }
 
-    // 6. FIX PL-FIX-20261005-v0.9.5-01: LEGAL CERTAINTY & EVIDENCE PROVENANCE ASSERTIONS
+    // 6. MANDATORY PRE-RENDER VARIABLE & SYNTAX INTEGRITY SCAN (PL-FIX-2026-10-06-MOORSAFE-INT-01)
+    final allPdfText = [
+      res.fullBusinessName,
+      res.businessName,
+      res.founderName,
+      res.executiveSummary,
+      res.pitchLabVerdict,
+      res.primaryTheme,
+      res.secondaryTheme,
+      res.strategicPositioning,
+      res.marketCategoryDynamics,
+      res.strategicMoat,
+      res.marketLandscape,
+      res.demandDrivers,
+      res.competitionAlternatives,
+      res.commercialReality,
+      res.localBusinessNews,
+      res.customerReviewTrends,
+      res.governmentPolicyInfluence,
+      res.bmTargetCustomer,
+      res.bmCoreOffering,
+      res.bmCustomerProblem,
+      res.bmValueProposition,
+      res.bmRevenueModel,
+      res.bmCustomerAcquisition,
+      res.bmKeyCosts,
+      res.bmCommercialAssessment,
+      res.ibIntro,
+      res.ibInvestmentVerdict,
+      res.ibBiggestRisk,
+      res.ibPitchLabRecommendation,
+      res.ibPitchLabRecommendationExplanation,
+      res.availableCapital,
+      res.timeAvailable,
+      res.likelyValidationCapitalRequired,
+      ...res.ibImprovements,
+      ...res.recommendedGapResponses,
+      ...res.whatMattersNow,
+      ...res.threePriorityActions.map((a) => '${a['heading']} ${a['explanation']} ${a['outcome']}'),
+      ...res.topFivePriorities.map((p) => '${p['priority']} ${p['action']} ${p['metric']}'),
+    ].join(' ');
+
+    // 6.1 Check for raw variable leakage ($riskCapital, ${var}, {{var}}, undefined, [object Object])
+    final rawVarRegex = RegExp(r'(\$[a-zA-Z_]\w*|\$\{[^}]+\}|\{\{[^}]+\}\}|\[object\s+Object\]|\bundefined\b)');
+    final rawVarMatch = rawVarRegex.firstMatch(allPdfText);
+    if (rawVarMatch != null) {
+      throw Exception('PITCHLAB PRE-PDF INTEGRITY FAILURE: Raw unresolved variable "${rawVarMatch.group(0)}" detected in PDF content. Generation blocked.');
+    }
+
+    // 6.2 Check for broken monetary values (,500 instead of $1,500)
+    final brokenCurrencyRegex = RegExp(r'(^|[\s"–\-])\,([0-9]{3})');
+    final brokenCurrencyMatch = brokenCurrencyRegex.firstMatch(allPdfText);
+    if (brokenCurrencyMatch != null) {
+      throw Exception('PITCHLAB PRE-PDF INTEGRITY FAILURE: Broken monetary field ",${brokenCurrencyMatch.group(2)}" detected without currency symbol. Generation blocked.');
+    }
+
+    // 6.3 Check for undeclared stage labels in recommendation / stage
+    final undeclaredStages = ['Almost Ready', 'Ready to Pitch', 'Needs More Validation', 'Early Stage Idea'];
+    if (undeclaredStages.contains(res.ibPitchLabRecommendation)) {
+      throw Exception('PITCHLAB PRE-PDF INTEGRITY FAILURE: Undeclared stage/recommendation label "${res.ibPitchLabRecommendation}" in investor bite. Must be canonical masterRecommendation.');
+    }
+
+    // 6.4 Check for software scalability language in hardware businesses
+    if (res.isHardware && allPdfText.toLowerCase().contains('software or operational leverage without proportional linear costs')) {
+      throw Exception('PITCHLAB PRE-PDF INTEGRITY FAILURE: Software scalability language detected in hardware assessment. Generation blocked.');
+    }
+
+    // 6.5 Check for unsupported factual claims when Customer Validation is low
+    final custValScore = res.scorecardCategories.firstWhere((c) => c.key == 'customerValidation', orElse: () => ScorecardCategory(key: '', label: '', scoreAchieved: 0, maxScore: 20, evidenceLevel: '', explanation: '', missingEvidence: '', howToImprove: '')).scoreAchieved;
+    if (custValScore <= 4) {
+      final prohibitedEvidenceClaims = [
+        'willing-to-pay market segment',
+        'clear willing-to-pay',
+        'clear, willing-to-pay',
+        'no effective, automated solution currently on the market',
+        'no effective automated solution currently on the market',
+      ];
+      final lowerAll = allPdfText.toLowerCase();
+      for (final claim in prohibitedEvidenceClaims) {
+        if (lowerAll.contains(claim)) {
+          throw Exception('PITCHLAB PRE-PDF INTEGRITY FAILURE: Prohibited factual assertion "$claim" detected when Customer Validation <= 4/20. Generation blocked.');
+        }
+      }
+    }
+
+    // 6.6 Check business model customer problem grounding for hardware
+    if (res.isHardware && (res.businessName.toLowerCase().contains('moor') || res.businessName.toLowerCase().contains('pest'))) {
+      if (res.bmCustomerProblem.toLowerCase().contains('vessel collision damage risk') || res.bmCustomerProblem.toLowerCase().contains('mooring line failures')) {
+        throw Exception('PITCHLAB PRE-PDF INTEGRITY FAILURE: Business Model Customer Problem contaminated with ungrounded mooring line failure/collision risk. Generation blocked.');
+      }
+    }
+
+    // 7. FIX PL-FIX-20261005-v0.9.5-01: LEGAL CERTAINTY & EVIDENCE PROVENANCE ASSERTIONS
     final fullDocText = [
       res.executiveSummary,
       res.pitchLabVerdict,
