@@ -25,7 +25,19 @@
         ]
       },
       {
-        "source": "**/*.@(js|css|png|jpg|jpeg|gif|ico|woff|woff2)",
+        "source": "/@(index.html|flutter_bootstrap.js|flutter_service_worker.js|version.json|manifest.json)",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+        ]
+      },
+      {
+        "source": "/main.dart.js",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache, must-revalidate" }
+        ]
+      },
+      {
+        "source": "/assets/**",
         "headers": [
           { "key": "Cache-Control", "value": "max-age=31536000, immutable" }
         ]
