@@ -1258,5 +1258,75 @@ class PdfService {
         throw Exception('PITCHLAB PRE-PDF INTEGRITY FAILURE: Prohibited phrase "$phrase" detected in evaluation text.');
       }
     }
+
+    // 8. PL-FIX-20261008-V0.9.7-LERIDE-SEMANTIC-INTEGRITY: TRANSPORT & MARKETPLACE INTEGRITY
+    // 8.1 Check for SaaS terms in mobility/transport assessments
+    if (res.isTransport || res.isMarketplace) {
+      final bannedSaaSTerms = [
+        'manual spreadsheets',
+        'workflow efficiency & automation',
+        'commercial software market',
+        'cloud-based productivity tools',
+        'administrative overhead reduction',
+        'enterprise platforms',
+        'horizontal productivity tools',
+        'compliance automation',
+        'workflow retention',
+        'api-driven add-ons',
+        'enterprise reporting integrations',
+        'subscription economics',
+      ];
+      final lowerAll = allPdfText.toLowerCase();
+      for (final term in bannedSaaSTerms) {
+        if (lowerAll.contains(term)) {
+          throw Exception('PITCHLAB PRE-PDF INTEGRITY FAILURE: Banned SaaS term "$term" detected in transport/marketplace assessment. Generation blocked.');
+        }
+      }
+    }
+
+    // 8.2 Cross-section domain experience contradiction check
+    final narrativeAndCv = '${res.founderBackgroundNarrative} ${res.cvStrengths}'.toLowerCase();
+    if (narrativeAndCv.contains('rental') || narrativeAndCv.contains('tours') || narrativeAndCv.contains('transport') || narrativeAndCv.contains('discovery')) {
+      final lowerAll = allPdfText.toLowerCase();
+      if (lowerAll.contains('lacks sector-specific domain experience') ||
+          lowerAll.contains('lacks direct domain experience') ||
+          lowerAll.contains('lacks sector experience')) {
+        throw Exception('PITCHLAB PRE-PDF INTEGRITY FAILURE: Contradiction detected. Founder evidences transport/fleet operational experience, but report claims founder lacks domain experience.');
+      }
+    }
+
+    // 8.3 Capital variable mapping integrity check
+    final riskBudgetMatch = RegExp(r'initial risk budget\s*\(([^\)]+)\)', caseSensitive: false).firstMatch(allPdfText);
+    if (riskBudgetMatch != null) {
+      final budgetStr = riskBudgetMatch.group(1) ?? '';
+      if (budgetStr.contains('50,000') || budgetStr.contains('100,000')) {
+        throw Exception('PITCHLAB PRE-PDF INTEGRITY FAILURE: Capital mapping error. Initial risk budget interpolated available capital ($budgetStr) instead of lean validation budget.');
+      }
+    }
+
+    // 8.4 Business Model Snapshot Generic Filler check
+    final snapshotFields = [
+      res.bmTargetCustomer,
+      res.bmCoreOffering,
+      res.bmCustomerProblem,
+      res.bmValueProposition,
+      res.bmRevenueModel,
+      res.bmCustomerAcquisition,
+      res.bmKeyCosts,
+      res.bmCommercialAssessment,
+    ];
+    for (final field in snapshotFields) {
+      if (field.trim() == 'Defined commercial component.' || field.trim() == 'Commercial solution addressing operational workflow friction or market demand.') {
+        throw Exception('PITCHLAB PRE-PDF INTEGRITY FAILURE: Generic placeholder detected in Business Model Snapshot ("$field").');
+      }
+    }
+
+    // 8.5 Action plan concise synthesis check
+    for (final act in res.threePriorityActions) {
+      final exp = (act['explanation'] ?? '') as String;
+      if (exp.length > 300) {
+        throw Exception('PITCHLAB PRE-PDF INTEGRITY FAILURE: Action plan item explanation exceeds 300 characters, indicating raw input essay injection.');
+      }
+    }
   }
 }

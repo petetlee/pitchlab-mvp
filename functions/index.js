@@ -290,10 +290,30 @@ function runSemanticGuardrail(data, ventureType = "", gatesInfo = {}, reqData = 
   return traverseAndScrub(data);
 }
 
+function synthesizeTargetCustomerLabel(targetMarket = "") {
+  if (!targetMarket || typeof targetMarket !== 'string') return "prospective passengers and drivers";
+  let s = targetMarket.trim();
+  s = s.replace(/^["\“\‘](.*)["\”\’]$/, '$1').trim();
+  s = s.replace(/^(the|our|target|targeting|the\s+target\s+market\s+is|our\s+target\s+customers\s+are)\s+/i, '').trim();
+  if (s.length > 80 || s.includes('.')) {
+    const lower = s.toLowerCase();
+    if (lower.includes('resident') || lower.includes('tourist') || lower.includes('passenger') || lower.includes('commuter') || lower.includes('driver')) {
+      return "local residents, commuters, tourists and transport operators";
+    }
+    const firstSentence = s.split(/[.;]/)[0].trim();
+    if (firstSentence.length <= 80 && firstSentence.length > 5) {
+      return firstSentence;
+    }
+    return s.substring(0, 75).trim() + "...";
+  }
+  return s || "prospective customers";
+}
+
 function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction = "New Zealand") {
   const isNuc = Boolean((data.idea || "").toLowerCase().match(/nuclear|smr|power plant|atomic/) || (data.problem || "").toLowerCase().match(/nuclear|smr/));
   const isTax = Boolean((data.idea || "").toLowerCase().match(/tax|gst|ird|bookkeep|accounting/) || (data.category || "").toLowerCase().match(/fintech|tax/));
   const isHw = Boolean(vType.includes("Hardware") || (data.idea || "").toLowerCase().match(/moor|boat|hardware|device|sensor|solar/));
+  const isTransport = Boolean(vType.includes("Transportation") || vType.includes("Mobility") || isTransportIdea(data));
 
   const cleanVal = (val, fallback) => {
     if (!val || typeof val !== 'string') return fallback;
@@ -318,8 +338,23 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
         ? "Kiwi small-to-medium businesses (SMBs), sole traders, and accounting practitioners."
         : (isHw
           ? "Commercial vessel operators, marine infrastructure owners, and recreational boating consumers."
-          : (data.category ? `${data.category} commercial customers and key decision makers.` : "Target commercial customer segment defined by clear operational friction.")));
-    return cleanVal(rawTarget, fallback);
+          : (isTransport
+            ? "Local commuters, tourists, airport travellers, and independent local transport drivers."
+            : (data.category ? `${data.category} commercial customers and key decision makers.` : "Target commercial customer segment defined by clear operational friction."))));
+    let cleaned = cleanVal(rawTarget, fallback);
+    if (cleaned.length > 140) {
+      if (isTransport) {
+        cleaned = "Local residents, tourists, business travellers, and visiting friends and relatives (VFR) needing reliable local transport.";
+      } else {
+        const firstSentence = cleaned.split(/[.;]/)[0].trim();
+        if (firstSentence.length <= 130 && firstSentence.length > 10) {
+          cleaned = firstSentence + '.';
+        } else {
+          cleaned = cleaned.substring(0, 130).trim() + "...";
+        }
+      }
+    }
+    return cleaned;
   }
 
   if (fieldType === 'coreOffering') {
@@ -330,7 +365,9 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
         ? "Automated GST and tax obligation set-aside tool for small businesses."
         : (isHw
           ? "Solar-powered automated marine mooring and pest protection device."
-          : "Commercial product and service solution targeting operational efficiency."));
+          : (isTransport
+            ? "A mobile ride-booking and transport platform connecting passengers with local drivers for on-demand rides, transfers, and tours."
+            : "Commercial product and service solution targeting operational efficiency.")));
     return cleanVal(rawOffering, fallback);
   }
 
@@ -340,7 +377,9 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
       ? "Increasing electricity demand, reliability requirements, wholesale price volatility and demand for additional firm low-carbon generation."
       : (isTax
         ? "Manual GST calculation errors, unexpected IRD tax penalties, and cash flow strain for commercial SMBs."
-        : "Operational friction, cost inefficiency, and unaddressed market workflow requirements.");
+        : (isTransport
+          ? "Fragmented, unreliable transport booking in Samoa, lack of upfront fare transparency, and vehicle idle time for drivers."
+          : "Operational friction, cost inefficiency, and unaddressed market workflow requirements."));
     return cleanVal(rawProblem, fallback);
   }
 
@@ -348,6 +387,7 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
     if (isNuc) return "Continuous, low-carbon firm electricity generation providing long-term price predictability, grid stability, and industrial decarbonisation.";
     if (isTax) return "Automated tax obligation set-aside functionality helping small businesses maintain cash flow discipline and avoid unexpected tax liabilities.";
     if (isHw) return "A reliable, effective, and automated pest deterrent that significantly reduces maintenance, damage, and hygiene concerns on boats.";
+    if (isTransport) return "A Samoa-focused digital ride-booking platform that allows passengers to locate and arrange transport more conveniently while giving local drivers access to additional ride demand.";
     return "Commercial solution delivering direct operational efficiency, cost reduction, and low switching friction.";
   }
 
@@ -355,6 +395,7 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
     if (isNuc) return "Wholesale electricity market sales, long-term Power Purchase Agreements (PPAs) with industrial off-takers, and ancillary grid support fees, subject to statutory feasibility.";
     if (isTax) return "Tiered monthly software subscription (SaaS) priced per business or transaction volume.";
     if (isHw) return "Direct hardware sales, distributor margins, or optional maintenance support agreements.";
+    if (isTransport) return "Commission or transaction fee on completed rides, potentially supplemented by fixed booking fees, airport transfer arrangements, business accounts or other validated transport-service revenue models.";
     return "Commercial revenue model based on subscription, transaction fee, or direct service billing.";
   }
 
@@ -362,6 +403,7 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
     if (isNuc) return "Direct long-term PPA contracting with electricity retailers, heavy industrial energy users, and national grid operators.";
     if (isTax) return "Direct digital acquisition, accounting practitioner referrals, and small-business community partnerships.";
     if (isHw) return "Direct commercial outreach, industry trade channels, and field demonstration trials.";
+    if (isTransport) return "Existing Discovery transport networks, hotels and tourism partners, airport-related customers, local digital marketing, referrals and driver-led network growth.";
     return "Direct client outreach, industry network referrals, and targeted commercial marketing.";
   }
 
@@ -369,6 +411,7 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
     if (isNuc) return "Technology licensing, site development, regulatory consenting, plant engineering, construction, grid interconnection, operation, security, and decommissioning.";
     if (isTax) return "Software development, banking API integrations, security compliance, hosting infrastructure, and customer acquisition.";
     if (isHw) return "Component sourcing, tooling, manufacturing assembly, quality certification, and field testing.";
+    if (isTransport) return "Software development, platform hosting, mapping/payment services, driver onboarding, customer support, insurance/compliance, marketing and ongoing platform operations.";
     return "Solution development, customer acquisition, operational support, and ongoing service delivery.";
   }
 
@@ -376,6 +419,7 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
     if (isNuc) return "Business model viability is strictly governed by statutory permissibility, regulatory consenting, and multi-billion-dollar project financing gateways.";
     if (isTax) return "Commercial viability depends on proving that small businesses will adopt a dedicated set-aside tool over existing manual bank account workarounds.";
     if (isHw) return "Commercial viability depends on prototype durability testing and verified manufacturing unit economics.";
+    if (isTransport) return "The business model is standard for a two-sided marketplace; commercial viability hinges on balancing passenger demand with driver supply liquidity and maintaining viable unit economics in the local market.";
     return "Business model evaluated against customer willingness to pay and low-friction adoption.";
   }
 
@@ -690,8 +734,54 @@ function generateActionSourceOfTruth(reqData = {}, reconciled = {}, ventureType 
     };
   }
 
+  const isTransport = ventureType === "Transportation / Mobility / Marketplace" || ventureType.includes("Transportation") || ventureType.includes("Mobility") || isTransportIdea(reqData);
+
+  if (isTransport) {
+    const targetLabel = synthesizeTargetCustomerLabel(targetMarket);
+    const immediate7DayAction = `Draft your customer discovery interview script and list 10 prospective passengers and local transport operators in ${targetJurisdiction} to schedule initial discovery interviews.`;
+    const threePriorityActions = [
+      {
+        heading: "1. Phase 1 Passenger & Driver Discovery Interviews.",
+        explanation: `Conduct 5–10 structured interviews with prospective passengers and local drivers (${targetLabel}) to quantify booking delays, fare transparency, and driver availability.`,
+        outcome: "5–10 completed interview logs and pain confirmation score."
+      },
+      {
+        heading: "2. Concierge MVP & Manual Dispatch Trial.",
+        explanation: "Design and run a lightweight manual concierge booking/dispatch test for scheduled airport or hotel transfers before committing capital to mobile app development.",
+        outcome: "Completed concierge trial log and service delivery workflow specification."
+      },
+      {
+        heading: "3. Test Commission & Fare Economics.",
+        explanation: "Present indicative per-ride pricing and driver commission terms to 5 prospects and local drivers to test commercial take rates and transaction willingness before writing code.",
+        outcome: "2 written pilot driver commitments and validated unit economics feedback."
+      }
+    ];
+    const topFivePriorities = [
+      { priority: "Passenger & Driver Discovery", action: "Interview 10 target passengers and 5 local drivers on booking unreliability and vehicle idle time.", metric: "15 completed interview notes" },
+      { priority: "Confirm Problem Urgency", action: "Verify that at least 70% of interviewed passengers and drivers report frequent booking friction or lost earnings.", metric: "70% friction confirmation rate" },
+      { priority: "Concierge Booking MVP", action: "Operate a manual concierge booking test for airport/hotel transfers before building mobile apps.", metric: "Concierge pilot specification & test log" },
+      { priority: "Test Take Rate & Pricing", action: "Present per-ride commission and booking fees to drivers and passengers for direct commercial feedback.", metric: "5 driver pilot commitments" },
+      { priority: "Execution Cadence", action: `Allocate ${hoursBand} dedicated strictly to customer and driver validation milestones.`, metric: "Weekly validation log" }
+    ];
+    const thirtyDayPlan = {
+      week1: { objective: "Passenger & Driver Outreach Setup", tasks: ["Identify 15 target passengers and 10 local drivers or fleet contacts", "Schedule 5 initial discovery interviews"], expectedResult: "5 confirmed interview bookings" },
+      week2: { objective: "Phase 1 Discovery Interviews (10 Users)", tasks: ["Execute structured interviews with passengers and drivers", "Log existing transport workarounds and fare inconsistencies"], expectedResult: "Transport discovery synthesis & friction confirmation score" },
+      week3: { objective: "Concierge Transfer Pilot & Commission Test", tasks: ["Run manual concierge booking trial for 3-5 airport/hotel transfers", "Present driver commission terms and collect pricing objections"], expectedResult: "Concierge trial test log & take-rate feedback report" },
+      week4: { objective: "Validation Review & Technical Scope Gateway", tasks: ["Assess passenger retention signals and driver recruitment willingness", "Make disciplined Go / Pivot decision on whether to recruit a technical co-founder (targeting 20–30 cumulative interviews across 90 days)"], expectedResult: "Marketplace Validation Milestone Decision Report" }
+    };
+    return {
+      immediate7DayAction,
+      threePriorityActions,
+      topFivePriorities,
+      thirtyDayPlan,
+      doThisBeforeBuilding: `Conduct 5–10 structured customer discovery interviews with prospective passengers and drivers (${targetLabel}) to confirm booking demand and commission willingness before writing app code.`,
+      nextEvidenceGateway: "Complete 10 passenger and driver discovery interviews confirming urgent booking demand, followed by a manual concierge transfer test, before investing in custom software development.",
+      reassessmentTrigger: "Completion of 10 customer/driver discovery interviews or execution of a manual concierge booking test."
+    };
+  }
+
   // FinTech, SaaS & Commercial Digital Ventures
-  const targetLabel = targetMarket.replace(/^(the|our|target)\s+/i, '').trim();
+  const targetLabel = synthesizeTargetCustomerLabel(targetMarket);
   const immediate7DayAction = `Reach out to 10 prospective target customers (${targetLabel}) to schedule 5 initial problem discovery interviews.`;
   const threePriorityActions = [
     {
@@ -838,6 +928,21 @@ function generateIdeaSpecificMarketInsights(reqData = {}, reconciled = {}, ventu
       localBusinessNews: `Local business commentary highlights increased Inland Revenue compliance scrutiny, digital tax administration modernisation, and small business margin compression from higher operating costs and interest rates across ${targetJurisdiction}.`,
       customerReviewTrends: `Feedback across small business forums and accounting software reviews reveals widespread frustration with unexpected provisional tax spikes, cash flow stress during GST filing cycles, and the cognitive burden of calculating tax reserves manually.`,
       governmentPolicyInfluence: `Inland Revenue (IRD) digital services expansion, Pay-As-You-Earn and GST electronic filing mandates, and evolving open banking standards in ${targetJurisdiction} govern the statutory and technical integration requirements for financial compliance software.`
+    };
+  }
+
+  const isTransport = ventureType === "Transportation / Mobility / Marketplace" || ventureType.includes("Transportation") || ventureType.includes("Mobility") || isTransportIdea(reqData);
+
+  if (isTransport) {
+    const loc = reqData.locationCountry || targetJurisdiction || "Samoa";
+    return {
+      marketLandscape: `The passenger transport and local mobility market across ${loc} (including Apia and surrounding Upolu corridors) is shaped by commuter transit needs, tourism visitor arrivals, airport transfers, and existing informal booking methods. As mobile connectivity and digital payment adoption expand, passengers increasingly expect reliable, on-demand transport options.`,
+      demandDrivers: `Demand is primarily driven by passenger convenience, upfront fare transparency, predictable vehicle arrival times, and dedicated airport/hotel visitor transfers. For drivers, demand is driven by reduced vehicle idle time, consistent customer flow, and supplementary earnings.`,
+      competitionAlternatives: `The proposed platform would compete with traditional street-hailed taxis, phone-based dispatch networks, hotel-arranged private transport, vehicle rentals, and informal social media driver groups. Entrenched customer habits and reliance on familiar informal networks represent the primary adoption barrier.`,
+      commercialReality: `A critical distinction exists between overall passenger transport volume and early marketplace liquidity. Commercial success depends on achieving dual-sided critical mass—ensuring sufficient available drivers during peak transit windows while maintaining viable platform take-rate economics.`,
+      localBusinessNews: `Regional transport and tourism commentary highlights fuel price fluctuations, vehicle maintenance overheads, airport passenger traffic growth, and ongoing discussions regarding taxi licensing and transport safety standards across ${loc}.`,
+      customerReviewTrends: `Passenger feedback across existing informal transport options highlights frustration with unpredictable wait times, lack of upfront pricing transparency, cash-only payment friction, and variable vehicle standards during peak periods.`,
+      governmentPolicyInfluence: `Local transport authority regulations, commercial taxi licensing frameworks, passenger insurance mandates, and digital consumer safety standards govern passenger transport and mobility platform operations in ${loc}.`
     };
   }
 
@@ -1792,6 +1897,12 @@ exports.pitchLabEvaluation = onCall({
       evaluationData.businessTheme.strategicPositioning = evaluationData.businessTheme.strategicPositioning || "Positions as a high-efficiency specialized physical solution directly targeting operational pain points. De-risks adoption by delivering immediate physical and functional value.";
       evaluationData.businessTheme.marketCategoryDynamics = evaluationData.businessTheme.marketCategoryDynamics || "Driven by market demand for durable, low-maintenance asset protection and automated operational tools.";
       evaluationData.businessTheme.strategicMoat = evaluationData.businessTheme.strategicMoat || "Proprietary design mechanics, domain experience, and direct field trial relationships.";
+    } else if (ventureType.includes("Transportation") || ventureType.includes("Mobility") || ventureType.includes("Marketplace")) {
+      evaluationData.businessTheme.primaryTheme = "Transportation / Mobility";
+      evaluationData.businessTheme.secondaryTheme = "Local Passenger Mobility & Booking Marketplace";
+      evaluationData.businessTheme.strategicPositioning = `Positions as a localized two-sided transport booking marketplace connecting passengers with vetted drivers and transport operators across ${targetJurisdiction}.`;
+      evaluationData.businessTheme.marketCategoryDynamics = `Driven by passenger convenience, transparent fare pricing, driver supply density, smartphone penetration, and local transport regulatory compliance in ${targetJurisdiction}.`;
+      evaluationData.businessTheme.strategicMoat = "Two-sided network density, established local driver and operator relationships, customer booking habituation, and local operational presence.";
     } else {
       evaluationData.businessTheme.primaryTheme = evaluationData.businessTheme.primaryTheme || category || "B2B Software & Business Services";
       evaluationData.businessTheme.secondaryTheme = evaluationData.businessTheme.secondaryTheme || "Workflow Efficiency & Automation";
@@ -1799,8 +1910,6 @@ exports.pitchLabEvaluation = onCall({
       evaluationData.businessTheme.marketCategoryDynamics = evaluationData.businessTheme.marketCategoryDynamics || "Driven by market demand for operational productivity, compliance automation, and workflow efficiency.";
       evaluationData.businessTheme.strategicMoat = evaluationData.businessTheme.strategicMoat || "Deep domain specialization, high workflow retention, and direct customer relationships.";
     }
-
-
 
     evaluationData.businessModelSnapshot.targetCustomer = synthesizeBusinessModelField('targetCustomer', reqData, ventureType, targetJurisdiction);
     evaluationData.businessModelSnapshot.coreOffering = synthesizeBusinessModelField('coreOffering', reqData, ventureType, targetJurisdiction);
@@ -1818,6 +1927,12 @@ exports.pitchLabEvaluation = onCall({
       evaluationData.businessModelSnapshot.customerAcquisition = evaluationData.businessModelSnapshot.customerAcquisition || "Direct commercial outreach, industry trade channels, and field demonstration trials.";
       evaluationData.businessModelSnapshot.keyCosts = evaluationData.businessModelSnapshot.keyCosts || "Component sourcing, tooling, manufacturing assembly, quality certification, and field testing.";
       evaluationData.businessModelSnapshot.commercialAssessment = evaluationData.businessModelSnapshot.commercialAssessment || "Commercial viability depends on prototype durability testing and verified manufacturing unit economics.";
+    } else if (ventureType.includes("Transportation") || ventureType.includes("Mobility") || ventureType.includes("Marketplace")) {
+      evaluationData.businessModelSnapshot.valueProposition = synthesizeBusinessModelField('valueProposition', reqData, ventureType, targetJurisdiction);
+      evaluationData.businessModelSnapshot.revenueModel = synthesizeBusinessModelField('revenueModel', reqData, ventureType, targetJurisdiction);
+      evaluationData.businessModelSnapshot.customerAcquisition = synthesizeBusinessModelField('customerAcquisition', reqData, ventureType, targetJurisdiction);
+      evaluationData.businessModelSnapshot.keyCosts = synthesizeBusinessModelField('keyCosts', reqData, ventureType, targetJurisdiction);
+      evaluationData.businessModelSnapshot.commercialAssessment = synthesizeBusinessModelField('commercialAssessment', reqData, ventureType, targetJurisdiction);
     } else {
       evaluationData.businessModelSnapshot.valueProposition = evaluationData.businessModelSnapshot.valueProposition || "Commercial solution addressing operational workflow friction or market demand.";
       evaluationData.businessModelSnapshot.revenueModel = evaluationData.businessModelSnapshot.revenueModel || "Commercial revenue model based on subscription, transaction fee, or direct service billing.";
@@ -1876,7 +1991,8 @@ exports.pitchLabEvaluation = onCall({
       evaluationData.capitalReality.availableCapital = formattedCap;
     }
 
-    evaluationData.founderMetrics.initialRiskCapital = evaluationData.founderMetrics.initialRiskCapital || "$1,000 NZD";
+    const initialRiskCapitalInput = reqData.initialRiskCapital || reqData.riskCapital || evaluationData.founderMetrics.initialRiskCapital || "$1,000 NZD";
+    evaluationData.founderMetrics.initialRiskCapital = initialRiskCapitalInput;
     const founderScoreVal = reconciled.categoryScores.founderCapabilityFit?.scoreAchieved || 0;
 
     if (founderScoreVal >= 12) {
@@ -2142,6 +2258,12 @@ function getMockResult(reqData = {}) {
     stratPos = "Positions as a high-efficiency specialized physical solution directly targeting operational pain points.";
     catDyn = "Driven by market demand for durable, low-maintenance asset protection and automated operational tools.";
     moatStr = "Proprietary design mechanics, domain experience, and direct field trial relationships.";
+  } else if (ventureType.includes("Transportation") || ventureType.includes("Mobility") || ventureType.includes("Marketplace")) {
+    primaryThemeStr = "Transportation / Mobility";
+    secondaryThemeStr = "Local Passenger Mobility & Booking Marketplace";
+    stratPos = `Positions as a localized two-sided transport booking marketplace connecting passengers with vetted drivers and transport operators across ${targetJurisdiction}.`;
+    catDyn = `Driven by passenger convenience, transparent fare pricing, driver supply density, smartphone penetration, and local transport regulatory compliance in ${targetJurisdiction}.`;
+    moatStr = "Two-sided network density, established local driver and operator relationships, customer booking habituation, and local operational presence.";
   }
 
   let valProp = "Commercial solution addressing operational workflow friction or market demand.";
@@ -2162,6 +2284,12 @@ function getMockResult(reqData = {}) {
     acqChannel = "Direct commercial outreach, industry trade channels, and field demonstration trials.";
     keyCostsStr = "Component sourcing, tooling, manufacturing assembly, quality certification, and field testing.";
     commAssess = "Commercial viability depends on prototype durability testing and verified manufacturing unit economics.";
+  } else if (ventureType.includes("Transportation") || ventureType.includes("Mobility") || ventureType.includes("Marketplace")) {
+    valProp = synthesizeBusinessModelField('valueProposition', reqData, ventureType, targetJurisdiction);
+    revModel = synthesizeBusinessModelField('revenueModel', reqData, ventureType, targetJurisdiction);
+    acqChannel = synthesizeBusinessModelField('customerAcquisition', reqData, ventureType, targetJurisdiction);
+    keyCostsStr = synthesizeBusinessModelField('keyCosts', reqData, ventureType, targetJurisdiction);
+    commAssess = synthesizeBusinessModelField('commercialAssessment', reqData, ventureType, targetJurisdiction);
   }
 
   const rawTimeInput = (reqData.timeCommitment || reqData.capacity || "").toString().trim();
@@ -2283,7 +2411,7 @@ function getMockResult(reqData = {}) {
         founderPositionSummary: (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved || 0) >= 12 ? "Well Positioned" : ((reconciled.categoryScores.founderCapabilityFit?.scoreAchieved || 0) >= 7 ? "Workable With Constraints" : "Material Founder Constraints"),
         weeklyAvailableHours: hoursBand,
         availableCapital: formattedCap,
-        initialRiskCapital: "$1,000 NZD"
+        initialRiskCapital: reqData.initialRiskCapital || reqData.riskCapital || "$1,000 NZD"
       },
       marketInsights: marketInsightsObj,
       founderCapabilityExplanation: {

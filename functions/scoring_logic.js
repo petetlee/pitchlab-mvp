@@ -154,7 +154,10 @@ function classifyVentureType(rawInputs = {}) {
   const category = (rawInputs.category || "").toLowerCase();
   const text = `${idea} ${problem} ${category}`;
 
-  if (text.match(/\b(nuclear|atomic|smr|fission|fusion|power plant|electric grid|dam|hydroelectric|geothermal|refinery|pipeline|mining|railway|airport|infrastructure|utility scale)\b/i)) {
+  if (text.match(/\b(ride-share|rideshare|ride-hailing|ride-booking|ride hailing|ride booking|taxi|passenger transport|mobility|transport-booking|car booking|driver network|shuttle|transit|airport transfer|vehicle rental)\b/i) || category.match(/transport|mobility/i)) {
+    return 'Transportation / Mobility / Marketplace';
+  }
+  if (text.match(/\b(nuclear|atomic|smr|fission|fusion|power plant|electric grid|dam|hydroelectric|geothermal|refinery|pipeline|mining|railway|utility scale)\b/i) || (text.match(/\b(airport|infrastructure)\b/i) && !text.match(/ride-share|rideshare|taxi|passenger transport|transfer|shuttle|booking|rental/i))) {
     return 'Energy / Infrastructure / Heavy Industrial';
   }
   if (text.match(/\b(pharma|drug|clinical trial|medical device|biotech|surgical|implant|gene therapy|diagnostic|hospital)\b/i)) {
@@ -410,6 +413,19 @@ function getCommercialAdviserOpinion(reconciled = {}, ventureType = "", gatesInf
     };
   }
 
+  if (ventureType.includes('Transportation') || ventureType.includes('Mobility') || (ventureType.includes('Marketplace') && ((rawInputs.idea || '') + ' ' + (rawInputs.category || '')).toLowerCase().match(/ride|transport|driver|passenger|mobility/i))) {
+    return {
+      encouraging: isWeakFit
+        ? "Strong general commercial background and clear local passenger transport problem definition."
+        : "Strong local transport domain experience, operational background, and practical market relationships.",
+      caution: "Ensure custom mobile application and software development are delayed until driver supply liquidity and passenger booking demand are validated through concierge trials.",
+      unproven: "Marketplace unit economics, passenger booking frequency, and driver retention in the local market.",
+      masterRecommendation: reconciled.masterRecommendation || "Validate Before Building",
+      portfolioDecision: reconciled.overallScore >= 55 ? "INVESTIGATE" : (reconciled.overallScore >= 40 ? "PIVOT" : "PARK"),
+      portfolioAction: reconciled.overallScore >= 55 ? "Conduct structured passenger and driver discovery interviews and concierge transfer trials." : "Preserve local transport problem while exploring manual or alternative dispatch models."
+    };
+  }
+
   return {
     encouraging: isWeakFit
       ? "Strong general commercial capability combined with clear problem definition."
@@ -518,7 +534,7 @@ function calculateFounderSubFactors(rawInputs = {}) {
   const ventureType = classifyVentureType(rawInputs);
 
   const isNuclear = Boolean(allVentureText.match(/\b(nuclear|atomic|reactor|fission|fusion|smr|radiation)\b/i));
-  const isHeavyInfrastructure = (isNuclear || Boolean(allVentureText.match(/refinery|\bdam\b|hydroelectric|geothermal|railway|airport|utility scale|grid-scale|\bpower plant\b|\benergy plant\b/i))) && !allVentureText.match(/solar-powered|device|hardware|pest|mooring/i);
+  const isHeavyInfrastructure = (isNuclear || Boolean(allVentureText.match(/refinery|\bdam\b|hydroelectric|geothermal|railway|utility scale|grid-scale|\bpower plant\b|\benergy plant\b/i) || (allVentureText.match(/\bairport\b/i) && !allVentureText.match(/transfer|passenger|tourist|shuttle|ride-share|rideshare|taxi|booking|rental/i)))) && !allVentureText.match(/solar-powered|device|hardware|pest|mooring|ride-share|rideshare|taxi|passenger transport|mobility|transport-booking|car booking|vehicle rental/i);
   const isBiotech = Boolean(allVentureText.match(/\b(pharma|drug|clinical trial|medical device|biotech|gene therapy|therapeutics|vaccine|diagnostic)\b/i));
   const isDeepTech = Boolean(allVentureText.match(/\b(quantum|semiconductor|nanotech|satellite|aerospace|rocket|fusion|deep tech)\b/i));
 
@@ -550,10 +566,10 @@ function calculateFounderSubFactors(rawInputs = {}) {
   } else if (isDeepTech) {
     hasDirectDomainMatch = !hasExplicitNoDomainStatement && Boolean(cleanFounderEvidence.match(/quantum|semiconductor|aerospace|astrophysics|phd\b|physicist/));
     domainScore = hasDirectDomainMatch ? 4 : 0;
-  } else if (allVentureText.match(/transport|ride-share|ride\b|fleet|logistics|driver|vehicle/)) {
-    hasDirectDomainMatch = !hasExplicitNoDomainStatement && Boolean(cleanFounderEvidence.match(/transport|fleet|driver|logistics|taxi|ride|courier|vehicle|dispatch|route|operating\s+transport/));
+  } else if (ventureType === 'Transportation / Mobility / Marketplace' || allVentureText.match(/transport|ride-share|rideshare|ride\b|fleet|logistics|driver|vehicle|taxi|shuttle/)) {
+    hasDirectDomainMatch = !hasExplicitNoDomainStatement && Boolean(cleanFounderEvidence.match(/transport|fleet|driver|logistics|taxi|ride|courier|vehicle|rental|tour|transfer|dispatch|route|operating\s+transport|discovery/));
     if (hasDirectDomainMatch) {
-      domainScore = cleanFounderEvidence.match(/10\+|8\+|director|owner|manager/) ? 4 : 3;
+      domainScore = cleanFounderEvidence.match(/10\+|8\+|director|owner|manager|years|practical|operating/) ? 4 : 3;
     } else if (cleanFounderEvidence.match(/operations|manager|logistics/)) {
       domainScore = 2;
     } else {
@@ -619,9 +635,9 @@ function calculateFounderSubFactors(rawInputs = {}) {
 
   // 2. COMPONENT B: Relevant Execution Experience (0 to 3 points)
   let executionScore = 0;
-  if (hasDirectDomainMatch && cleanFounderEvidence.match(/built|scaled|sold|director|partner|manager|led|leading|operated|ran|principal|head|plumber|captain|landscaping|years|delivering|contractor/)) {
+  if (hasDirectDomainMatch && cleanFounderEvidence.match(/built|scaled|sold|director|partner|manager|led|leading|operated|operating|ran|principal|head|plumber|captain|landscaping|years|delivering|contractor|rental|tours/)) {
     executionScore = 3;
-  } else if (cleanFounderEvidence.match(/director|partner|senior\s+manager|finance\s+manager|corporate\s+finance|chartered\s+accountant|ca\b|cpa\b|owner|ran\s+a\s+business|led|leading|project\s+lead|certificated|licensed/)) {
+  } else if (cleanFounderEvidence.match(/director|partner|senior\s+manager|finance\s+manager|corporate\s+finance|chartered\s+accountant|ca\b|cpa\b|caanz|owner|ran\s+a\s+business|led|leading|project\s+lead|certificated|licensed/)) {
     executionScore = isVentureCriticalDomainNeeded ? 1 : 2;
   } else if (cleanFounderEvidence.match(/project|delivered|coordinator|team|management|years/)) {
     executionScore = 1;
@@ -631,7 +647,7 @@ function calculateFounderSubFactors(rawInputs = {}) {
 
   // 3. COMPONENT C: Transferable Commercial Capability (0 to 3 points)
   let commercialScore = 0;
-  if (cleanFounderEvidence.match(/ca\b|cpa\b|chartered|accountant|bcom|mba\b|finance\s+manager|director|partner|exited|sold\s+a\s+business|20\+\s+years/)) {
+  if (cleanFounderEvidence.match(/ca\b|cpa\b|caanz|chartered|accountant|bcom|mba\b|finance\s+manager|director|partner|exited|sold\s+a\s+business|20\+\s+years/)) {
     commercialScore = 3;
   } else if (cleanFounderEvidence.match(/finance|accounting|budget|sales|marketing|commercial|business\s+degree|manager|phd\b|senior|principal/)) {
     commercialScore = 2;
@@ -643,12 +659,16 @@ function calculateFounderSubFactors(rawInputs = {}) {
 
   // 4. COMPONENT D: Critical Capability Coverage (0 to 3 points)
   let coverageScore = 0;
-  const hasEstablishedTeamWithDomain = Boolean(cleanFounderEvidence.match(/co-founder|cto|head\s+of\s+engineering|chief\s+scientist|specialist\s+lead|retained\s+expert|partnered\s+with|joint\s+venture/));
+  const hasEstablishedTeamWithDomain = Boolean(cleanFounderEvidence.match(/\b(co-founder|cto|head\s+of\s+engineering|chief\s+scientist|specialist\s+lead|retained\s+expert|joint\s+venture)\b/) || cleanFounderEvidence.match(/\bpartnered\s+with\s+(technical|engineers?|developers?)/));
+  const isTechDependentVenture = (ventureType === 'Transportation / Mobility / Marketplace' || ventureType === 'Marketplace' || ventureType === 'SaaS / Software') && allVentureText.match(/\b(app|platform|software|marketplace|digital)\b/);
+  const hasTechLead = Boolean(cleanFounderEvidence.match(/\b(software\s+engineer|cto|lead\s+developer|full-stack|technical\s+co-founder)\b/));
 
-  if (hasDirectDomainMatch || hasEstablishedTeamWithDomain) {
+  if (hasEstablishedTeamWithDomain || (hasDirectDomainMatch && (!isTechDependentVenture || hasTechLead))) {
     coverageScore = 3;
+  } else if (hasDirectDomainMatch && isTechDependentVenture && !hasTechLead) {
+    coverageScore = 2; // Domain covered, but tech platform capability is an acknowledged gap
   } else if (!isVentureCriticalDomainNeeded) {
-    if (cleanFounderEvidence.match(/developer|contractor|designer|outsource|agency/) || ventureType === 'SaaS / Software' || ventureType === 'Marketplace') {
+    if (cleanFounderEvidence.match(/developer|contractor|designer|outsource|agency/) || ventureType === 'SaaS / Software' || ventureType === 'Marketplace' || ventureType === 'Transportation / Mobility / Marketplace') {
       coverageScore = 2;
     } else if (ventureType === 'Physical Consumer Product / Hardware') {
       coverageScore = 2;
@@ -664,7 +684,7 @@ function calculateFounderSubFactors(rawInputs = {}) {
   if (hasDirectDomainMatch) {
     bridgeabilityScore = 2;
   } else if (!isVentureCriticalDomainNeeded) {
-    if (ventureType === 'SaaS / Software' || ventureType === 'Marketplace' || allVentureText.match(/transport|ride-share|fleet/)) {
+    if (ventureType === 'SaaS / Software' || ventureType === 'Marketplace' || ventureType === 'Transportation / Mobility / Marketplace' || allVentureText.match(/transport|ride-share|fleet/)) {
       bridgeabilityScore = 2;
     } else if (ventureType === 'Physical Consumer Product / Hardware' || allVentureText.match(/mooring|marine/)) {
       bridgeabilityScore = 2;
@@ -705,9 +725,10 @@ function calculateFounderSubFactors(rawInputs = {}) {
     if (ventureType === 'Physical Consumer Product / Hardware' && !cleanFounderEvidence.match(/mechanical\s+engineer|industrial\s+designer|hardware\s+engineer/)) {
       gapSeverity = 'Bridgeable Gap';
       finalScore = Math.min(finalScore, 10);
-    } else if (allVentureText.match(/transport|ride-share|fleet/) && !cleanFounderEvidence.match(/software\s+engineer|cto|full-stack/)) {
+    } else if ((ventureType === 'Transportation / Mobility / Marketplace' || allVentureText.match(/transport|ride-share|fleet/)) && !cleanFounderEvidence.match(/\b(software\s+engineer|cto|full-stack|technical\s+co-founder)\b/)) {
       gapSeverity = 'Bridgeable Gap';
       finalScore = Math.min(finalScore, 11);
+      appliedCap = true;
     }
   }
 
@@ -1284,6 +1305,17 @@ function calculate5DimensionFutureTrends(rawInputs = {}, gatesInfo = {}, venture
     whatThisMeansForFounder = "Validate physical prototype durability and secure customer pre-orders before committing tooling capital.";
     adjacentOpportunities = ["No adjacent opportunity should currently be prioritised. Validate the core business first."];
     trendAlignmentScore = 6;
+  } else if (ventureType === 'Transportation / Mobility / Marketplace' || ventureType.includes("Transportation") || ventureType.includes("Mobility") || Boolean(text.match(/\b(ride-share|rideshare|ride-hailing|ride-booking|taxi|passenger transport|transport-booking|car booking|driver network)\b/i))) {
+    marketDirection = "POSITIVE";
+    solutionOutlook = "FAVOURABLE";
+    demandTrend = "Increasing demand for convenient on-demand passenger transport, airport transfers, and digital ride booking from local residents, commuters, and tourists.";
+    technologyTrend = "Growing smartphone adoption, mobile connectivity, digital payments, and GPS/mapping platform integration across the Pacific and regional transport corridors.";
+    regulatoryTrend = "Local passenger transport licensing, commercial vehicle requirements, passenger safety guidelines, and digital commerce consumer protection standards.";
+    competitionTrend = "Traditional street-hailed taxis, informal phone booking networks, and rental vehicles create established habits; requires local network density and driver trust.";
+    capitalTrend = "Asset-light marketplace model scaling through transaction commission economics and booking fees rather than vehicle capital expenditure.";
+    whatThisMeansForFounder = "Validate passenger booking demand and driver onboarding willingness through lightweight concierge trials before investing in bespoke app development.";
+    adjacentOpportunities = ["Scheduled airport and hotel transfers", "Corporate and business transport accounts", "Local island courier and parcel delivery"];
+    trendAlignmentScore = 8;
   } else if (ventureType.includes("Trade") || ventureType.includes("Local Service")) {
     marketDirection = "STABLE";
     solutionOutlook = "VIABLE";
@@ -1612,6 +1644,9 @@ function generateContextualScoreExplanation(key, scoreAchieved, maxScore, rawInp
     if (isNuclear && !founderCalc?.hasDirectDomainMatch) {
       return "Founder demonstrates strong transferable commercial and financial capability, but lacks direct technical nuclear engineering credentials.";
     }
+    if (founderCalc?.hasDirectDomainMatch) {
+      return "Founder background demonstrates relevant sector experience, practical operational authority, and strong commercial capability, with technical development identified as the bridgeable execution gap.";
+    }
     return ratio >= 0.7
       ? "Founder background demonstrates relevant sector experience and operational capability to execute this opportunity."
       : "Founder demonstrates useful general commercial skills, but lacks direct sector execution experience for this specific business.";
@@ -1715,6 +1750,12 @@ function generateContextualInvestorCommentary(area, rating, scoreAchieved, maxSc
       return rating >= 4
         ? "Founder demonstrates strong commercial background and execution leadership, with specialist engineering capability to be engaged as hardware design matures."
         : "Founder brings transferable commercial capability; direct hardware engineering, electrical design, and manufacturing specialist capability should be engaged to support execution.";
+    }
+    const isTransport = ventureType.includes("Transportation") || ventureType.includes("Mobility") || (ventureType.includes("Marketplace") && ((reqData.idea || '') + ' ' + (reqData.category || '')).toLowerCase().match(/ride|transport|driver|passenger|mobility/i));
+    if (isTransport) {
+      return rating >= 4
+        ? "Founder possesses highly relevant operational experience in local transport and strong commercial skills, with technical platform and marketplace engineering identified as the bridgeable execution gap."
+        : "Founder possesses useful general commercial skills, with direct transport operations and technical marketplace capabilities requiring strengthening.";
     }
     return rating >= 4
       ? "Founder demonstrates strong domain credentials, relevant operational background, and execution capability."
@@ -2133,6 +2174,69 @@ function validateReportIntegrityGate(evaluationData = {}, reqData = {}) {
   // 17. Staged Action Interview Feasibility Check (Section 7)
   if (/20[–-]30\s+interviews\s+(?:in|within)\s+7\s+days/i.test(fullReportText)) {
     throw new Error("PITCHLAB QA INTEGRITY FAILURE: Inconsistent action plan demanding 20-30 interviews within 7 days.");
+  }
+
+  // 18. Transportation / Mobility Semantic Guardrail (PL-FIX-20261008-V0.9.7-LERIDE Section 12)
+  const isTransport = ventureType === 'Transportation / Mobility / Marketplace' || Boolean((reqData.idea || "").toLowerCase().match(/leride|ride-share|rideshare|taxi|passenger transport|mobility|transport-booking/i));
+  if (isTransport) {
+    const transportBannedSaaS = [
+      { pattern: /manual spreadsheets/i, phrase: "manual spreadsheets" },
+      { pattern: /cloud-based productivity tools/i, phrase: "cloud-based productivity tools" },
+      { pattern: /administrative overhead reduction/i, phrase: "administrative overhead reduction" },
+      { pattern: /enterprise platforms/i, phrase: "enterprise platforms" },
+      { pattern: /horizontal productivity tools/i, phrase: "horizontal productivity tools" },
+      { pattern: /compliance automation/i, phrase: "compliance automation" },
+      { pattern: /subscription economics/i, phrase: "subscription economics" },
+      { pattern: /api-driven add-ons/i, phrase: "api-driven add-ons" },
+      { pattern: /enterprise reporting integrations/i, phrase: "enterprise reporting integrations" },
+      { pattern: /\bb2b software\b/i, phrase: "b2b software" },
+      { pattern: /\bworkflow efficiency\b/i, phrase: "workflow efficiency" }
+    ];
+    for (const rule of transportBannedSaaS) {
+      if (rule.pattern.test(fullReportText)) {
+        throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Unsupported SaaS/workflow term detected ('${rule.phrase}') in Transportation/Mobility assessment.`);
+      }
+    }
+  }
+
+  // 19. Cross-Section Domain Experience Contradiction Check (Section 4 & 5)
+  const hasTransportExperience = Boolean(
+    (reqData.experience || "").toLowerCase().match(/transport|fleet|rental|tours|driver/i) ||
+    (reqData.founderBackgroundNarrative || "").toLowerCase().match(/transport|fleet|rental|tours|driver|discovery/i)
+  );
+  if (isTransport && hasTransportExperience) {
+    if (/lacks sector-specific domain experience/i.test(fullReportText) || /lacks direct sector execution experience/i.test(fullReportText)) {
+      throw new Error("PITCHLAB QA INTEGRITY FAILURE: Internal contradiction detected. Founder evidences transport domain experience, but report claims founder lacks sector experience.");
+    }
+  }
+
+  // 20. Capital Variable Mapping Integrity Check (Section 7)
+  const initRiskCap = evaluationData.founderMetrics?.initialRiskCapital || "";
+  const availCap = evaluationData.founderMetrics?.availableCapital || "";
+  if (initRiskCap && availCap && initRiskCap !== availCap) {
+    if (new RegExp(`(?:initial risk budget|risk budget|risk capital)[^\\.\\n]*\\(${availCap.replace(/[-–]/g, '[-–]').replace(/\$/g, '\\$')}\\)`, 'i').test(fullReportText)) {
+      throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Capital mapping contradiction detected. Risk budget references broader available capital (${availCap}) instead of initial risk capital (${initRiskCap}).`);
+    }
+  }
+
+  // 21. Generic Business Model Snapshot Filler Check (Section 9)
+  const genericBmPatterns = [
+    { pattern: /commercial solution addressing operational workflow friction or market demand/i, phrase: "Commercial solution addressing operational workflow friction..." },
+    { pattern: /commercial revenue model based on subscription, transaction fee, or direct service billing/i, phrase: "Commercial revenue model based on subscription..." }
+  ];
+  for (const rule of genericBmPatterns) {
+    if (rule.pattern.test(fullReportText)) {
+      throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Generic business model snapshot filler detected ('${rule.phrase}'). Must be venture-specific.`);
+    }
+  }
+
+  // 22. Action Plan Essay Text Injection Check (Section 8)
+  const priorityActionsList = evaluationData.summaryBlock?.threePriorityActions || [];
+  for (const act of priorityActionsList) {
+    const exp = act.explanation || "";
+    if (exp.length > 250) {
+      throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Action plan text injection detected (${exp.length} chars). Founder text must be synthesized, not dumped verbatim.`);
+    }
   }
 
   return true;

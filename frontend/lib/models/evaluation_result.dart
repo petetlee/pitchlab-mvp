@@ -106,6 +106,18 @@ class EvaluationResult {
     return reg.hasMatch(text);
   }
 
+  bool get isTransport {
+    final text = '${raw['idea'] ?? ''} ${raw['category'] ?? ''} ${raw['businessName'] ?? ''} ${raw['problem'] ?? ''} ${raw['targetMarket'] ?? ''}'.toLowerCase();
+    final reg = RegExp(r'\b(ride-share|rideshare|ride-hailing|ride-booking|transport|taxi|airport transfer|passenger|fleet|vehicle rental|shuttle)\b');
+    return reg.hasMatch(text);
+  }
+
+  bool get isMarketplace {
+    final text = '${raw['idea'] ?? ''} ${raw['category'] ?? ''} ${raw['businessName'] ?? ''} ${raw['problem'] ?? ''} ${raw['targetMarket'] ?? ''}'.toLowerCase();
+    final reg = RegExp(r'\b(marketplace|two-sided|platform|booking|matching)\b');
+    return reg.hasMatch(text);
+  }
+
   String get pitchLabVerdict {
     final v = _cleanNarrativeText(_str(summaryBlock['pitchLabVerdict'] ?? raw['finalRecommendation']?['why'], fallback: ''));
     if (v.isNotEmpty && v.split('.').where((s) => s.trim().isNotEmpty).length >= 2) {
@@ -728,45 +740,45 @@ class EvaluationResult {
 
   // KISS Review
   Map<String, dynamic> get kissReview => (raw['kissReview'] as Map<String, dynamic>?) ?? {};
-  List<String> get kissKeep => _list(kissReview['keep'], fallback: isHardware ? ['Core physical mechanism', 'Basic enclosure'] : ['Core workflow engine', 'Single integration']);
-  List<String> get kissSimplify => _list(kissReview['simplify'], fallback: isHardware ? ['Manual activation switch', 'Visual indicator'] : ['User onboarding flow', 'Dashboard visual metrics']);
-  List<String> get kissDelay => _list(kissReview['delay'], fallback: isHardware ? ['Production tooling', 'Multi-model variants'] : ['Multi-currency support', 'Custom mobile app']);
-  String get kissSmallestTestableVersion => _str(kissReview['smallestTestableVersion'], fallback: isHardware ? '3-unit functional hardware prototype deployed for 30-day field trial.' : 'Concierge MVP operating manually for 5 pilot customers.');
+  List<String> get kissKeep => _list(kissReview['keep'], fallback: isHardware ? ['Core physical mechanism', 'Basic enclosure'] : (isTransport ? ['Core booking intake', 'Driver notification mechanism'] : ['Core workflow engine', 'Single integration']));
+  List<String> get kissSimplify => _list(kissReview['simplify'], fallback: isHardware ? ['Manual activation switch', 'Visual indicator'] : (isTransport ? ['Manual driver dispatch via phone/chat', 'Direct cash or simple mobile payment'] : ['User onboarding flow', 'Dashboard visual metrics']));
+  List<String> get kissDelay => _list(kissReview['delay'], fallback: isHardware ? ['Production tooling', 'Multi-model variants'] : (isTransport ? ['Custom native mobile app builds', 'Complex automated dispatch algorithms'] : ['Multi-currency support', 'Custom mobile app']));
+  String get kissSmallestTestableVersion => _str(kissReview['smallestTestableVersion'], fallback: isHardware ? '3-unit functional hardware prototype deployed for 30-day field trial.' : (isTransport ? 'Concierge ride-booking pilot via phone/WhatsApp with 5-10 vetted drivers.' : 'Concierge MVP operating manually for 5 pilot customers.'));
 
   // MVP Feasibility
   Map<String, dynamic> get mvpFeasibility => (raw['mvpFeasibility'] as Map<String, dynamic>?) ?? {};
-  String get mvpFormat => _str(mvpFeasibility['recommendedTestFormat'], fallback: isHardware ? 'Functional Hardware Prototype / Field Trial' : 'Concierge / Manual Pilot');
+  String get mvpFormat => _str(mvpFeasibility['recommendedTestFormat'], fallback: isHardware ? 'Functional Hardware Prototype / Field Trial' : (isTransport ? 'Concierge Booking Pilot / WhatsApp Dispatch' : 'Concierge / Manual Pilot'));
   String get mvpBudget => _str(mvpFeasibility['suggestedValidationBudget'], fallback: r'$500 - $1,500');
-  List<String> get mvpInclude => _list(mvpFeasibility['whatToInclude'], fallback: isHardware ? ['Core physical mechanism', 'Basic enclosure', 'Essential electronic functionality', 'Field trial testing'] : ['Core workflow engine', 'Primary user interface']);
-  List<String> get mvpExclude => _list(mvpFeasibility['whatToExclude'], fallback: isHardware ? ['Production tooling', 'Mass-manufacturing optimisation', 'Final certification', 'Non-essential features'] : ['Complex analytics', 'Native mobile build']);
+  List<String> get mvpInclude => _list(mvpFeasibility['whatToInclude'], fallback: isHardware ? ['Core physical mechanism', 'Basic enclosure', 'Essential electronic functionality', 'Field trial testing'] : (isTransport ? ['Passenger booking intake', 'Driver dispatch workflow', 'Fixed airport/hotel transfer routes', 'Direct customer feedback capture'] : ['Core workflow engine', 'Primary user interface']));
+  List<String> get mvpExclude => _list(mvpFeasibility['whatToExclude'], fallback: isHardware ? ['Production tooling', 'Mass-manufacturing optimisation', 'Final certification', 'Non-essential features'] : (isTransport ? ['Custom native mobile apps', 'Automated surge pricing engines', 'Complex payment gateway integrations', 'Island-wide marketing spend'] : ['Complex analytics', 'Native mobile build']));
 
   // Business Theme & Strategic Positioning
   Map<String, dynamic> get businessTheme => (raw['businessTheme'] as Map<String, dynamic>?) ?? {};
   String get primaryTheme => _str(
     businessTheme['primaryTheme'],
-    fallback: isNuclear ? 'Energy Infrastructure & Power Generation' : (isHardware ? 'Hardware & Physical Product Innovation' : 'B2B Software & Business Services')
+    fallback: isNuclear ? 'Energy Infrastructure & Power Generation' : (isHardware ? 'Hardware & Physical Product Innovation' : (isTransport ? 'Transportation / Mobility' : 'B2B Software & Business Services'))
   );
   String get secondaryTheme => _str(
     businessTheme['secondaryTheme'],
-    fallback: isNuclear ? 'Nuclear / SMR / Firm Low-Carbon Generation' : (isHardware ? 'Field Trial Validation & Asset Protection' : 'Workflow Efficiency & Automation')
+    fallback: isNuclear ? 'Nuclear / SMR / Firm Low-Carbon Generation' : (isHardware ? 'Field Trial Validation & Asset Protection' : (isTransport ? 'Local Passenger Mobility & Booking Marketplace' : 'Workflow Efficiency & Automation'))
   );
   String get strategicPositioning => _str(
     businessTheme['strategicPositioning'],
     fallback: isNuclear
       ? 'Positions as a long-term utility-scale infrastructure option targeting grid reliability, baseload capacity, and industrial decarbonisation within New Zealand.'
-      : (isHardware ? 'Positions as a high-efficiency specialized physical solution directly targeting operational pain points.' : 'Positions as a specialized efficiency solution directly targeting operational friction points.')
+      : (isHardware ? 'Positions as a high-efficiency specialized physical solution directly targeting operational pain points.' : (isTransport ? 'Positions as a localized two-sided transport booking marketplace connecting passengers with vetted drivers and transport operators.' : 'Positions as a specialized efficiency solution directly targeting operational friction points.'))
   );
   String get marketCategoryDynamics => _str(
     businessTheme['marketCategoryDynamics'],
     fallback: isNuclear
       ? 'Governed by national energy security strategy, statutory radiation safety law, environmental consenting frameworks, and multi-billion-dollar infrastructure capital scale.'
-      : (isHardware ? 'Driven by market demand for durable, low-maintenance asset protection and automated operational tools.' : 'Driven by market demand for operational productivity, compliance automation, and workflow efficiency.')
+      : (isHardware ? 'Driven by market demand for durable, low-maintenance asset protection and automated operational tools.' : (isTransport ? 'Driven by passenger convenience, transparent fare pricing, driver supply density, smartphone penetration, and local transport regulatory compliance.' : 'Driven by market demand for operational productivity, compliance automation, and workflow efficiency.'))
   );
   String get strategicMoat => _str(
     businessTheme['strategicMoat'],
     fallback: isNuclear
       ? 'No defensible venture-specific moat is yet evidenced. Potential future defensibility could arise from specialist partnerships, project rights, regulatory capability, long-term off-take arrangements or execution capability.'
-      : (isHardware ? 'Proprietary design mechanics, domain experience, and direct field trial relationships.' : 'Deep domain specialization, high workflow retention, and direct customer relationships.')
+      : (isHardware ? 'Proprietary design mechanics, domain experience, and direct field trial relationships.' : (isTransport ? 'Two-sided network density, established local driver and operator relationships, customer booking habituation, and local operational presence.' : 'Deep domain specialization, high workflow retention, and direct customer relationships.'))
   );
 
   // CV Analysis
@@ -852,7 +864,14 @@ class EvaluationResult {
     text = text.replaceAll(RegExp(r'A score of \d+/15'), 'A score of $founderCapabilityScore/15');
     return text;
   }
-  List<String> get capabilityGaps => _list(founderCapabilityExplanation['capabilityGaps'], fallback: isHardware ? ['Mass manufacturing setup', 'Industrial design tooling'] : ['Software development build', 'Digital marketing reach']);
+  List<String> get capabilityGaps => _list(
+    founderCapabilityExplanation['capabilityGaps'],
+    fallback: isHardware
+      ? ['Mass manufacturing setup', 'Industrial design tooling']
+      : (isTransport
+          ? ['In-house mobile software development', 'Payment gateway integration']
+          : ['Software development build', 'Digital marketing reach'])
+  );
   List<String> get recommendedGapResponses {
     final list = _list(
       founderCapabilityExplanation['recommendedResponse'],
@@ -861,9 +880,13 @@ class EvaluationResult {
             'Identify and begin engaging appropriately credentialled specialists for preliminary advice, scoping and potential future involvement.',
             'Engage specialist legal and regulatory counsel to map statutory pathways before assembling a formal development team.'
           ]
-        : (isHardware ? ['Engage an industrial design contractor for prototype enclosure', 'Partner with a local electronics manufacturer'] : ['Contract a specialist software developer for the MVP', 'Engage an advisory mentor for growth'])
+        : (isHardware
+            ? ['Engage an industrial design contractor for prototype enclosure', 'Partner with a local electronics manufacturer']
+            : (isTransport
+                ? ['Bridge mobile platform engineering via technical contractors or tech co-founder', 'Leverage existing fleet operations and tourism relationships to drive initial driver onboarding']
+                : ['Contract a specialist software developer for the MVP', 'Engage an advisory mentor for growth']))
     );
-    return list.map((s) => _cleanNarrativeText(s, isHardware: isHardware)).toList();
+    return list.map((s) => _cleanNarrativeText(s, isHardware: isHardware, isTransport: isTransport)).toList();
   }
 
   // Helper for Founder Capability Score
@@ -984,7 +1007,7 @@ class EvaluationResult {
   List<String> get whatMattersNow {
     final aiList = (raw['whatMattersNow'] as List?)?.map((e) => e.toString()).toList();
     if (aiList != null && aiList.isNotEmpty) {
-      return aiList.map((item) => _cleanNarrativeText(item, isHardware: isHardware)).toList();
+      return aiList.map((item) => _cleanNarrativeText(item, isHardware: isHardware, isTransport: isTransport)).toList();
     }
 
     final t = timeAvailable.toLowerCase();
@@ -999,7 +1022,7 @@ class EvaluationResult {
       isLowCap
           ? (isNuclear
               ? r'Initial risk capital ($500 NZD) supports desktop research, legal framework mapping, and initial specialist outreach, but cannot fund formal legal opinions or engineering studies. A $5,000–$25,000+ pre-feasibility gateway is required to confirm statutory viability.'
-              : 'Your initial risk budget ($availableCapital) can support early customer research and preliminary market investigation, but major development costs must be delayed until willingness-to-pay is proven.')
+              : 'Your initial risk budget ($riskCapital) can support early customer research and preliminary market investigation, but major development costs must be delayed until willingness-to-pay is proven.')
           : 'Your initial budget is workable for prototype development; preserve capital for customer acquisition experiments rather than premature tooling.',
       founderCapabilityScore <= 6
           ? (isNuclear
@@ -1009,7 +1032,9 @@ class EvaluationResult {
                   : 'Core operational, technical, or domain capabilities can be augmented via advisors, contractors, or key partners as commercial validation progresses.'))
           : (isNuclear
               ? 'Core founder capability supports strategic and commercial positioning, but requires early integration of specialist nuclear regulatory and statutory expertise.'
-              : 'Core founder capabilities are well aligned for early-stage execution; focus on validating critical statutory, market, or commercial assumptions.'),
+              : (isTransport
+                  ? 'Core founder capability and existing transport operations provide strong local execution advantage; bridge mobile software platform development via technical contractors or partners.'
+                  : 'Core founder capabilities are well aligned for early-stage execution; focus on validating critical statutory, market, or commercial assumptions.')),
     ];
   }
 
@@ -1500,7 +1525,7 @@ class EvaluationResult {
   }
 
   // Helper utils
-  static String _cleanNarrativeText(String input, {bool isHardware = false}) {
+  static String _cleanNarrativeText(String input, {bool isHardware = false, bool isTransport = false}) {
     if (input.isEmpty) return input;
     String s = input.trim();
 
@@ -1548,6 +1573,23 @@ class EvaluationResult {
       s = s.replaceAll(RegExp(r'marginal cost of software delivery', caseSensitive: false), 'unit manufacturing and assembly costs');
       s = s.replaceAll(RegExp(r'changing customer requirements and regional market dynamics', caseSensitive: false), 'vessel asset protection needs and marine environmental conditions');
       s = s.replaceAll(RegExp(r'resource consents, environmental standards, fast-track approvals, and regional compliance mandates', caseSensitive: false), 'marina biosecurity guidelines, environmental regulations, and electrical product safety standards');
+    }
+
+    // PL-FIX-20261008-V0.9.7-LERIDE-SEMANTIC-INTEGRITY: Clean B2B SaaS phrases in transport/mobility contexts
+    if (isTransport) {
+      s = s.replaceAll(RegExp(r'\bmanual spreadsheets\b', caseSensitive: false), 'informal phone and roadside bookings');
+      s = s.replaceAll(RegExp(r'\bworkflow efficiency & automation\b', caseSensitive: false), 'local transport coordination & booking');
+      s = s.replaceAll(RegExp(r'\bworkflow efficiency\b', caseSensitive: false), 'transport booking convenience');
+      s = s.replaceAll(RegExp(r'\bcommercial software market\b', caseSensitive: false), 'local passenger transport and mobility market');
+      s = s.replaceAll(RegExp(r'\bcloud-based productivity tools\b', caseSensitive: false), 'mobile transport booking tools');
+      s = s.replaceAll(RegExp(r'\badministrative overhead reduction\b', caseSensitive: false), 'booking friction reduction');
+      s = s.replaceAll(RegExp(r'\benterprise platforms\b', caseSensitive: false), 'booking platforms');
+      s = s.replaceAll(RegExp(r'\bhorizontal productivity tools\b', caseSensitive: false), 'consumer mobility applications');
+      s = s.replaceAll(RegExp(r'\bcompliance automation\b', caseSensitive: false), 'driver compliance & safety');
+      s = s.replaceAll(RegExp(r'\bworkflow retention\b', caseSensitive: false), 'passenger & driver retention');
+      s = s.replaceAll(RegExp(r'\bapi-driven add-ons\b', caseSensitive: false), 'transport partner integrations');
+      s = s.replaceAll(RegExp(r'\benterprise reporting integrations\b', caseSensitive: false), 'fleet reporting integrations');
+      s = s.replaceAll(RegExp(r'\bsubscription economics\b', caseSensitive: false), 'ride commission & transaction economics');
     }
 
     // FIX PL-FIX-20261005-v0.9.5-01: Prohibited phrases & legal certainty tone calibration
