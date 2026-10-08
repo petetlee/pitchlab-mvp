@@ -70,6 +70,16 @@
     <div class="subtitle">Loading Commercial Readiness Assessment...</div>
     <div class="spinner"></div>
   </div>
-  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    // Automatically unregister any stale PWA service worker to ensure fresh app delivery
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for (let registration of registrations) {
+          registration.unregister();
+        }
+      });
+    }
+  </script>
+  <script src="flutter_bootstrap.js?v=9c2a5da" async></script>
 </body>
 </html>
