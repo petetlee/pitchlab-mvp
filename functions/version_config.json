@@ -1,9 +1,9 @@
 {
-  "appVersion": "v0.10.2",
-  "fullVersionString": "PitchLab MVP v0.10.2",
-  "changeId": "PL-FIX-20261009-003",
-  "parentChangeId": "PL-FIX-20261009-002",
-  "buildId": "b6e31c8",
-  "deployedAt": "2026-10-09T22:15:00+13:00",
-  "deployedAtFormatted": "09 Oct 2026 22:15 NZDT"
+  "appVersion": "v0.10.3",
+  "fullVersionString": "PitchLab MVP v0.10.3",
+  "changeId": "PL-20261009-03-MOBILE-SAFARI-INPUT",
+  "parentChangeId": "PL-FIX-20261009-003",
+  "buildId": "d83a1e9",
+  "deployedAt": "2026-10-09T23:20:00+13:00",
+  "deployedAtFormatted": "09 Oct 2026 23:20 NZDT"
 }

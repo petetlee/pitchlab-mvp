@@ -11,6 +11,7 @@ import 'login_page.dart';
 import 'admin_dashboard.dart';
 import 'public_idea_view.dart';
 import 'private_share_view.dart';
+import 'config/version_config.dart';
 
 class LandingPage extends StatefulWidget {
   const LandingPage({super.key});
@@ -739,6 +740,15 @@ class _LandingPageState extends State<LandingPage> {
               style: GoogleFonts.inter(
                 fontSize: 12,
                 color: const Color(0xFFAEAEB2),
+              ),
+            ),
+            Text('•', style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
+            Text(
+              VersionConfig.displayMarker,
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: const Color(0xFF86868B),
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],

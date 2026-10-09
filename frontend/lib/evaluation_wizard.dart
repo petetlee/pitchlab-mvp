@@ -13,17 +13,19 @@ import 'package:http/http.dart' as http;
 import 'results_dashboard.dart';
 import 'cv_picker_helper.dart';
 import 'history_view.dart';
+import 'config/version_config.dart';
 
 class EvaluationWizard extends StatefulWidget {
   final Map<String, dynamic>? initialData;
-  const EvaluationWizard({super.key, this.initialData});
+  final int initialStep;
+  const EvaluationWizard({super.key, this.initialData, this.initialStep = 0});
 
   @override
   State<EvaluationWizard> createState() => _EvaluationWizardState();
 }
 
 class _EvaluationWizardState extends State<EvaluationWizard> {
-  final PageController _pageController = PageController();
+  late final PageController _pageController;
   int _currentStep = 0;
   bool _isLoading = false;
   final Map<String, TextEditingController> _controllers = {};
@@ -174,6 +176,8 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
   @override
   void initState() {
     super.initState();
+    _currentStep = widget.initialStep;
+    _pageController = PageController(initialPage: widget.initialStep);
     _checkQuota();
     
     // Initialize form data with initialData if provided
@@ -535,6 +539,7 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
   ];
 
   void _nextStep() {
+    FocusScope.of(context).unfocus();
     if (_currentStep < _questions.length - 1) {
       _pageController.nextPage(
         duration: 400.ms,
@@ -549,6 +554,7 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
   }
 
   void _previousStep() {
+    FocusScope.of(context).unfocus();
     if (_currentStep > 0) {
       _pageController.previousPage(
         duration: 400.ms,
@@ -1286,7 +1292,7 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
       children: [
         Text(
           label,
-          style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14),
+          style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF1D1D1F)),
         ),
         const SizedBox(height: 8),
         TextField(
@@ -1296,14 +1302,27 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
               _formData[key] = val;
             });
           },
+          scrollPadding: const EdgeInsets.only(bottom: 140, top: 40),
+          cursorColor: const Color(0xFF0071E3),
+          cursorWidth: 2.5,
+          cursorRadius: const Radius.circular(2.0),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: GoogleFonts.inter(color: const Color(0xffC7C7CC)),
+            hintStyle: GoogleFonts.inter(color: const Color(0xFF8E8E93), fontSize: 15),
             filled: true,
             fillColor: const Color(0xFFF5F5F7),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE5E5EA), width: 1.5),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF0071E3), width: 2),
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
+              borderSide: const BorderSide(color: Color(0xFFE5E5EA)),
             ),
           ),
           style: GoogleFonts.inter(fontSize: 16, color: const Color(0xFF1D1D1F)),
@@ -1319,7 +1338,7 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
     return text.trim().split(RegExp(r'\s+')).length;
   }
 
-  Widget _buildFounderBackgroundSelector() {
+  Widget _buildFounderBackgroundSelector([bool isMobile = false]) {
     const key = 'founderBackgroundNarrative';
     if (!_controllers.containsKey(key)) {
       _controllers[key] = TextEditingController(text: _formData[key] ?? '');
@@ -1331,8 +1350,7 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
     final cvFileName = _formData['cvFileName'] ?? '';
     final hasCv = cvFileName.isNotEmpty;
 
-    return SingleChildScrollView(
-      child: Column(
+    return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
@@ -1455,11 +1473,15 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
                 });
               },
               maxLines: null,
-              minLines: 8,
+              minLines: isMobile ? 5 : 8,
+              scrollPadding: const EdgeInsets.only(bottom: 140, top: 40),
+              cursorColor: const Color(0xFF0071E3),
+              cursorWidth: 2.5,
+              cursorRadius: const Radius.circular(2.0),
               style: GoogleFonts.inter(fontSize: 15, height: 1.5, color: const Color(0xFF1D1D1F)),
               decoration: InputDecoration(
                 hintText: 'For example: I have worked in this industry for eight years and have direct experience with the problem this business will solve. My background includes managing customers, preparing budgets and leading operational projects. I already know several potential customers who may be willing to test the idea. I am motivated to pursue this because...',
-                hintStyle: GoogleFonts.inter(fontSize: 14, color: const Color(0xFFA1A1A6)),
+                hintStyle: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF8E8E93)),
                 contentPadding: const EdgeInsets.all(16),
                 border: InputBorder.none,
                 suffixIcon: IconButton(
@@ -1476,8 +1498,11 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
           const SizedBox(height: 8),
 
           // Word & Character Counter Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
             children: [
               Text(
                 '$wordCount words (recommended: 150+ words)',
@@ -1544,7 +1569,10 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
                   style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF6E6E73), height: 1.3),
                 ),
                 const SizedBox(height: 12),
-                Row(
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     ElevatedButton.icon(
                       onPressed: _pickCV,
@@ -1557,7 +1585,6 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
                       ),
                     ),
                     if (hasCv) ...[
-                      const SizedBox(width: 12),
                       TextButton(
                         onPressed: () {
                           setState(() {
@@ -1590,8 +1617,7 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
             ],
           ),
         ],
-      ),
-    );
+      );
   }
 
   Widget _buildCVUploadSelector() {
@@ -1704,6 +1730,7 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -1733,182 +1760,226 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
                 ),
               ),
             )
-          : PageView.builder(
-              controller: _pageController,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _questions.length,
-              itemBuilder: (context, index) {
-                final question = _questions[index];
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 24.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'Step ${index + 1} of ${_questions.length}',
-                            style: GoogleFonts.inter(
-                              color: const Color(0xFF0071E3),
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
+          : SafeArea(
+              maintainBottomViewPadding: true,
+              child: PageView.builder(
+                controller: _pageController,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _questions.length,
+                itemBuilder: (context, index) {
+                  final question = _questions[index];
+                  final isMobile = MediaQuery.of(context).size.width < 600;
+                  return Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 720),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          return SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isMobile ? 20.0 : 32.0,
+                              vertical: isMobile ? 16.0 : 24.0,
                             ),
-                          ),
-                          const Spacer(),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: _isAdmin
-                                  ? Colors.deepPurple.shade50
-                                  : _quotaUsed >= 3
-                                      ? Colors.red.shade50
-                                      : Colors.blue.shade50,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: _isAdmin
-                                    ? Colors.deepPurple.shade200
-                                    : _quotaUsed >= 3
-                                        ? Colors.red.shade200
-                                        : Colors.blue.shade200,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                minHeight: constraints.maxHeight - (isMobile ? 32.0 : 48.0),
                               ),
-                            ),
-                            child: Text(
-                              _isAdmin
-                                  ? 'Admin Account • Unlimited'
-                                  : _quotaUsed >= 3
-                                      ? 'MVP Limit: 3 of 3 used (0 remaining)'
-                                      : 'Idea submissions: ${_quotaUsed} of 3 used (${3 - _quotaUsed} remaining)',
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: _isAdmin
-                                    ? Colors.deepPurple.shade700
-                                    : _quotaUsed >= 3
-                                        ? Colors.red.shade700
-                                        : const Color(0xFF0071E3),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ).animate().fadeIn(),
-                      const SizedBox(height: 8),
-                      Text(
-                        question['title']!,
-                        style: GoogleFonts.outfit(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFF1D1D1F),
-                        ),
-                      ).animate().fadeIn().moveX(begin: -10, end: 0),
-                      const SizedBox(height: 12),
-                      Text(
-                        question['subtitle']!,
-                        style: GoogleFonts.inter(
-                          fontSize: 18,
-                          color: const Color(0xFF86868B),
-                        ),
-                      ).animate().fadeIn(delay: 100.ms),
-                      const SizedBox(height: 32),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (question['type'] == 'text') ...[
-                                TextField(
-                                  controller: _controllers[question['key']],
-                                  onChanged: (val) => _formData[question['key']!] = val,
-                                  decoration: InputDecoration(
-                                    hintText: question['hint'],
-                                    hintStyle: GoogleFonts.inter(color: const Color(0xffC7C7CC)),
-                                    enabledBorder: const UnderlineInputBorder(
-                                      borderSide: BorderSide(color: Color(0xFFE5E5EA)),
-                                    ),
-                                    focusedBorder: const UnderlineInputBorder(
-                                      borderSide: BorderSide(color: Color(0xFF0071E3), width: 2),
-                                    ),
-                                    suffixIcon: IconButton(
-                                      icon: Icon(
-                                        _isListening ? Icons.mic : Icons.mic_none,
-                                        color: _isListening ? Colors.red : const Color(0xFF0071E3),
+                              child: IntrinsicHeight(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          'Step ${index + 1} of ${_questions.length}',
+                                          style: GoogleFonts.inter(
+                                            color: const Color(0xFF0071E3),
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: isMobile ? 13 : 14,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Flexible(
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: _isAdmin
+                                                  ? Colors.deepPurple.shade50
+                                                  : _quotaUsed >= 3
+                                                      ? Colors.red.shade50
+                                                      : Colors.blue.shade50,
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(
+                                                color: _isAdmin
+                                                    ? Colors.deepPurple.shade200
+                                                    : _quotaUsed >= 3
+                                                        ? Colors.red.shade200
+                                                        : Colors.blue.shade200,
+                                              ),
+                                            ),
+                                            child: Text(
+                                              _isAdmin
+                                                  ? 'Admin Account • Unlimited'
+                                                  : _quotaUsed >= 3
+                                                      ? 'MVP Limit: 3/3 used (0 left)'
+                                                      : 'Submissions: ${_quotaUsed}/3',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: GoogleFonts.inter(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold,
+                                                color: _isAdmin
+                                                    ? Colors.deepPurple.shade700
+                                                    : _quotaUsed >= 3
+                                                        ? Colors.red.shade700
+                                                        : const Color(0xFF0071E3),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ).animate().fadeIn(),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      question['title']!,
+                                      style: GoogleFonts.outfit(
+                                        fontSize: isMobile ? 24 : 32,
+                                        fontWeight: FontWeight.bold,
+                                        color: const Color(0xFF1D1D1F),
                                       ),
-                                      onPressed: () => _listen(question['key']),
-                                    ),
-                                  ),
-                                  style: GoogleFonts.inter(fontSize: 20, color: const Color(0xFF1D1D1F)),
-                                  maxLines: null,
-                                  autofocus: true,
-                                ).animate().fadeIn(delay: 200.ms),
-                              ] else if (question['type'] == 'founderBackground') ...[
-                                _buildFounderBackgroundSelector(),
-                              ] else if (question['type'] == 'options') ...[
-                                _buildOptionsSelector(question),
-                              ] else if (question['type'] == 'location') ...[
-                                _buildLocationSelector(),
-                              ] else if (question['type'] == 'cv') ...[
-                                _buildCVUploadSelector(),
-                              ],
-                            ],
-                          ),
-                        ),
+                                    ).animate().fadeIn().moveX(begin: -10, end: 0),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      question['subtitle']!,
+                                      style: GoogleFonts.inter(
+                                        fontSize: isMobile ? 15 : 18,
+                                        color: const Color(0xFF86868B),
+                                        height: 1.4,
+                                      ),
+                                    ).animate().fadeIn(delay: 100.ms),
+                                    SizedBox(height: isMobile ? 20 : 32),
+                                    if (question['type'] == 'text') ...[
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF9F9FB),
+                                          borderRadius: BorderRadius.circular(16),
+                                          border: Border.all(
+                                            color: _isListening ? Colors.red : const Color(0xFFE5E5EA),
+                                            width: 1.5,
+                                          ),
+                                        ),
+                                        child: TextField(
+                                          controller: _controllers[question['key']],
+                                          onChanged: (val) => _formData[question['key']!] = val,
+                                          scrollPadding: const EdgeInsets.only(bottom: 140, top: 40),
+                                          cursorColor: const Color(0xFF0071E3),
+                                          cursorWidth: 2.5,
+                                          cursorRadius: const Radius.circular(2.0),
+                                          autofocus: !isMobile,
+                                          keyboardType: TextInputType.multiline,
+                                          maxLines: null,
+                                          minLines: isMobile ? 4 : 5,
+                                          decoration: InputDecoration(
+                                            hintText: question['hint'],
+                                            hintStyle: GoogleFonts.inter(
+                                              color: const Color(0xFF8E8E93),
+                                              fontSize: isMobile ? 15 : 18,
+                                            ),
+                                            contentPadding: EdgeInsets.all(isMobile ? 16 : 20),
+                                            border: InputBorder.none,
+                                            suffixIcon: IconButton(
+                                              icon: Icon(
+                                                _isListening ? Icons.mic : Icons.mic_none,
+                                                color: _isListening ? Colors.red : const Color(0xFF0071E3),
+                                              ),
+                                              onPressed: () => _listen(question['key']),
+                                              tooltip: _isListening ? 'Stop listening' : 'Start voice input',
+                                            ),
+                                          ),
+                                          style: GoogleFonts.inter(
+                                            fontSize: isMobile ? 17 : 20,
+                                            color: const Color(0xFF1D1D1F),
+                                            height: 1.45,
+                                          ),
+                                        ),
+                                      ).animate().fadeIn(delay: 200.ms),
+                                    ] else if (question['type'] == 'founderBackground') ...[
+                                      _buildFounderBackgroundSelector(isMobile),
+                                    ] else if (question['type'] == 'options') ...[
+                                      _buildOptionsSelector(question),
+                                    ] else if (question['type'] == 'location') ...[
+                                      _buildLocationSelector(),
+                                    ] else if (question['type'] == 'cv') ...[
+                                      _buildCVUploadSelector(),
+                                    ],
+                                    const Spacer(),
+                                    const SizedBox(height: 24),
+                                    Row(
+                                      children: [
+                                        if (_currentStep > 0)
+                                          Expanded(
+                                            flex: 1,
+                                            child: Container(
+                                              height: isMobile ? 50 : 56,
+                                              margin: const EdgeInsets.only(right: 12),
+                                              child: OutlinedButton(
+                                                onPressed: _previousStep,
+                                                style: OutlinedButton.styleFrom(
+                                                  side: const BorderSide(color: Color(0xFFE5E5EA)),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius: BorderRadius.circular(12),
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  'Back',
+                                                  style: GoogleFonts.inter(
+                                                    fontSize: isMobile ? 15 : 16,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: const Color(0xFF1D1D1F),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        Expanded(
+                                          flex: 2,
+                                          child: SizedBox(
+                                            height: isMobile ? 50 : 56,
+                                            child: ElevatedButton(
+                                              onPressed: _nextStep,
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: const Color(0xFF1D1D1F),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                              ),
+                                              child: Text(
+                                                index == _questions.length - 1 ? 'Get My Score' : 'Continue',
+                                                style: GoogleFonts.inter(
+                                                  fontSize: isMobile ? 15 : 16,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ).animate().fadeIn(delay: 300.ms),
+                                    SizedBox(height: isMobile ? 12 : 8),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
-                      const SizedBox(height: 24),
-                      Row(
-                        children: [
-                          if (_currentStep > 0)
-                            Expanded(
-                              flex: 1,
-                              child: Container(
-                                height: 56,
-                                margin: const EdgeInsets.only(right: 12),
-                                child: OutlinedButton(
-                                  onPressed: _previousStep,
-                                  style: OutlinedButton.styleFrom(
-                                    side: const BorderSide(color: Color(0xFFE5E5EA)),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'Back',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: const Color(0xFF1D1D1F),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          Expanded(
-                            flex: 2,
-                            child: SizedBox(
-                              height: 56,
-                              child: ElevatedButton(
-                                onPressed: _nextStep,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF1D1D1F),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                                child: Text(
-                                  index == _questions.length - 1 ? 'Get My Score' : 'Continue',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ).animate().fadeIn(delay: 300.ms),
-                    ],
-                  ),
-                );
-              },
+                    ),
+                  );
+                },
+              ),
             ),
     );
   }
@@ -2023,11 +2094,23 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
                 controller: _predStatedRiskController,
                 maxLength: 250,
                 maxLines: 2,
+                scrollPadding: const EdgeInsets.only(bottom: 140, top: 40),
+                cursorColor: const Color(0xFF0071E3),
+                cursorWidth: 2.5,
+                cursorRadius: const Radius.circular(2.0),
                 decoration: InputDecoration(
                   hintText: 'e.g., Customers reluctant to switch or high initial acquisition cost...',
-                  hintStyle: GoogleFonts.inter(color: const Color(0xffC7C7CC), fontSize: 14),
+                  hintStyle: GoogleFonts.inter(color: const Color(0xFF8E8E93), fontSize: 14),
                   filled: true,
                   fillColor: Colors.white,
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Color(0xFFE5E5EA), width: 1.5),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Color(0xFF0071E3), width: 2),
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide: const BorderSide(color: Color(0xFFE5E5EA)),
