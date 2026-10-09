@@ -108,13 +108,20 @@ class EvaluationResult {
 
   bool get isTransport {
     final text = '${raw['idea'] ?? ''} ${raw['category'] ?? ''} ${raw['businessName'] ?? ''} ${raw['problem'] ?? ''} ${raw['targetMarket'] ?? ''}'.toLowerCase();
-    final reg = RegExp(r'\b(ride-share|rideshare|ride-hailing|ride-booking|transport|taxi|airport transfer|passenger|fleet|vehicle rental|shuttle)\b');
+    final reg = RegExp(r'\b(ride-share|rideshare|ride-hailing|ride-booking|taxi|airport transfer|passenger transport|driver network|shuttle|fleet operations)\b');
+    return reg.hasMatch(text);
+  }
+
+  bool get isAiDecisionSupport {
+    final text = '${raw['idea'] ?? ''} ${raw['category'] ?? ''} ${raw['businessName'] ?? ''} ${raw['problem'] ?? ''} ${raw['targetMarket'] ?? ''}'.toLowerCase();
+    final reg = RegExp(r'\b(pitchlab|decision support|decision intelligence|startup validation|idea validation|idea assessment|founder intelligence)\b');
     return reg.hasMatch(text);
   }
 
   bool get isMarketplace {
     final text = '${raw['idea'] ?? ''} ${raw['category'] ?? ''} ${raw['businessName'] ?? ''} ${raw['problem'] ?? ''} ${raw['targetMarket'] ?? ''}'.toLowerCase();
-    final reg = RegExp(r'\b(marketplace|two-sided|platform|booking|matching)\b');
+    if (isAiDecisionSupport) return false;
+    final reg = RegExp(r'\b(two-sided marketplace|multi-sided marketplace|buyer-seller marketplace|peer-to-peer marketplace|freelance marketplace)\b');
     return reg.hasMatch(text);
   }
 
@@ -756,29 +763,29 @@ class EvaluationResult {
   Map<String, dynamic> get businessTheme => (raw['businessTheme'] as Map<String, dynamic>?) ?? {};
   String get primaryTheme => _str(
     businessTheme['primaryTheme'],
-    fallback: isNuclear ? 'Energy Infrastructure & Power Generation' : (isHardware ? 'Hardware & Physical Product Innovation' : (isTransport ? 'Transportation / Mobility' : 'B2B Software & Business Services'))
+    fallback: isNuclear ? 'Energy Infrastructure & Power Generation' : (isHardware ? 'Hardware & Physical Product Innovation' : (isTransport ? 'Transportation / Mobility' : (isAiDecisionSupport ? 'AI / Business Decision Support Software' : 'B2B Software & Business Services')))
   );
   String get secondaryTheme => _str(
     businessTheme['secondaryTheme'],
-    fallback: isNuclear ? 'Nuclear / SMR / Firm Low-Carbon Generation' : (isHardware ? 'Field Trial Validation & Asset Protection' : (isTransport ? 'Local Passenger Mobility & Booking Marketplace' : 'Workflow Efficiency & Automation'))
+    fallback: isNuclear ? 'Nuclear / SMR / Firm Low-Carbon Generation' : (isHardware ? 'Field Trial Validation & Asset Protection' : (isTransport ? 'Local Passenger Mobility & Booking Marketplace' : (isAiDecisionSupport ? 'Startup Idea Validation & Founder Decision Intelligence' : 'Workflow Efficiency & Automation')))
   );
   String get strategicPositioning => _str(
     businessTheme['strategicPositioning'],
     fallback: isNuclear
       ? 'Positions as a long-term utility-scale infrastructure option targeting grid reliability, baseload capacity, and industrial decarbonisation within New Zealand.'
-      : (isHardware ? 'Positions as a high-efficiency specialized physical solution directly targeting operational pain points.' : (isTransport ? 'Positions as a localized two-sided transport booking marketplace connecting passengers with vetted drivers and transport operators.' : 'Positions as a specialized efficiency solution directly targeting operational friction points.'))
+      : (isHardware ? 'Positions as a high-efficiency specialized physical solution directly targeting operational pain points.' : (isTransport ? 'Positions as a localized two-sided transport booking marketplace connecting passengers with vetted drivers and transport operators.' : (isAiDecisionSupport ? 'Positions as an idea portfolio and decision platform that helps founders evaluate opportunities before committing significant time or capital.' : 'Positions as a specialized efficiency solution directly targeting operational friction points.')))
   );
   String get marketCategoryDynamics => _str(
     businessTheme['marketCategoryDynamics'],
     fallback: isNuclear
       ? 'Governed by national energy security strategy, statutory radiation safety law, environmental consenting frameworks, and multi-billion-dollar infrastructure capital scale.'
-      : (isHardware ? 'Driven by market demand for durable, low-maintenance asset protection and automated operational tools.' : (isTransport ? 'Driven by passenger convenience, transparent fare pricing, driver supply density, smartphone penetration, and local transport regulatory compliance.' : 'Driven by market demand for operational productivity, compliance automation, and workflow efficiency.'))
+      : (isHardware ? 'Driven by market demand for durable, low-maintenance asset protection and automated operational tools.' : (isTransport ? 'Driven by passenger convenience, transparent fare pricing, driver supply density, smartphone penetration, and local transport regulatory compliance.' : (isAiDecisionSupport ? 'Driven by founder demand for rapid idea validation, structured risk assessment, evidence-led feasibility scoring, and disciplined capital allocation.' : 'Driven by market demand for operational productivity, compliance automation, and workflow efficiency.')))
   );
   String get strategicMoat => _str(
     businessTheme['strategicMoat'],
     fallback: isNuclear
       ? 'No defensible venture-specific moat is yet evidenced. Potential future defensibility could arise from specialist partnerships, project rights, regulatory capability, long-term off-take arrangements or execution capability.'
-      : (isHardware ? 'Proprietary design mechanics, domain experience, and direct field trial relationships.' : (isTransport ? 'Two-sided network density, established local driver and operator relationships, customer booking habituation, and local operational presence.' : 'Deep domain specialization, high workflow retention, and direct customer relationships.'))
+      : (isHardware ? 'Proprietary design mechanics, domain experience, and direct field trial relationships.' : (isTransport ? 'Two-sided network density, established local driver and operator relationships, customer booking habituation, and local operational presence.' : (isAiDecisionSupport ? 'Evidence-calibrated decision methodology, structured validation scoring frameworks, and proprietary founder decision intelligence.' : 'Deep domain specialization, high workflow retention, and direct customer relationships.')))
   );
 
   // CV Analysis

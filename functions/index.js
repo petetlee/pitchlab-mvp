@@ -10,7 +10,7 @@ const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
 const fs = require("fs");
 const path = require("path");
-const { calculateFRI, reconcileScores, getScoreBand, classifyVentureType, detectFeasibilityGates, calculateFounderEvidenceGap, calculate5DimensionFutureTrends, getValidationLadderForContext, getCommercialAdviserOpinion, getPortfolioDecision, generateContextualInvestorCommentary, getLegalRegulatoryAssessment, generateContextualInvestorVerdict, validateReportIntegrityGate } = require("./scoring_logic");
+const { calculateFRI, reconcileScores, getScoreBand, classifyVentureType, detectFeasibilityGates, calculateFounderEvidenceGap, calculate5DimensionFutureTrends, getValidationLadderForContext, getCommercialAdviserOpinion, getPortfolioDecision, generateContextualInvestorCommentary, getLegalRegulatoryAssessment, generateContextualInvestorVerdict, validateReportIntegrityGate, detectAndResolveCrossContamination } = require("./scoring_logic");
 
 const VERSION_INFO = require("./version_config.json");
 console.log(`PitchLab: ${VERSION_INFO.fullVersionString} Loaded (Build: ${VERSION_INFO.buildId})`);
@@ -314,6 +314,7 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
   const isTax = Boolean((data.idea || "").toLowerCase().match(/tax|gst|ird|bookkeep|accounting/) || (data.category || "").toLowerCase().match(/fintech|tax/));
   const isHw = Boolean(vType.includes("Hardware") || (data.idea || "").toLowerCase().match(/moor|boat|hardware|device|sensor|solar/));
   const isTransport = Boolean(vType.includes("Transportation") || vType.includes("Mobility") || isTransportIdea(data));
+  const isAiDecision = Boolean(vType.includes("Decision Support") || (data.idea || "").toLowerCase().match(/\b(pitchlab|decision support|decision intelligence|startup evaluation|idea validation|idea assessment|founder intelligence)\b/i));
 
   const cleanVal = (val, fallback) => {
     if (!val || typeof val !== 'string') return fallback;
@@ -340,11 +341,15 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
           ? "Commercial vessel operators, marine infrastructure owners, and recreational boating consumers."
           : (isTransport
             ? "Local commuters, tourists, airport travellers, and independent local transport drivers."
-            : (data.category ? `${data.category} commercial customers and key decision makers.` : "Target commercial customer segment defined by clear operational friction."))));
+            : (isAiDecision
+              ? "Entrepreneurs, startup founders, prospective business owners and innovation programmes."
+              : (data.category ? `${data.category} commercial customers and key decision makers.` : "Target commercial customer segment defined by clear operational friction.")))));
     let cleaned = cleanVal(rawTarget, fallback);
     if (cleaned.length > 140) {
       if (isTransport) {
         cleaned = "Local residents, tourists, business travellers, and visiting friends and relatives (VFR) needing reliable local transport.";
+      } else if (isAiDecision) {
+        cleaned = "Entrepreneurs, startup founders, prospective business owners and innovation programmes.";
       } else {
         const firstSentence = cleaned.split(/[.;]/)[0].trim();
         if (firstSentence.length <= 130 && firstSentence.length > 10) {
@@ -367,7 +372,9 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
           ? "Solar-powered automated marine mooring and pest protection device."
           : (isTransport
             ? "A mobile ride-booking and transport platform connecting passengers with local drivers for on-demand rides, transfers, and tours."
-            : "Commercial product and service solution targeting operational efficiency.")));
+            : (isAiDecision
+              ? "Structured AI-assisted assessment of business ideas, risks, market potential, founder capability and practical next steps."
+              : "Commercial product and service solution targeting operational efficiency."))));
     return cleanVal(rawOffering, fallback);
   }
 
@@ -378,8 +385,10 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
       : (isTax
         ? "Manual GST calculation errors, unexpected IRD tax penalties, and cash flow strain for commercial SMBs."
         : (isTransport
-          ? "Fragmented, unreliable transport booking in Samoa, lack of upfront fare transparency, and vehicle idle time for drivers."
-          : "Operational friction, cost inefficiency, and unaddressed market workflow requirements."));
+          ? `Fragmented, unreliable transport booking in ${jurisdiction || "the target market"}, lack of upfront fare transparency, and vehicle idle time for drivers.`
+          : (isAiDecision
+            ? "Founders risking time and capital on unvalidated ideas without objective, structured commercial assessment or evidence-led decision guidance."
+            : "Operational friction, cost inefficiency, and unaddressed market workflow requirements.")));
     return cleanVal(rawProblem, fallback);
   }
 
@@ -387,7 +396,8 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
     if (isNuc) return "Continuous, low-carbon firm electricity generation providing long-term price predictability, grid stability, and industrial decarbonisation.";
     if (isTax) return "Automated tax obligation set-aside functionality helping small businesses maintain cash flow discipline and avoid unexpected tax liabilities.";
     if (isHw) return "A reliable, effective, and automated pest deterrent that significantly reduces maintenance, damage, and hygiene concerns on boats.";
-    if (isTransport) return "A Samoa-focused digital ride-booking platform that allows passengers to locate and arrange transport more conveniently while giving local drivers access to additional ride demand.";
+    if (isTransport) return `A localized digital ride-booking platform that allows passengers to locate and arrange transport more conveniently while giving local drivers access to additional ride demand in ${jurisdiction || "the target market"}.`;
+    if (isAiDecision) return "Structured AI-assisted assessment of business ideas, risks, market potential, founder capability and practical next steps.";
     return "Commercial solution delivering direct operational efficiency, cost reduction, and low switching friction.";
   }
 
@@ -396,6 +406,7 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
     if (isTax) return "Tiered monthly software subscription (SaaS) priced per business or transaction volume.";
     if (isHw) return "Direct hardware sales, distributor margins, or optional maintenance support agreements.";
     if (isTransport) return "Commission or transaction fee on completed rides, potentially supplemented by fixed booking fees, airport transfer arrangements, business accounts or other validated transport-service revenue models.";
+    if (isAiDecision) return "Tiered SaaS subscription, per-assessment credits, or institutional licensing for accelerators and innovation programmes.";
     return "Commercial revenue model based on subscription, transaction fee, or direct service billing.";
   }
 
@@ -403,7 +414,8 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
     if (isNuc) return "Direct long-term PPA contracting with electricity retailers, heavy industrial energy users, and national grid operators.";
     if (isTax) return "Direct digital acquisition, accounting practitioner referrals, and small-business community partnerships.";
     if (isHw) return "Direct commercial outreach, industry trade channels, and field demonstration trials.";
-    if (isTransport) return "Existing Discovery transport networks, hotels and tourism partners, airport-related customers, local digital marketing, referrals and driver-led network growth.";
+    if (isTransport) return "Local transport operator partnerships, hotel and tourism relationships, airport transfer channels, digital marketing, and driver-led network growth.";
+    if (isAiDecision) return "Direct digital acquisition, founder community partnerships, accelerator networks, and word-of-mouth referrals.";
     return "Direct client outreach, industry network referrals, and targeted commercial marketing.";
   }
 
@@ -412,6 +424,7 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
     if (isTax) return "Software development, banking API integrations, security compliance, hosting infrastructure, and customer acquisition.";
     if (isHw) return "Component sourcing, tooling, manufacturing assembly, quality certification, and field testing.";
     if (isTransport) return "Software development, platform hosting, mapping/payment services, driver onboarding, customer support, insurance/compliance, marketing and ongoing platform operations.";
+    if (isAiDecision) return "AI model inference and API costs, software platform development, cloud infrastructure hosting, and user acquisition.";
     return "Solution development, customer acquisition, operational support, and ongoing service delivery.";
   }
 
@@ -420,6 +433,7 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
     if (isTax) return "Commercial viability depends on proving that small businesses will adopt a dedicated set-aside tool over existing manual bank account workarounds.";
     if (isHw) return "Commercial viability depends on prototype durability testing and verified manufacturing unit economics.";
     if (isTransport) return "The business model is standard for a two-sided marketplace; commercial viability hinges on balancing passenger demand with driver supply liquidity and maintaining viable unit economics in the local market.";
+    if (isAiDecision) return "Commercial viability depends on delivering high-integrity, evidence-calibrated assessments that founders and innovation programmes trust for consequential decisions.";
     return "Business model evaluated against customer willingness to pay and low-friction adoption.";
   }
 
@@ -1885,24 +1899,38 @@ exports.pitchLabEvaluation = onCall({
     const isNuclear = (idea + " " + category).toLowerCase().includes("nuclear");
 
     evaluationData.businessTheme = evaluationData.businessTheme || {};
+    const isAiDecision = ventureType.includes("Decision Support") || Boolean((idea + " " + category).match(/\b(ai\b|decision support|decision intelligence|startup evaluation|idea validation|idea assessment|founder intelligence|pitchlab)\b/i));
+
     if (isNuclear || reconciled.gatesInfo?.hasCriticalGate) {
       evaluationData.businessTheme.primaryTheme = "Energy Infrastructure & Power Generation";
       evaluationData.businessTheme.secondaryTheme = "Nuclear / SMR / Firm Low-Carbon Generation";
       evaluationData.businessTheme.strategicPositioning = `Positions as a long-term utility-scale infrastructure option targeting grid reliability, baseload capacity, and industrial decarbonisation within ${targetJurisdiction}.`;
       evaluationData.businessTheme.marketCategoryDynamics = `Governed by national energy security strategy, statutory radiation safety law, environmental consenting frameworks, and multi-billion-dollar infrastructure capital scale.`;
       evaluationData.businessTheme.strategicMoat = "No defensible venture-specific moat is yet evidenced. Potential future defensibility could arise from specialist partnerships, project rights, regulatory capability, long-term off-take arrangements or execution capability.";
+    } else if (isAiDecision) {
+      evaluationData.businessTheme.primaryTheme = (evaluationData.businessTheme.primaryTheme && !evaluationData.businessTheme.primaryTheme.includes("Transport")) ? evaluationData.businessTheme.primaryTheme : "AI / Business Decision Support Software";
+      evaluationData.businessTheme.secondaryTheme = (evaluationData.businessTheme.secondaryTheme && !evaluationData.businessTheme.secondaryTheme.includes("Mobility")) ? evaluationData.businessTheme.secondaryTheme : "Startup Idea Validation & Founder Decision Intelligence";
+      evaluationData.businessTheme.strategicPositioning = (evaluationData.businessTheme.strategicPositioning && !evaluationData.businessTheme.strategicPositioning.includes("driver")) ? evaluationData.businessTheme.strategicPositioning : "An idea portfolio and decision platform that helps founders evaluate opportunities before committing significant time or capital.";
+      evaluationData.businessTheme.marketCategoryDynamics = (evaluationData.businessTheme.marketCategoryDynamics && !evaluationData.businessTheme.marketCategoryDynamics.includes("driver")) ? evaluationData.businessTheme.marketCategoryDynamics : "Driven by founder demand for rapid idea validation, structured risk assessment, evidence-led feasibility scoring, and disciplined capital allocation.";
+      evaluationData.businessTheme.strategicMoat = (evaluationData.businessTheme.strategicMoat && !evaluationData.businessTheme.strategicMoat.includes("driver")) ? evaluationData.businessTheme.strategicMoat : "Evidence-calibrated decision methodology, structured validation scoring frameworks, and proprietary founder decision intelligence.";
     } else if (ventureType.includes("Hardware") || ventureType.includes("Manufacturing")) {
       evaluationData.businessTheme.primaryTheme = evaluationData.businessTheme.primaryTheme || "Hardware & Physical Product Innovation";
       evaluationData.businessTheme.secondaryTheme = evaluationData.businessTheme.secondaryTheme || "Field Trial Validation & Asset Protection";
       evaluationData.businessTheme.strategicPositioning = evaluationData.businessTheme.strategicPositioning || "Positions as a high-efficiency specialized physical solution directly targeting operational pain points. De-risks adoption by delivering immediate physical and functional value.";
       evaluationData.businessTheme.marketCategoryDynamics = evaluationData.businessTheme.marketCategoryDynamics || "Driven by market demand for durable, low-maintenance asset protection and automated operational tools.";
       evaluationData.businessTheme.strategicMoat = evaluationData.businessTheme.strategicMoat || "Proprietary design mechanics, domain experience, and direct field trial relationships.";
-    } else if (ventureType.includes("Transportation") || ventureType.includes("Mobility") || ventureType.includes("Marketplace")) {
+    } else if (ventureType === 'Transportation / Mobility / Marketplace' || ventureType.includes("Transportation") || ventureType.includes("Mobility") || isTransportIdea(reqData)) {
       evaluationData.businessTheme.primaryTheme = "Transportation / Mobility";
       evaluationData.businessTheme.secondaryTheme = "Local Passenger Mobility & Booking Marketplace";
       evaluationData.businessTheme.strategicPositioning = `Positions as a localized two-sided transport booking marketplace connecting passengers with vetted drivers and transport operators across ${targetJurisdiction}.`;
       evaluationData.businessTheme.marketCategoryDynamics = `Driven by passenger convenience, transparent fare pricing, driver supply density, smartphone penetration, and local transport regulatory compliance in ${targetJurisdiction}.`;
       evaluationData.businessTheme.strategicMoat = "Two-sided network density, established local driver and operator relationships, customer booking habituation, and local operational presence.";
+    } else if (ventureType === 'Marketplace') {
+      evaluationData.businessTheme.primaryTheme = evaluationData.businessTheme.primaryTheme || "Digital Marketplace";
+      evaluationData.businessTheme.secondaryTheme = evaluationData.businessTheme.secondaryTheme || "Two-Sided Platform & Network Liquidity";
+      evaluationData.businessTheme.strategicPositioning = evaluationData.businessTheme.strategicPositioning || `Positions as a two-sided platform matching demand and supply within ${targetJurisdiction}.`;
+      evaluationData.businessTheme.marketCategoryDynamics = evaluationData.businessTheme.marketCategoryDynamics || "Driven by network effects, buyer and seller acquisition costs, liquidity, and platform retention.";
+      evaluationData.businessTheme.strategicMoat = evaluationData.businessTheme.strategicMoat || "Network density, platform habituation, and defensible liquidity.";
     } else {
       evaluationData.businessTheme.primaryTheme = evaluationData.businessTheme.primaryTheme || category || "B2B Software & Business Services";
       evaluationData.businessTheme.secondaryTheme = evaluationData.businessTheme.secondaryTheme || "Workflow Efficiency & Automation";
@@ -1921,13 +1949,19 @@ exports.pitchLabEvaluation = onCall({
       evaluationData.businessModelSnapshot.customerAcquisition = "Direct long-term PPA contracting with electricity retailers, heavy industrial energy users, and national grid operators.";
       evaluationData.businessModelSnapshot.keyCosts = "Technology licensing, site development, regulatory consenting, plant engineering, construction, grid interconnection, operation, security, and decommissioning.";
       evaluationData.businessModelSnapshot.commercialAssessment = "Business model viability is strictly governed by statutory permissibility, regulatory consenting, and multi-billion-dollar project financing gateways.";
+    } else if (isAiDecision) {
+      evaluationData.businessModelSnapshot.valueProposition = synthesizeBusinessModelField('valueProposition', reqData, ventureType, targetJurisdiction);
+      evaluationData.businessModelSnapshot.revenueModel = synthesizeBusinessModelField('revenueModel', reqData, ventureType, targetJurisdiction);
+      evaluationData.businessModelSnapshot.customerAcquisition = synthesizeBusinessModelField('customerAcquisition', reqData, ventureType, targetJurisdiction);
+      evaluationData.businessModelSnapshot.keyCosts = synthesizeBusinessModelField('keyCosts', reqData, ventureType, targetJurisdiction);
+      evaluationData.businessModelSnapshot.commercialAssessment = synthesizeBusinessModelField('commercialAssessment', reqData, ventureType, targetJurisdiction);
     } else if (ventureType.includes("Hardware")) {
       evaluationData.businessModelSnapshot.valueProposition = evaluationData.businessModelSnapshot.valueProposition || "Durable physical solution delivering direct operational efficiency or asset protection.";
       evaluationData.businessModelSnapshot.revenueModel = evaluationData.businessModelSnapshot.revenueModel || "Direct hardware sales, distributor margins, or optional maintenance support agreements.";
       evaluationData.businessModelSnapshot.customerAcquisition = evaluationData.businessModelSnapshot.customerAcquisition || "Direct commercial outreach, industry trade channels, and field demonstration trials.";
       evaluationData.businessModelSnapshot.keyCosts = evaluationData.businessModelSnapshot.keyCosts || "Component sourcing, tooling, manufacturing assembly, quality certification, and field testing.";
       evaluationData.businessModelSnapshot.commercialAssessment = evaluationData.businessModelSnapshot.commercialAssessment || "Commercial viability depends on prototype durability testing and verified manufacturing unit economics.";
-    } else if (ventureType.includes("Transportation") || ventureType.includes("Mobility") || ventureType.includes("Marketplace")) {
+    } else if (ventureType === 'Transportation / Mobility / Marketplace' || ventureType.includes("Transportation") || ventureType.includes("Mobility") || isTransportIdea(reqData)) {
       evaluationData.businessModelSnapshot.valueProposition = synthesizeBusinessModelField('valueProposition', reqData, ventureType, targetJurisdiction);
       evaluationData.businessModelSnapshot.revenueModel = synthesizeBusinessModelField('revenueModel', reqData, ventureType, targetJurisdiction);
       evaluationData.businessModelSnapshot.customerAcquisition = synthesizeBusinessModelField('customerAcquisition', reqData, ventureType, targetJurisdiction);
@@ -2122,6 +2156,9 @@ exports.pitchLabEvaluation = onCall({
     // Apply Required-Field Business Model Integrity Gate
     evaluationData = validateAndEnforceBusinessModelSnapshot(evaluationData, reqData);
 
+    // Apply Automated Contamination Detection & Resolution (PL-FIX-20261009-002)
+    evaluationData = detectAndResolveCrossContamination(evaluationData, reqData);
+
     // Apply Cross-Section Legal Certainty & Evidence Provenance Integrity Gate (Fix 10 & Fix 1D)
     validateReportIntegrityGate(evaluationData, reqData);
 
@@ -2143,7 +2180,7 @@ exports.pitchLabEvaluation = onCall({
     // 10. Store Evaluation safely
     await updateSubmissionProgress(submissionId, 5, "Finalising your report", 98);
     try {
-      await db.collection("EvaluationScore").add({
+      const evalDocRef = await db.collection("EvaluationScore").add({
         userId,
         inputId: inputRef?.id || `local-${Date.now()}`,
         category: category || "General",
@@ -2159,6 +2196,9 @@ exports.pitchLabEvaluation = onCall({
         privacyStatus: "PRIVATE",
         createdAt: FieldValue.serverTimestamp(),
       });
+      evaluationData.id = evalDocRef.id;
+      evaluationData.evaluationId = evalDocRef.id;
+      evaluationData.userId = userId;
       // Sync administrative user summary (non-sensitive metrics only)
       await syncUserAdminSummary(userId);
     } catch (dbErr) {
@@ -2240,6 +2280,8 @@ function getMockResult(reqData = {}) {
   const doThisBeforeBuilding = actionSourceOfTruth.doThisBeforeBuilding;
   const marketInsightsObj = generateIdeaSpecificMarketInsights(reqData, reconciled, ventureType, targetJurisdiction);
 
+  const isAiDecision = ventureType.includes("Decision Support") || Boolean((idea + " " + (reqData.category || "")).match(/\b(ai\b|decision support|decision intelligence|startup evaluation|idea validation|idea assessment|founder intelligence|pitchlab)\b/i));
+
   let primaryThemeStr = "B2B Software & Business Services";
   let secondaryThemeStr = "Workflow Efficiency & Automation";
   let stratPos = "Positions as a specialized efficiency solution directly targeting operational friction points.";
@@ -2252,18 +2294,30 @@ function getMockResult(reqData = {}) {
     stratPos = `Positions as a long-term utility-scale infrastructure option targeting grid reliability, baseload capacity, and industrial decarbonisation within ${targetJurisdiction}.`;
     catDyn = `Governed by national energy security strategy, statutory radiation safety law, environmental consenting frameworks, and multi-billion-dollar infrastructure capital scale.`;
     moatStr = "No defensible venture-specific moat is yet evidenced. Potential future defensibility could arise from specialist partnerships, project rights, regulatory capability, long-term off-take arrangements or execution capability.";
+  } else if (isAiDecision) {
+    primaryThemeStr = "AI / Business Decision Support Software";
+    secondaryThemeStr = "Startup Idea Validation & Founder Decision Intelligence";
+    stratPos = "An idea portfolio and decision platform that helps founders evaluate opportunities before committing significant time or capital.";
+    catDyn = "Driven by founder demand for rapid idea validation, structured risk assessment, evidence-led feasibility scoring, and disciplined capital allocation.";
+    moatStr = "Evidence-calibrated decision methodology, structured validation scoring frameworks, and proprietary founder decision intelligence.";
   } else if (ventureType.includes("Hardware") || ventureType.includes("Manufacturing")) {
     primaryThemeStr = "Hardware & Physical Product Innovation";
     secondaryThemeStr = "Field Trial Validation & Asset Protection";
     stratPos = "Positions as a high-efficiency specialized physical solution directly targeting operational pain points.";
     catDyn = "Driven by market demand for durable, low-maintenance asset protection and automated operational tools.";
     moatStr = "Proprietary design mechanics, domain experience, and direct field trial relationships.";
-  } else if (ventureType.includes("Transportation") || ventureType.includes("Mobility") || ventureType.includes("Marketplace")) {
+  } else if (ventureType === 'Transportation / Mobility / Marketplace' || ventureType.includes("Transportation") || ventureType.includes("Mobility") || isTransportIdea(reqData)) {
     primaryThemeStr = "Transportation / Mobility";
     secondaryThemeStr = "Local Passenger Mobility & Booking Marketplace";
     stratPos = `Positions as a localized two-sided transport booking marketplace connecting passengers with vetted drivers and transport operators across ${targetJurisdiction}.`;
     catDyn = `Driven by passenger convenience, transparent fare pricing, driver supply density, smartphone penetration, and local transport regulatory compliance in ${targetJurisdiction}.`;
     moatStr = "Two-sided network density, established local driver and operator relationships, customer booking habituation, and local operational presence.";
+  } else if (ventureType === 'Marketplace') {
+    primaryThemeStr = "Digital Marketplace";
+    secondaryThemeStr = "Two-Sided Platform & Network Liquidity";
+    stratPos = `Positions as a two-sided platform matching demand and supply within ${targetJurisdiction}.`;
+    catDyn = "Driven by network effects, buyer and seller acquisition costs, liquidity, and platform retention.";
+    moatStr = "Network density, platform habituation, and defensible liquidity.";
   }
 
   let valProp = synthesizeBusinessModelField('valueProposition', reqData, ventureType, targetJurisdiction);
@@ -2278,13 +2332,19 @@ function getMockResult(reqData = {}) {
     acqChannel = "Direct long-term PPA contracting with electricity retailers, heavy industrial energy users, and national grid operators.";
     keyCostsStr = "Technology licensing, site development, regulatory consenting, plant engineering, construction, grid interconnection, operation, security, and decommissioning.";
     commAssess = "Business model viability is strictly governed by statutory permissibility, regulatory consenting, and multi-billion-dollar project financing gateways.";
+  } else if (isAiDecision) {
+    valProp = synthesizeBusinessModelField('valueProposition', reqData, ventureType, targetJurisdiction);
+    revModel = synthesizeBusinessModelField('revenueModel', reqData, ventureType, targetJurisdiction);
+    acqChannel = synthesizeBusinessModelField('customerAcquisition', reqData, ventureType, targetJurisdiction);
+    keyCostsStr = synthesizeBusinessModelField('keyCosts', reqData, ventureType, targetJurisdiction);
+    commAssess = synthesizeBusinessModelField('commercialAssessment', reqData, ventureType, targetJurisdiction);
   } else if (ventureType.includes("Hardware")) {
     valProp = "Durable physical solution delivering direct operational efficiency or asset protection.";
     revModel = "Direct hardware sales, distributor margins, or optional maintenance support agreements.";
     acqChannel = "Direct commercial outreach, industry trade channels, and field demonstration trials.";
     keyCostsStr = "Component sourcing, tooling, manufacturing assembly, quality certification, and field testing.";
     commAssess = "Commercial viability depends on prototype durability testing and verified manufacturing unit economics.";
-  } else if (ventureType.includes("Transportation") || ventureType.includes("Mobility") || ventureType.includes("Marketplace")) {
+  } else if (ventureType === 'Transportation / Mobility / Marketplace' || ventureType.includes("Transportation") || ventureType.includes("Mobility") || isTransportIdea(reqData)) {
     valProp = synthesizeBusinessModelField('valueProposition', reqData, ventureType, targetJurisdiction);
     revModel = synthesizeBusinessModelField('revenueModel', reqData, ventureType, targetJurisdiction);
     acqChannel = synthesizeBusinessModelField('customerAcquisition', reqData, ventureType, targetJurisdiction);
@@ -2498,6 +2558,7 @@ function getMockResult(reqData = {}) {
   mockData.output = runSemanticGuardrail(mockData.output, ventureType, reconciled.gatesInfo, reqData);
   mockData.output = runEditorialQaAndSpellCheck(mockData.output, reqData);
   mockData.output = validateAndEnforceBusinessModelSnapshot(mockData.output, reqData);
+  mockData.output = detectAndResolveCrossContamination(mockData.output, reqData);
   validateReportIntegrityGate(mockData.output, reqData);
 
   return mockData;

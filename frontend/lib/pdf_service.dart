@@ -1259,9 +1259,9 @@ class PdfService {
       }
     }
 
-    // 8. PL-FIX-20261009-001: TRANSPORT & MARKETPLACE INTEGRITY & CONTEXT-SENSITIVE VALIDATION
-    // 8.1 Context-sensitive check for SaaS terms in mobility/transport assessments (warnings instead of blocking)
-    if (res.isTransport || res.isMarketplace) {
+    // 8. PL-FIX-20261009-002: TRANSPORT & MOBILITY INTEGRITY & CONTEXT-SENSITIVE VALIDATION
+    // 8.1 Context-sensitive check for SaaS terms in mobility/transport assessments (warnings instead of blocking, never on AI software)
+    if (res.isTransport && !res.isAiDecisionSupport) {
       final bannedSaaSTerms = [
         'workflow efficiency & automation',
         'commercial software market',
@@ -1278,7 +1278,7 @@ class PdfService {
       final lowerAll = allPdfText.toLowerCase();
       for (final term in bannedSaaSTerms) {
         if (lowerAll.contains(term)) {
-          print('PitchLab PDF Terminology Warning: Term "$term" detected in transport/marketplace assessment.');
+          print('PitchLab PDF Terminology Warning: Term "$term" detected in transport assessment.');
         }
       }
     }
@@ -1325,6 +1325,26 @@ class PdfService {
       final exp = (act['explanation'] ?? '') as String;
       if (exp.length > 300) {
         print('PitchLab PDF Integrity Warning: Action plan item explanation is lengthy.');
+      }
+    }
+
+    // 8.6 PL-FIX-20261009-002: Hard Cross-Assessment Contamination Check for AI / Decision Software
+    if (res.isAiDecisionSupport) {
+      final crossContaminationTerms = [
+        'vetted drivers',
+        'driver supply density',
+        'transport operator relationships',
+        'connecting passengers with vetted drivers',
+        'mooring ropes',
+        'pest deterrent device',
+        'small modular reactor',
+        'radiation safety act'
+      ];
+      final lowerAll = allPdfText.toLowerCase();
+      for (final term in crossContaminationTerms) {
+        if (lowerAll.contains(term)) {
+          throw Exception('PITCHLAB PRE-PDF INTEGRITY FAILURE: Cross-assessment data contamination detected ("$term" found in AI / Decision Support assessment). Export blocked.');
+        }
       }
     }
   }

@@ -107,7 +107,7 @@ void main() {
         'overallScore': 82,
         'scoreBand': 'READY TO COMMENCE VALIDATION',
         'masterRecommendation': 'PROCEED TO MVP LAUNCH',
-        'ventureType': 'Software / SaaS / AI Platform',
+        'ventureType': 'AI / Business Decision Support Software',
         'scores': {
           'overall': 82,
           'problemUrgency': {'scoreAchieved': 17, 'maxScore': 20},
@@ -141,6 +141,39 @@ void main() {
       final pdfBytes = await PdfService.buildPdfBytes(evaluation);
       expect(pdfBytes, isNotNull);
       expect(pdfBytes.length, greaterThan(1000));
+    });
+
+    test('3b. PitchLab PDF rejects deliberate LeRide contamination injection', () async {
+      final contaminatedEval = {
+        'idea': 'PitchLab - AI Idea Portfolio & Decision Platform',
+        'problem': 'Founders wasting capital on unvalidated commercial business ideas',
+        'targetMarket': 'Early stage founders, accelerators, and startup incubators',
+        'category': 'AI / Business Decision Support Software',
+        'overallScore': 82,
+        'scoreBand': 'READY TO COMMENCE VALIDATION',
+        'masterRecommendation': 'PROCEED TO MVP LAUNCH',
+        'ventureType': 'AI / Business Decision Support Software',
+        'scores': {
+          'overall': 82,
+          'problemUrgency': {'scoreAchieved': 17, 'maxScore': 20},
+          'customerValidation': {'scoreAchieved': 16, 'maxScore': 20},
+          'businessModelDefensibility': {'scoreAchieved': 16, 'maxScore': 20},
+          'founderFit': {'scoreAchieved': 17, 'maxScore': 20},
+          'futureTrends': {'scoreAchieved': 16, 'maxScore': 20},
+        },
+        'executiveSummary': 'PitchLab connects passengers with vetted drivers across Apia.',
+        'businessModelSnapshot': {
+          'targetCustomer': 'Startup founders and early-stage venture investors.',
+          'coreOffering': 'vetted drivers platform.',
+        },
+        'futureTrends': {
+          'dimensions': {
+            'demandTrend': 'Increasing demand for automated business intelligence tools.',
+          }
+        },
+      };
+
+      expect(() => PdfService.buildPdfBytes(contaminatedEval), throwsException);
     });
 
     test('4. LBM Construction (Services) generates valid PDF bytes', () async {

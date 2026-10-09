@@ -1,9 +1,10 @@
 {
-  "appVersion": "v0.10.0",
-  "fullVersionString": "PitchLab MVP v0.10.0",
-  "changeId": "PL-FIX-20261009-001",
-  "parentChangeId": "PL-20261009-TEXTCOLOR-01",
-  "buildId": "8f4b11c",
-  "deployedAt": "2026-10-09T20:10:00+13:00",
-  "deployedAtFormatted": "09 Oct 2026 20:10 NZDT"
+  "appVersion": "v0.10.1",
+  "fullVersionString": "PitchLab MVP v0.10.1",
+  "changeId": "PL-FIX-20261009-002",
+  "parentChangeId": "PL-FIX-20261009-001",
+  "buildId": "a4d92ef",
+  "deployedAt": "2026-10-09T20:55:00+13:00",
+  "deployedAtFormatted": "09 Oct 2026 20:55 NZDT"
 }
+

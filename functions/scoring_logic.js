@@ -166,6 +166,9 @@ function classifyVentureType(rawInputs = {}) {
   if (text.match(/\b(quantum|semiconductor|nanotech|fusion|robotics|satellite|aerospace|rocket|deep tech)\b/i)) {
     return 'Deep Technology / Scientific';
   }
+  if (text.match(/\b(ai\b|artificial intelligence|decision support|decision intelligence|decision platform|startup evaluation|startup validation|idea validation|idea assessment|founder intelligence|venture evaluation|venture assessment|pitchlab)\b/i)) {
+    return 'AI / Business Decision Support Software';
+  }
   if (text.match(/mooring|solar-powered|device|hardware|sensor|enclosure|physical product|equipment|machinery/)) {
     return 'Physical Consumer Product / Hardware';
   }
@@ -175,7 +178,7 @@ function classifyVentureType(rawInputs = {}) {
   if (text.match(/bank|fintech|tax|gst|accounting|payroll|insurance|lending|wealth|payment/)) {
     return 'Financial Services / FinTech';
   }
-  if (text.match(/marketplace|platform|two-sided|directory/)) {
+  if (text.match(/\b(two-sided marketplace|multi-sided marketplace|buyer-seller marketplace|peer-to-peer marketplace|freelance marketplace|service marketplace|rental marketplace)\b/i) || (text.match(/\bmarketplace\b/i) && !text.match(/\b(decision|software|developer|ai|saas|analytics|intelligence)\b/i))) {
     return 'Marketplace';
   }
   if (text.match(/plumb|electrician|builder|carpenter|roofer|painter|hvac|mechanic|handyman|\blawn\b|\bmow\b|cleaning|pest control|landscaping|\btrade\b|\blocal service\b/)) {
@@ -1940,6 +1943,142 @@ function generateContextualInvestorVerdict(reqData = {}, reconciled = {}, legalR
 }
 
 /**
+ * PL-FIX-20261009-002: Automated Cross-Assessment Data Contamination Detector & Resolver.
+ * Enforces assessment isolation, detects cross-industry/archetype bleed and unrelated entities,
+ * cleanses contaminated fields from clean founder submission context, and records an immutable audit log.
+ */
+function detectAndResolveCrossContamination(evaluationData = {}, reqData = {}) {
+  evaluationData.contaminationAudit = evaluationData.contaminationAudit || [];
+  const auditLog = evaluationData.contaminationAudit;
+
+  const idea = (reqData.idea || evaluationData.idea || "").trim();
+  const problem = (reqData.problem || evaluationData.problem || "").trim();
+  const category = (reqData.category || evaluationData.category || "").trim();
+  const fullInputText = `${idea} ${problem} ${category}`.toLowerCase();
+
+  const ventureType = classifyVentureType(reqData);
+
+  // 1. Mandatory Assessment ID and Ownership Isolation Check
+  if (reqData.userId && evaluationData.userId && reqData.userId !== evaluationData.userId) {
+    throw new Error(`PITCHLAB ISOLATION FAILURE: Assessment ownership mismatch detected. Request userId '${reqData.userId}' does not match evaluation userId '${evaluationData.userId}'. Access blocked.`);
+  }
+  if (reqData.evaluationId && evaluationData.id && reqData.evaluationId !== evaluationData.id) {
+    throw new Error(`PITCHLAB ISOLATION FAILURE: Assessment ID mismatch detected. Expected '${reqData.evaluationId}', found '${evaluationData.id}'. Operation blocked.`);
+  }
+
+  // 2. Identify Archetype Profile
+  const isTransport = ventureType === 'Transportation / Mobility / Marketplace' || ventureType.includes("Transportation") || ventureType.includes("Mobility") || Boolean(fullInputText.match(/\b(ride-share|rideshare|taxi|passenger transport|mobility|transport-booking)\b/i));
+  const isAiDecision = ventureType.includes("Decision Support") || Boolean(fullInputText.match(/\b(pitchlab|decision support|decision intelligence|startup evaluation|idea validation|idea assessment|founder intelligence)\b/i));
+  const isHardware = ventureType.includes("Hardware") || Boolean(fullInputText.match(/\b(moorsafe|mooring|pest deterrent|hardware|device|sensor)\b/i));
+  const isNuclear = ventureType.includes("Energy") || Boolean(fullInputText.match(/\b(nuclear|smr|power plant|atomic|fission|fusion|reactor)\b/i));
+  const isTrade = ventureType.includes("Trade") || ventureType.includes("Local Service") || Boolean(fullInputText.match(/\b(builder|carpenter|plumber|electrician|cleaning|mowing|landscaping)\b/i));
+
+  // Benchmark entities that must never contaminate unrelated venture core positioning
+  const benchmarkEntities = [
+    { entity: 'Transport & Mobility', forbidden: !isTransport, keywords: ['leride', 'vetted drivers', 'driver supply density', 'transport operator relationships', 'local passenger mobility', 'passenger convenience and fare pricing', 'transportation / mobility', 'transportation', 'mobility'] },
+    { entity: 'MoorSafe', forbidden: !isHardware, keywords: ['moorsafe', 'mooring ropes', 'electrified deterrent', 'marine-grade housing', 'pest deterrent'] },
+    { entity: 'Nuclear', forbidden: !isNuclear, keywords: ['radiation safety act', 'atomic energy act', 'small modular reactor', 'nuclear reactor', 'baseload electricity generation'] },
+    { entity: 'Clever Core', forbidden: !isTrade && !fullInputText.includes('clever core'), keywords: ['clever core', 'prefabricated timber', 'timber wall frames'] }
+  ];
+
+  const checkFieldContamination = (fieldVal, forbiddenKeywords) => {
+    if (!fieldVal || typeof fieldVal !== 'string') return null;
+    const lower = fieldVal.toLowerCase();
+    for (const kw of forbiddenKeywords) {
+      if (lower.includes(kw.toLowerCase())) {
+        const isLegitComparison = new RegExp(`(?:unlike|compared to|alternative to|in contrast to|competing with)\\s+${kw}`, 'i').test(fieldVal);
+        if (!isLegitComparison) {
+          return kw;
+        }
+      }
+    }
+    return null;
+  };
+
+  // Inspect Section 6 (businessTheme)
+  if (evaluationData.businessTheme) {
+    const bt = evaluationData.businessTheme;
+    for (const rule of benchmarkEntities) {
+      if (rule.forbidden) {
+        for (const [key, val] of Object.entries(bt)) {
+          const contaminatedTerm = checkFieldContamination(val, rule.keywords);
+          if (contaminatedTerm) {
+            auditLog.push({
+              timestamp: new Date().toISOString(),
+              section: `businessTheme.${key}`,
+              entityLeakage: rule.entity,
+              detectedTerm: contaminatedTerm,
+              action: 'REGENERATE_FROM_CLEAN_INPUT',
+              previousValue: val
+            });
+
+            if (isAiDecision) {
+              if (key === 'primaryTheme') bt.primaryTheme = "AI / Business Decision Support Software";
+              if (key === 'secondaryTheme') bt.secondaryTheme = "Startup Idea Validation & Founder Decision Intelligence";
+              if (key === 'strategicPositioning') bt.strategicPositioning = "An idea portfolio and decision platform that helps founders evaluate opportunities before committing significant time or capital.";
+              if (key === 'marketCategoryDynamics') bt.marketCategoryDynamics = "Driven by founder demand for rapid idea validation, structured risk assessment, evidence-led feasibility scoring, and disciplined capital allocation.";
+              if (key === 'strategicMoat') bt.strategicMoat = "Evidence-calibrated decision methodology, structured validation scoring frameworks, and proprietary founder decision intelligence.";
+            } else if (isHardware) {
+              if (key === 'primaryTheme') bt.primaryTheme = "Hardware & Physical Product Innovation";
+              if (key === 'secondaryTheme') bt.secondaryTheme = "Field Trial Validation & Asset Protection";
+              if (key === 'strategicPositioning') bt.strategicPositioning = "Positions as a high-efficiency specialized physical solution directly targeting operational pain points.";
+              if (key === 'marketCategoryDynamics') bt.marketCategoryDynamics = "Driven by market demand for durable, low-maintenance asset protection and automated operational tools.";
+              if (key === 'strategicMoat') bt.strategicMoat = "Proprietary design mechanics, domain experience, and direct field trial relationships.";
+            } else if (isNuclear) {
+              if (key === 'primaryTheme') bt.primaryTheme = "Energy Infrastructure & Power Generation";
+              if (key === 'secondaryTheme') bt.secondaryTheme = "Nuclear / SMR / Firm Low-Carbon Generation";
+              if (key === 'strategicPositioning') bt.strategicPositioning = "Positions as a long-term utility-scale infrastructure option targeting grid reliability, baseload capacity, and industrial decarbonisation.";
+              if (key === 'marketCategoryDynamics') bt.marketCategoryDynamics = "Governed by national energy security strategy, statutory radiation safety law, environmental consenting frameworks, and multi-billion-dollar infrastructure capital scale.";
+              if (key === 'strategicMoat') bt.strategicMoat = "No defensible venture-specific moat is yet evidenced. Potential future defensibility could arise from specialist partnerships, project rights, regulatory capability, or execution capability.";
+            } else {
+              if (key === 'primaryTheme') bt.primaryTheme = reqData.category || "B2B Software & Business Services";
+              if (key === 'secondaryTheme') bt.secondaryTheme = "Workflow Efficiency & Automation";
+              if (key === 'strategicPositioning') bt.strategicPositioning = "Positions as a specialized efficiency solution directly targeting operational friction points.";
+              if (key === 'marketCategoryDynamics') bt.marketCategoryDynamics = "Driven by market demand for operational productivity, compliance automation, and workflow efficiency.";
+              if (key === 'strategicMoat') bt.strategicMoat = "Deep domain specialization, high workflow retention, and direct customer relationships.";
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Inspect Section 2 (businessModelSnapshot)
+  if (evaluationData.businessModelSnapshot) {
+    const bms = evaluationData.businessModelSnapshot;
+    for (const rule of benchmarkEntities) {
+      if (rule.forbidden) {
+        for (const [key, val] of Object.entries(bms)) {
+          const contaminatedTerm = checkFieldContamination(val, rule.keywords);
+          if (contaminatedTerm) {
+            auditLog.push({
+              timestamp: new Date().toISOString(),
+              section: `businessModelSnapshot.${key}`,
+              entityLeakage: rule.entity,
+              detectedTerm: contaminatedTerm,
+              action: 'REGENERATE_FROM_CLEAN_INPUT',
+              previousValue: val
+            });
+            if (isAiDecision) {
+              if (key === 'targetCustomer') bms.targetCustomer = "Entrepreneurs, startup founders, prospective business owners and innovation programmes.";
+              if (key === 'coreOffering') bms.coreOffering = "Structured AI-assisted assessment of business ideas, risks, market potential, founder capability and practical next steps.";
+              if (key === 'customerProblem') bms.customerProblem = problem || "Founders risking time and capital on unvalidated ideas without structured commercial assessment or evidence-led guidance.";
+              if (key === 'valueProposition') bms.valueProposition = "Structured AI-assisted assessment of business ideas, risks, market potential, founder capability and practical next steps.";
+              if (key === 'revenueModel') bms.revenueModel = "Tiered SaaS subscription, per-assessment credits, or institutional licensing for accelerators and innovation programmes.";
+              if (key === 'customerAcquisition') bms.customerAcquisition = "Direct digital acquisition, founder community partnerships, accelerator networks, and word-of-mouth referrals.";
+              if (key === 'keyCosts') bms.keyCosts = "AI model inference and API costs, software platform development, cloud infrastructure hosting, and user acquisition.";
+              if (key === 'commercialAssessment') bms.commercialAssessment = "Commercial viability depends on delivering high-integrity, evidence-calibrated assessments that founders and innovation programmes trust.";
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return evaluationData;
+}
+
+/**
  * Cross-Section QA Integrity Gate (Fix 10 & Fix 1D)
  * Validates legal certainty consistency, evidence provenance, sensational language, and staging sequence.
  * Throws Error on any assertion failure.
@@ -2128,9 +2267,12 @@ function validateReportIntegrityGate(evaluationData = {}, reqData = {}) {
     }
   }
 
-  // 13. Cross-Industry Semantic Contamination Check (PL-FIX-20261006-SMARTTAX-01 Section 2)
-  const isFinTechOrSaaS = ventureType === "Financial Services / FinTech" || ventureType.includes("SaaS") || ventureType.includes("Software");
+  // 13. Cross-Industry Semantic Contamination Check (PL-FIX-20261006-SMARTTAX-01 Section 2 & PL-FIX-20261009-002)
+  const isFinTechOrSaaS = ventureType === "Financial Services / FinTech" || ventureType.includes("SaaS") || ventureType.includes("Software") || ventureType.includes("Decision Support");
   const isNuclearVenture = Boolean((reqData.idea || "").toLowerCase().match(/\b(nuclear|smr|atomic|fission|fusion|power plant)\b/));
+  const isTransportVenture = Boolean((reqData.idea || "").toLowerCase().match(/\b(leride|ride-share|rideshare|taxi|passenger transport|mobility|transport-booking)\b/));
+  const isHardwareVenture = Boolean((reqData.idea || "").toLowerCase().match(/\b(moorsafe|mooring|pest deterrent|hardware|device|sensor)\b/));
+
   if (isFinTechOrSaaS && !isNuclearVenture) {
     const crossIndustryPatterns = [
       { pattern: /\bresource consents?\b/i, phrase: "resource consents" },
@@ -2147,6 +2289,47 @@ function validateReportIntegrityGate(evaluationData = {}, reqData = {}) {
       if (rule.pattern.test(fullReportText)) {
         throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Cross-industry contamination detected ('${rule.phrase}') in ${ventureType} assessment.`);
       }
+    }
+  }
+
+  // Cross-archetype check: Transport operations bleed into Non-Transport ventures
+  if (!isTransportVenture && (isFinTechOrSaaS || ventureType.includes("Hardware"))) {
+    const transportContaminationPatterns = [
+      { pattern: /\bvetted drivers\b/i, phrase: "vetted drivers" },
+      { pattern: /\bdriver supply density\b/i, phrase: "driver supply density" },
+      { pattern: /\btransport operator relationships\b/i, phrase: "transport operator relationships" },
+      { pattern: /\blocal passenger mobility\b/i, phrase: "local passenger mobility" },
+      { pattern: /\bconnecting passengers with vetted drivers\b/i, phrase: "connecting passengers with vetted drivers" },
+      { pattern: /\bpassenger convenience and fare pricing\b/i, phrase: "passenger convenience and fare pricing" }
+    ];
+    for (const rule of transportContaminationPatterns) {
+      if (rule.pattern.test(fullReportText)) {
+        throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Cross-assessment transport contamination detected ('${rule.phrase}') in ${ventureType} assessment.`);
+      }
+    }
+  }
+
+  // Cross-archetype check: Marine hardware bleed into Non-Hardware ventures
+  if (!isHardwareVenture && (isFinTechOrSaaS || isTransportVenture)) {
+    const hardwareContaminationPatterns = [
+      { pattern: /\bmooring ropes\b/i, phrase: "mooring ropes" },
+      { pattern: /\bpest deterrent\b/i, phrase: "pest deterrent" },
+      { pattern: /\bmarine-grade housing\b/i, phrase: "marine-grade housing" },
+      { pattern: /\belectrified deterrent\b/i, phrase: "electrified deterrent" }
+    ];
+    for (const rule of hardwareContaminationPatterns) {
+      if (rule.pattern.test(fullReportText)) {
+        throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Cross-assessment marine/hardware contamination detected ('${rule.phrase}') in ${ventureType} assessment.`);
+      }
+    }
+  }
+
+  // Cross-archetype check: Dedicated PitchLab AI Decision Support isolation
+  const isAiDecision = ventureType.includes("Decision Support") || Boolean((reqData.idea || "").toLowerCase().match(/\b(pitchlab|decision support|decision intelligence)\b/i));
+  if (isAiDecision) {
+    const pt = (evaluationData.businessTheme?.primaryTheme || "").toLowerCase();
+    if (pt.includes("transport") || pt.includes("mobility")) {
+      throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Cross-assessment data contamination detected. Primary theme '${evaluationData.businessTheme?.primaryTheme}' conflicts with AI / Decision Support venture.`);
     }
   }
 
@@ -2267,7 +2450,8 @@ module.exports = {
   generateContextualInvestorCommentary,
   getLegalRegulatoryAssessment,
   generateContextualInvestorVerdict,
-  validateReportIntegrityGate
+  validateReportIntegrityGate,
+  detectAndResolveCrossContamination
 };
 
 
