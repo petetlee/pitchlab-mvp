@@ -1576,22 +1576,381 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
 
   // TAB 7: 90-DAY PLAN
   Widget _buildRoadmapTab(BuildContext context) {
+    final phases = result.ninetyDayPhases;
+    final weeklySteps = result.ninetyDayRoadmapSteps;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: MaxWidthContainer(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('90-Day Validation Roadmap', style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            _buildCard('Phase 1: Days 1–30 — Understand the Problem', Column(
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('90-Day Validation Roadmap', style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.bold, color: const Color(0xFF1D1D1F))),
+                      const SizedBox(height: 4),
+                      Text(
+                        'A staged, milestone-driven validation program calibrated to your venture type, customer dynamics, and regulatory reality. Avoid deploying build capital until key gateways are achieved.',
+                        style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF6E6E73), height: 1.4),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // Roadmap Overview Banner / Timeline
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F5F7),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE5E5EA)),
+              ),
+              child: Row(
+                children: [
+                  _buildPhaseTimelinePill('1', 'Phase 1', 'Days 1–30', 'Problem Validation', const Color(0xFF0071E3)),
+                  const Expanded(child: Divider(color: Color(0xFFD2D2D7), thickness: 1.5, indent: 8, endIndent: 8)),
+                  _buildPhaseTimelinePill('2', 'Phase 2', 'Days 31–60', 'Solution Validation', const Color(0xFF34C759)),
+                  const Expanded(child: Divider(color: Color(0xFFD2D2D7), thickness: 1.5, indent: 8, endIndent: 8)),
+                  _buildPhaseTimelinePill('3', 'Phase 3', 'Days 61–90', 'Commercial Decision', const Color(0xFFFF9500)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Render 3 Distinct Phases
+            ...phases.asMap().entries.map((entry) {
+              final idx = entry.key;
+              final phase = entry.value;
+              final phaseName = phase['name']?.toString() ?? 'Phase ${idx + 1}';
+              final daysRange = phase['daysRange']?.toString() ?? 'Days 1–30';
+              final objective = phase['objective']?.toString() ?? '';
+              final activities = (phase['activities'] as List<dynamic>? ?? []).map((e) => e.toString()).toList();
+              final successCriteria = phase['successCriteria']?.toString() ?? '';
+              final deliverables = phase['deliverables']?.toString() ?? '';
+              final decisionMilestone = phase['decisionMilestone']?.toString() ?? '';
+
+              final accentColors = [
+                const Color(0xFF0071E3), // Phase 1 Blue
+                const Color(0xFF34C759), // Phase 2 Green
+                const Color(0xFFFF9500), // Phase 3 Amber
+              ];
+              final phaseAccent = accentColors[idx % accentColors.length];
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFE5E5EA)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Phase Header Row
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: phaseAccent.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: phaseAccent.withValues(alpha: 0.3)),
+                            ),
+                            child: Text(
+                              daysRange,
+                              style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: phaseAccent),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              phaseName,
+                              style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1D1D1F)),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // 1. Specific Objective
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.track_changes, size: 16, color: phaseAccent),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'PHASE OBJECTIVE',
+                                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: const Color(0xFF64748B)),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              objective,
+                              style: GoogleFonts.inter(fontSize: 13, height: 1.5, fontWeight: FontWeight.w600, color: const Color(0xFF0F172A)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // 2. Practical Activities (3-5 items)
+                      Text(
+                        'Practical Activities (3–5 Actions)',
+                        style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: const Color(0xFF1D1D1F)),
+                      ),
+                      const SizedBox(height: 10),
+                      ...activities.asMap().entries.map((actEntry) {
+                        final actIdx = actEntry.key + 1;
+                        final actText = actEntry.value;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: 22,
+                                height: 22,
+                                margin: const EdgeInsets.only(top: 2, right: 10),
+                                decoration: BoxDecoration(
+                                  color: phaseAccent.withValues(alpha: 0.12),
+                                  shape: BoxShape.circle,
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  '$actIdx',
+                                  style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: phaseAccent),
+                                ),
+                              ),
+                              Expanded(
+                                child: Text(
+                                  actText,
+                                  style: GoogleFonts.inter(fontSize: 13, height: 1.45, color: const Color(0xFF1D1D1F)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 14),
+
+                      // 3 & 4. Measurable Success Criteria & Expected Deliverables
+                      LayoutBuilder(
+                        builder: (ctx, constraints) {
+                          final isWide = constraints.maxWidth > 580;
+                          final criteriaWidget = Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF0FDF4),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFFBBF7D0)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(Icons.verified_outlined, size: 16, color: Color(0xFF16A34A)),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'VALIDATION CRITERIA',
+                                      style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: const Color(0xFF15803D)),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  successCriteria,
+                                  style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: const Color(0xFF14532D)),
+                                ),
+                              ],
+                            ),
+                          );
+
+                          final deliverablesWidget = Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFFBFDBFE)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(Icons.inventory_2_outlined, size: 16, color: Color(0xFF2563EB)),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'EXPECTED OUTPUTS',
+                                      style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: const Color(0xFF1D4ED8)),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  deliverables,
+                                  style: GoogleFonts.inter(fontSize: 12, height: 1.4, color: const Color(0xFF1E3A8A)),
+                                ),
+                              ],
+                            ),
+                          );
+
+                          if (isWide) {
+                            return Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(child: criteriaWidget),
+                                const SizedBox(width: 12),
+                                Expanded(child: deliverablesWidget),
+                              ],
+                            );
+                          } else {
+                            return Column(
+                              children: [
+                                criteriaWidget,
+                                const SizedBox(height: 10),
+                                deliverablesWidget,
+                              ],
+                            );
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 14),
+
+                      // 5. Decision Milestone / Gateway
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFFBEB),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFFDE68A)),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.flag_rounded, size: 18, color: Color(0xFFD97706)),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'DECISION MILESTONE & GATEWAY',
+                                    style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: const Color(0xFFB45309)),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    decisionMilestone,
+                                    style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, height: 1.4, color: const Color(0xFF78350F)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+
+            const SizedBox(height: 10),
+
+            // 12-Week Execution Cadence Table
+            _buildCard('12-Week Implementation Cadence', Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Goal: Confirm whether the problem is frequent, painful and important enough for the target customer to seek a better solution.', style: GoogleFonts.inter(fontSize: 13)),
+                Text(
+                  'Bi-weekly task allocation based on founder available hours. Deliverables build cumulatively to support the Phase 3 Commercial Decision Gateway.',
+                  style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF6E6E73), height: 1.4),
+                ),
+                const SizedBox(height: 16),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: DataTable(
+                    columnSpacing: 18,
+                    headingRowColor: WidgetStateProperty.all(const Color(0xFFF5F5F7)),
+                    headingTextStyle: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF1D1D1F)),
+                    dataTextStyle: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF1D1D1F)),
+                    columns: const [
+                      DataColumn(label: Text('Week')),
+                      DataColumn(label: Text('Objective')),
+                      DataColumn(label: Text('Key Tasks')),
+                      DataColumn(label: Text('Hours')),
+                      DataColumn(label: Text('Evidence Produced')),
+                    ],
+                    rows: weeklySteps.map((s) {
+                      return DataRow(cells: [
+                        DataCell(Text(s['week'] ?? '', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: const Color(0xFF0071E3)))),
+                        DataCell(SizedBox(width: 150, child: Text(s['objective'] ?? '', softWrap: true))),
+                        DataCell(SizedBox(width: 250, child: Text(s['tasks'] ?? '', softWrap: true))),
+                        DataCell(Text(s['hours'] ?? '')),
+                        DataCell(SizedBox(width: 180, child: Text(s['evidence'] ?? '', softWrap: true, style: GoogleFonts.inter(fontWeight: FontWeight.w500)))),
+                      ]);
+                    }).toList(),
+                  ),
+                ),
               ],
             )),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildPhaseTimelinePill(String number, String phase, String days, String title, Color color) {
+    return Expanded(
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                alignment: Alignment.center,
+                child: Text(number, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+              ),
+              const SizedBox(width: 6),
+              Text(days, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: color)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(title, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w500, color: const Color(0xFF1D1D1F)), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
+        ],
       ),
     );
   }

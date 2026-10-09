@@ -539,8 +539,53 @@ class PdfService {
             pw.Text(_cleanPdfText('Idea Portfolio Action: ${res.portfolioAction}'), style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
             pw.Divider(height: 24, color: PdfColors.grey300, thickness: 0.5),
 
-            // ================= PAGE 12+: 90-DAY WEEKLY ROADMAP =================
-            _buildSectionHeaderPDF('90-Day Weekly Implementation Roadmap'),
+            // ================= PAGE 12+: 90-DAY VALIDATION ROADMAP =================
+            _buildSectionHeaderPDF('90-Day Staged Validation Roadmap'),
+            ...res.ninetyDayPhases.map((phase) {
+              final acts = (phase['activities'] as List<dynamic>? ?? []).map((e) => e.toString()).toList();
+              return pw.Container(
+                margin: const pw.EdgeInsets.only(bottom: 6),
+                padding: const pw.EdgeInsets.all(6),
+                decoration: pw.BoxDecoration(
+                  color: PdfColors.grey50,
+                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                  border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+                ),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text(_cleanPdfText(phase['name']?.toString() ?? ''), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.blueGrey900)),
+                        pw.Text(_cleanPdfText(phase['daysRange']?.toString() ?? ''), style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
+                      ],
+                    ),
+                    pw.SizedBox(height: 2),
+                    pw.Text(_cleanPdfText('Objective: ${phase['objective'] ?? ''}'), style: const pw.TextStyle(fontSize: 7)),
+                    pw.SizedBox(height: 2),
+                    pw.Text(_cleanPdfText('Practical Activities:'), style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
+                    ...acts.map((act) => pw.Padding(
+                      padding: const pw.EdgeInsets.only(left: 6, top: 1),
+                      child: pw.Text(_cleanPdfText('• $act'), style: const pw.TextStyle(fontSize: 6.5)),
+                    )),
+                    pw.SizedBox(height: 2),
+                    pw.Row(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Expanded(child: pw.Text(_cleanPdfText('Validation Criteria: ${phase['successCriteria'] ?? ''}'), style: const pw.TextStyle(fontSize: 6.5, color: PdfColors.green900))),
+                        pw.SizedBox(width: 6),
+                        pw.Expanded(child: pw.Text(_cleanPdfText('Deliverables: ${phase['deliverables'] ?? ''}'), style: const pw.TextStyle(fontSize: 6.5, color: PdfColors.blue900))),
+                      ],
+                    ),
+                    pw.SizedBox(height: 2),
+                    pw.Text(_cleanPdfText('Decision Milestone: ${phase['decisionMilestone'] ?? ''}'), style: pw.TextStyle(fontSize: 6.5, fontWeight: pw.FontWeight.bold, color: PdfColors.deepOrange900)),
+                  ],
+                ),
+              );
+            }),
+            pw.SizedBox(height: 6),
+            _buildSectionHeaderPDF('12-Week Weekly Implementation Schedule'),
             pw.Table(
               border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
               columnWidths: const {

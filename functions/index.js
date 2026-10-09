@@ -658,6 +658,10 @@ function generateActionSourceOfTruth(reqData = {}, reconciled = {}, ventureType 
   const isHw = ventureType.includes("Hardware") || ventureType.includes("Manufacturing") || isHardwareIdea(idea, reqData.category);
   const isFinTech = ventureType === "Financial Services / FinTech" || Boolean((idea + " " + (reqData.category || "")).toLowerCase().match(/\b(tax|gst|ird|fintech|accounting|bookkeep)\b/i));
 
+  const isTransport = ventureType === "Transportation / Mobility / Marketplace" || ventureType.includes("Transportation") || ventureType.includes("Mobility") || isTransportIdea(reqData);
+  const isTradeService = ventureType.includes("Trade") || ventureType.includes("Construction") || Boolean((idea + " " + (reqData.category || "")).toLowerCase().match(/\b(builder|building|construction|renovation|carpenter|trades|contractor)\b/i));
+  const isAiDecision = ventureType.includes("Decision Support") || Boolean((idea + " " + (reqData.category || "")).toLowerCase().match(/\b(ai\b|decision support|decision intelligence|startup evaluation|idea validation|idea assessment|founder intelligence|pitchlab)\b/i));
+
   const rawTimeInput = (reqData.timeCommitment || reqData.capacity || "").toString().trim();
   const isLowTime = Boolean(rawTimeInput.match(/\b(0-5|0\s*-\s*5|<5)\b/i));
   const hoursBand = isLowTime ? "0-5 hours/week" : (rawTimeInput.match(/\b(5-10|5\s*-\s*10)\b/i) ? "5-10 hours/week" : "10-20 hours/week");
@@ -694,11 +698,74 @@ function generateActionSourceOfTruth(reqData = {}, reconciled = {}, ventureType 
       week3: { objective: "Technical & Infrastructure Feasibility Study", tasks: ["Assess grid, site, environmental, and infrastructure prerequisites", "Evaluate technology readiness level and deployment dependencies"], expectedResult: "High-level technical and site feasibility assessment report" },
       week4: { objective: "Pre-Feasibility Decision (Proceed / Pivot / Stop)", tasks: ["Model indicative project economics, CAPEX/OPEX, and capital requirements", "Present pre-feasibility findings to make a disciplined Go / Pivot / Stop decision"], expectedResult: "Formal Pre-Feasibility Recommendation & Risk Gateway Report" }
     };
+    const ninetyDayPhases = [
+      {
+        phaseNumber: "Phase 1",
+        daysRange: "Days 1–30",
+        title: "Problem & Statutory Scoping",
+        name: "Phase 1: Days 1–30 — Problem & Statutory Scoping",
+        objective: `Verify statutory permissibility and map legislative barriers under ${targetJurisdiction} law before deploying private risk capital.`,
+        activities: [
+          `Identify qualified legal counsel in ${targetJurisdiction} specializing in radiation safety, energy statutes, and environmental law.`,
+          "Obtain an initial specialist legal scoping consultation on the Radiation Safety Act 2016 and Atomic Energy Act 1945.",
+          "Review public policy positioning, sovereign risk factors, and fast-track consenting frameworks.",
+          "Synthesize legal scoping findings into an indicative regulatory feasibility memorandum."
+        ],
+        successCriteria: "Specialist confirmation of whether a credible statutory pathway exists or if state-level legislative reform is required.",
+        deliverables: "Statutory Permissibility Memorandum & Legal Scoping Scope/Fee Document.",
+        decisionMilestone: "Statutory Gateway: If no viable statutory pathway exists without legislative reform, STOP or PARK private capital expenditure."
+      },
+      {
+        phaseNumber: "Phase 2",
+        daysRange: "Days 31–60",
+        title: "Solution & Technical Pre-Feasibility",
+        name: "Phase 2: Days 31–60 — Solution & Technical Pre-Feasibility",
+        objective: "Map technical prerequisites, Small Modular Reactor (SMR) technology options, grid integration, and safety requirements.",
+        activities: [
+          "Consult independent power engineers regarding SMR technology readiness levels and deployment timelines.",
+          "Perform desktop assessment of grid connection logistics, seismic site screening, and cooling water access.",
+          "Review international regulatory precedent (e.g. NRC, CNSC) applicable to candidate reactor designs.",
+          "Map technical team qualifications, specialist capability gaps, and pre-feasibility budget required."
+        ],
+        successCriteria: "Clear identification of fundamental technical prerequisites, siting criteria, and minimum consortium capabilities.",
+        deliverables: "Technical Pre-Feasibility Scoping Note & Infrastructure Prerequisite Matrix.",
+        decisionMilestone: "Technical Gateway: Confirm whether prerequisites are within private venture feasibility or necessitate a sovereign utility consortium."
+      },
+      {
+        phaseNumber: "Phase 3",
+        daysRange: "Days 61–90",
+        title: "Commercial Structure & Policy Alignment Decision",
+        name: "Phase 3: Days 61–90 — Commercial Structure & Policy Alignment Decision",
+        objective: "Model multi-billion-dollar CAPEX realities, off-taker demand, public policy engagement pathways, and final gateway governance.",
+        activities: [
+          "Draft preliminary capital structure model evaluating public-private partnership (PPP) and sovereign underwriting models.",
+          "Map prospective industrial off-takers and long-term Power Purchase Agreement (PPA) interest for firm baseload power.",
+          "Engage relevant government and industry energy policy working groups to monitor statutory reform debate.",
+          "Synthesize legal, technical, and capital findings into an executive pre-feasibility review."
+        ],
+        successCriteria: "Quantified capital scale model and stakeholder policy alignment assessment.",
+        deliverables: "Comprehensive Pre-Feasibility Synthesis & Capital Scale Framework.",
+        decisionMilestone: "Final 90-Day Gateway: Disciplined Go / Pivot / Stop / Park decision regarding future institutional consortium formation."
+      }
+    ];
+    const ninetyDayRoadmap = {
+      phases: ninetyDayPhases,
+      steps: [
+        { week: 'W 1-2', objective: 'Legal & Statutory Scoping', tasks: 'Identify applicable legislation and engage appropriate specialist legal/regulatory expertise.', hours: '5 hrs/wk', evidence: 'Preliminary legal-framework map' },
+        { week: 'W 3-4', objective: 'Regulatory Pathway Assessment', tasks: 'Determine whether any credible statutory pathway exists for commercial nuclear generation.', hours: '5 hrs/wk', evidence: 'Regulatory pathway scoping note / specialist scope' },
+        { week: 'W 5-6', objective: 'Technical Pre-Feasibility', tasks: 'Engage nuclear/energy infrastructure specialists to identify fundamental technical prerequisites.', hours: '5 hrs/wk', evidence: 'Technical prerequisite and capability-gap memo' },
+        { week: 'W 7-8', objective: 'Policy & Stakeholder Mapping', tasks: 'Identify relevant government, regulatory and energy infrastructure stakeholders.', hours: '5 hrs/wk', evidence: 'Stakeholder map' },
+        { week: 'W 9-10', objective: 'Capital & Delivery Reality', tasks: 'Establish indicative project capital scale, financing structure and consortium requirements.', hours: '5 hrs/wk', evidence: 'Indicative capital-scale model' },
+        { week: 'W 11-12', objective: 'Evidence Gateway Decision', tasks: 'STOP / PARK / PIVOT / CONTINUE based on statutory and pre-feasibility evidence obtained.', hours: '5 hrs/wk', evidence: 'Evidence Gateway Decision' }
+      ]
+    };
     return {
       immediate7DayAction,
       threePriorityActions,
       topFivePriorities,
       thirtyDayPlan,
+      ninetyDayPhases,
+      ninetyDayRoadmap,
       doThisBeforeBuilding: `Identify an appropriately qualified legal and regulatory specialist in ${targetJurisdiction} and obtain an initial discussion, indicative view or scope and fee for determining the applicable statutory pathway.`,
       nextEvidenceGateway: `Confirm indicative statutory permissibility pathway under ${targetJurisdiction} legislation before deploying pre-feasibility risk capital.`,
       reassessmentTrigger: "Receipt of specialist legal feedback confirming statutory feasibility."
@@ -737,18 +804,79 @@ function generateActionSourceOfTruth(reqData = {}, reconciled = {}, ventureType 
       week3: { objective: "Benchtop Mechanism Test & Pricing Feedback", tasks: ["Test core deterrent mechanism on benchtop setup", "Present pricing terms to 5 marina/boat owners for feedback"], expectedResult: "Benchtop mechanism validation log & pricing feedback" },
       week4: { objective: "Field Pilot Specification & Milestone Decision", tasks: ["Define protocol for marine field pilot testing", "Make disciplined Go / Pivot decision based on customer pain and BOM viability (targeting 20–30 cumulative interviews across 90 days)"], expectedResult: "Field Pilot Specification & Milestone Decision" }
     };
+    const ninetyDayPhases = [
+      {
+        phaseNumber: "Phase 1",
+        daysRange: "Days 1–30",
+        title: "Problem Validation",
+        name: "Phase 1: Days 1–30 — Problem Validation",
+        objective: "Verify the frequency, severity, and economic cost of equipment failure or pest damage with marine harbor operators and vessel owners.",
+        activities: [
+          "Outreach to 15 marina managers, commercial harbor masters, and private vessel owners.",
+          "Conduct 8–10 structured discovery interviews focusing on current manual workarounds and line failure costs.",
+          "Quantify the direct financial and insurance pain caused by unmonitored equipment failures.",
+          "Synthesize problem severity criteria to establish baseline physical product specifications."
+        ],
+        successCriteria: "At least 70% of interviewed operators confirm that current manual methods are inadequate and impose recurring operational pain.",
+        deliverables: "Problem Discovery Synthesis & Customer Pain Severity Log (8–10 interview transcripts).",
+        decisionMilestone: "Problem Gate: If fewer than 50% confirm severe pain or willingness to adopt physical alternatives, reconsider target use case or pivot."
+      },
+      {
+        phaseNumber: "Phase 2",
+        daysRange: "Days 31–60",
+        title: "Solution Validation",
+        name: "Phase 2: Days 31–60 — Solution Validation",
+        objective: "Fabricate benchtop proof-of-concept prototype to validate deterrent mechanism, power budget, and solar harvesting in marine conditions.",
+        activities: [
+          "Develop mechanical CAD component models and preliminary electrical schematic for low-power solar/battery subsystem.",
+          "Assemble benchtop physical prototype using off-the-shelf components to verify mechanism functionality.",
+          "Perform benchtop endurance and power consumption stress testing under simulated weather conditions.",
+          "Present physical prototype demonstration and technical spec sheet to 5 prospective buyers for direct feedback."
+        ],
+        successCriteria: "Demonstrated mechanism reliability and positive user feedback on physical form factor from at least 4 of 5 operators.",
+        deliverables: "Benchtop Functional Prototype, Engineering Spec Sheet & Mechanism Validation Log.",
+        decisionMilestone: "Solution Gate: Confirm mechanism functions reliably without high failure rates before investing in production tooling."
+      },
+      {
+        phaseNumber: "Phase 3",
+        daysRange: "Days 61–90",
+        title: "Commercial Validation & Decision",
+        name: "Phase 3: Days 61–90 — Commercial Validation & Decision",
+        objective: "Validate Bill of Materials (BOM) unit economics, secure commercial pre-orders or pilot site deposits, and decide on tooling investment.",
+        activities: [
+          "Obtain component quotes from at least 2 manufacturing suppliers to establish unit manufacturing costs at 100-unit and 500-unit volumes.",
+          "Formulate gross margin and pricing model (hardware sale plus optional recurring maintenance support).",
+          "Present formal pilot trial terms (with deposit or signed LOI) to 5 marina operators or fleet owners.",
+          "Evaluate capital requirements and manufacturing timeline against founder resource commitments."
+        ],
+        successCriteria: "Secured at least 2 signed pilot commitments / deposit letters of intent with projected gross margins exceeding 50%.",
+        deliverables: "Supplier BOM Cost Model, 2 Written Pilot Trial Commitments, and Tooling Investment Decision Memo.",
+        decisionMilestone: "Commercial Gateway: Decide whether to proceed with commercial batch tooling, seek hardware angel funding, or refine design."
+      }
+    ];
+    const ninetyDayRoadmap = {
+      phases: ninetyDayPhases,
+      steps: [
+        { week: 'W 1-2', objective: 'User Problem Discovery', tasks: 'Interview 10 target operators on current equipment issues & costs.', hours: '5 hrs/wk', evidence: 'Interview transcript log' },
+        { week: 'W 3-4', objective: 'Technical CAD & Specs', tasks: 'Draft initial mechanical CAD model & electronic component specs.', hours: '5 hrs/wk', evidence: 'CAD spec sheet' },
+        { week: 'W 5-6', objective: 'Physical Prototype Build', tasks: 'Fabricate benchtop physical prototype for initial mechanism testing.', hours: '5 hrs/wk', evidence: 'Benchtop prototype' },
+        { week: 'W 7-8', objective: 'Field & Durability Testing', tasks: 'Test prototype in real operating environment under stress conditions.', hours: '5 hrs/wk', evidence: 'Field test log' },
+        { week: 'W 9-10', objective: 'Unit Economics & Sourcing', tasks: 'Obtain quotes from 2 manufacturers for bill of materials & batch assembly.', hours: '5 hrs/wk', evidence: 'Supplier quote comparison' },
+        { week: 'W 11-12', objective: 'Commercial Pre-Orders', tasks: 'Present tested prototype to 5 prospective buyers to secure pre-orders.', hours: '5 hrs/wk', evidence: '2 pilot deposits / pre-orders' }
+      ]
+    };
     return {
       immediate7DayAction,
       threePriorityActions,
       topFivePriorities,
       thirtyDayPlan,
+      ninetyDayPhases,
+      ninetyDayRoadmap,
       doThisBeforeBuilding: "Conduct 5–10 structured customer discovery interviews to confirm problem frequency and willingness to pay before building physical prototypes.",
       nextEvidenceGateway: "Complete 10 discovery interviews and 2 benchtop prototype tests confirming mechanical viability before tooling.",
       reassessmentTrigger: "Completion of 10 discovery interviews or validated benchtop test log."
     };
   }
-
-  const isTransport = ventureType === "Transportation / Mobility / Marketplace" || ventureType.includes("Transportation") || ventureType.includes("Mobility") || isTransportIdea(reqData);
 
   if (isTransport) {
     const targetLabel = synthesizeTargetCustomerLabel(targetMarket);
@@ -783,18 +911,295 @@ function generateActionSourceOfTruth(reqData = {}, reconciled = {}, ventureType 
       week3: { objective: "Concierge Transfer Pilot & Commission Test", tasks: ["Run manual concierge booking trial for 3-5 airport/hotel transfers", "Present driver commission terms and collect pricing objections"], expectedResult: "Concierge trial test log & take-rate feedback report" },
       week4: { objective: "Validation Review & Technical Scope Gateway", tasks: ["Assess passenger retention signals and driver recruitment willingness", "Make disciplined Go / Pivot decision on whether to recruit a technical co-founder (targeting 20–30 cumulative interviews across 90 days)"], expectedResult: "Marketplace Validation Milestone Decision Report" }
     };
+    const ninetyDayPhases = [
+      {
+        phaseNumber: "Phase 1",
+        daysRange: "Days 1–30",
+        title: "Problem Validation",
+        name: "Phase 1: Days 1–30 — Problem Validation",
+        objective: `Validate passenger ride-booking friction, driver income unreliability, and fare transparency issues across target routes in ${targetJurisdiction}.`,
+        activities: [
+          `Conduct 10 structured discovery interviews with frequent local passengers, airport commuters, and hotel hospitality managers in ${targetJurisdiction}.`,
+          "Interview 6–8 taxi and transport operators regarding vehicle idle time, fuel costs, and dispatch inefficiency.",
+          "Map existing informal phone/messaging booking workarounds, cash fare discrepancies, and peak demand bottlenecks.",
+          "Document local transport licensing, vehicle standards, and driver regulatory requirements."
+        ],
+        successCriteria: "At least 75% of passengers report unreliable booking wait times, and majority of drivers express interest in reliable passenger dispatches.",
+        deliverables: "Passenger & Driver Discovery Synthesis Log (15+ interview notes) & Route Demand Map.",
+        decisionMilestone: "Problem Gate: Confirm acute passenger demand for transparent booking and willing driver supply density before writing code."
+      },
+      {
+        phaseNumber: "Phase 2",
+        daysRange: "Days 31–60",
+        title: "Solution Validation",
+        name: "Phase 2: Days 31–60 — Solution Validation",
+        objective: "Execute a lightweight manual concierge dispatch trial (airport/hotel transfers) to validate trip workflow, pricing, and driver responsiveness.",
+        activities: [
+          "Establish a manual concierge booking channel (e.g. dedicated phone/WhatsApp desk) for pre-scheduled airport transfers.",
+          "Recruit an initial pilot cohort of 5 licensed, vetted local drivers under clear commission and service standards.",
+          "Fulfill 15–20 real passenger transfer bookings manually, logging response times, driver punctuality, and passenger satisfaction.",
+          "Identify operational edge cases including cash collection, flight delays, driver cancellations, and route deviations."
+        ],
+        successCriteria: "Successful completion of 15+ manual concierge rides with over 85% passenger satisfaction and zero driver no-shows.",
+        deliverables: "Concierge Dispatch Trial Log (15+ completed trips), Operational Workflow SOP, and Driver Feedback Summary.",
+        decisionMilestone: "Solution Gate: Validate that drivers reliably accept and execute dispatched rides before commissioning mobile app development."
+      },
+      {
+        phaseNumber: "Phase 3",
+        daysRange: "Days 61–90",
+        title: "Commercial Validation & Decision",
+        name: "Phase 3: Days 61–90 — Commercial Validation & Decision",
+        objective: "Test platform take rates / commission economics, secure hotel/tourism partner commitments, and establish technical co-founder roadmap.",
+        activities: [
+          "Test per-ride commission model (e.g. 15–20% take rate) with pilot drivers to ensure sustainable driver earnings and platform unit economics.",
+          "Engage 3 local hotels, resorts, or tour agencies to secure preferred transport partnership agreements or letters of intent.",
+          "Define digital MVP technical specifications (driver app, passenger app, dispatch backend) based on concierge learnings.",
+          "Reassess marketplace liquidity requirements, customer acquisition costs, and decide whether to recruit a technical co-founder."
+        ],
+        successCriteria: "At least 5 drivers committed to platform terms, 2 hospitality referral agreements, and positive unit contribution margins on pilot rides.",
+        deliverables: "Marketplace Unit Economics Model, 2 Hospitality Partner Agreements, and Technical Scope Document.",
+        decisionMilestone: "Commercial Gateway: Make disciplined Go / Pivot decision on building full native applications vs. expanding concierge fleet."
+      }
+    ];
+    const ninetyDayRoadmap = {
+      phases: ninetyDayPhases,
+      steps: [
+        { week: 'W 1-2', objective: 'Passenger & Driver Outreach', tasks: 'Interview 10 passengers and 5 local drivers on booking unreliability and idle time.', hours: '5 hrs/wk', evidence: 'Passenger & driver outreach log' },
+        { week: 'W 3-4', objective: 'Pricing & Route Mapping', tasks: 'Map primary transport routes, peak travel delays, and current fare workarounds.', hours: '5 hrs/wk', evidence: 'Route & fare comparison matrix' },
+        { week: 'W 5-6', objective: 'Concierge Dispatch Pilot', tasks: 'Operate a manual concierge booking trial for 10-15 airport/hotel transfers.', hours: '5 hrs/wk', evidence: 'Concierge trial trip log' },
+        { week: 'W 7-8', objective: 'Driver Commission Testing', tasks: 'Present formal per-ride commission terms to 5 local transport operators.', hours: '5 hrs/wk', evidence: '5 driver pilot commitments' },
+        { week: 'W 9-10', objective: 'Hotel & Partner Channels', tasks: 'Engage 3 local accommodation providers for preferred transfer referrals.', hours: '5 hrs/wk', evidence: '2 hotel referral LOIs' },
+        { week: 'W 11-12', objective: 'Digital MVP Scope Gateway', tasks: 'Synthesize manual trial findings; make Go/Pivot decision on app build vs. concierge scale.', hours: '5 hrs/wk', evidence: 'Marketplace Gateway Decision Report' }
+      ]
+    };
     return {
       immediate7DayAction,
       threePriorityActions,
       topFivePriorities,
       thirtyDayPlan,
+      ninetyDayPhases,
+      ninetyDayRoadmap,
       doThisBeforeBuilding: `Conduct 5–10 structured customer discovery interviews with prospective passengers and drivers (${targetLabel}) to confirm booking demand and commission willingness before writing app code.`,
       nextEvidenceGateway: "Complete 10 passenger and driver discovery interviews confirming urgent booking demand, followed by a manual concierge transfer test, before investing in custom software development.",
       reassessmentTrigger: "Completion of 10 customer/driver discovery interviews or execution of a manual concierge booking test."
     };
   }
 
-  // FinTech, SaaS & Commercial Digital Ventures
+  if (isTradeService) {
+    const targetLabel = synthesizeTargetCustomerLabel(targetMarket);
+    const immediate7DayAction = `Draft discovery interview questions on quote delays and reach out to 10 prospective residential clients or architects in ${targetJurisdiction}.`;
+    const threePriorityActions = [
+      {
+        heading: "1. Phase 1 Client & Partner Discovery Interviews.",
+        explanation: `Conduct 8–10 structured discovery interviews with residential property owners and architects (${targetLabel}) to quantify quote turnaround friction and trade scheduling delays.`,
+        outcome: "8–10 completed client interview logs and pain severity score."
+      },
+      {
+        heading: "2. Standardized Estimation & Trade Vetting.",
+        explanation: "Develop fixed-price estimation calculators and pre-qualify 3 core subcontractor trades with verified compliance and insurance before taking on larger contracts.",
+        outcome: "Estimation framework & 3 vetted subcontractor trade agreements."
+      },
+      {
+        heading: "3. Milestone Contract & Margin Validation.",
+        explanation: "Present fixed-price milestone contracts to 2 prospective building clients to validate pricing terms and gross project margins before hiring permanent staff.",
+        outcome: "1 signed pilot construction contract with milestone progress terms."
+      }
+    ];
+    const topFivePriorities = [
+      { priority: "Client Problem Discovery", action: "Interview 8–10 homeowners and property owners on renovation budget blowouts and quote delays.", metric: "8–10 completed interview logs" },
+      { priority: "Standardized Estimating Framework", action: "Build detailed job cost estimation models covering material markups and labor contingencies.", metric: "Standardized job estimating template" },
+      { priority: "Subcontractor Trade Vetting", action: "Vet and pre-qualify reliable local subcontractor trades (electrical, plumbing, carpentry).", metric: "3 pre-qualified trade agreements" },
+      { priority: "Milestone Contract Validation", action: "Present fixed-price contracts with structured progress payment milestones to prospective clients.", metric: "1 signed pilot client contract" },
+      { priority: "Execution Cadence", action: `Allocate ${hoursBand} dedicated strictly to customer scoping and project delivery systems.`, metric: "Weekly operations log" }
+    ];
+    const thirtyDayPlan = {
+      week1: { objective: "Client & Architect Outreach Setup", tasks: ["Contact 15 homeowners or architect/designer contacts", "Schedule 5 discovery interviews"], expectedResult: "5 confirmed interview sessions" },
+      week2: { objective: "Phase 1 Discovery Interviews (8–10 Clients)", tasks: ["Execute structured interviews on renovation pain points and quote delays", "Log dissatisfaction with standard builder communication"], expectedResult: "Client discovery synthesis & pain confirmation log" },
+      week3: { objective: "Standardized Estimating & Trade Vetting", tasks: ["Develop job cost calculator covering material margins", "Vet 3 core trade contractors with insurance verification"], expectedResult: "Estimating model & subcontractor agreement drafts" },
+      week4: { objective: "Pilot Proposal & Milestone Contract Gateway", tasks: ["Present fixed-price proposal with digital milestones to active prospect", "Make disciplined Go / Pivot decision on taking on dedicated site overhead"], expectedResult: "1 Signed Pilot Contract or Term Sheet" }
+    };
+    const ninetyDayPhases = [
+      {
+        phaseNumber: "Phase 1",
+        daysRange: "Days 1–30",
+        title: "Problem Validation",
+        name: "Phase 1: Days 1–30 — Problem Validation",
+        objective: "Validate client pain surrounding quote delays, trade scheduling unreliability, and lack of fixed-price cost transparency in residential building.",
+        activities: [
+          "Interview 8–10 residential property owners who recently undertook or planned major renovations or building projects.",
+          "Interview 4–5 local architects, building inspectors, or quantity surveyors regarding common project delay friction points.",
+          "Analyze competitor trade quotes, markup structures, and standard contracting terms in the local area.",
+          "Synthesize customer pain thresholds regarding budget blowouts, communication delays, and trade quality assurance."
+        ],
+        successCriteria: "At least 70% of prospective clients indicate willingness to pay a fair premium for guaranteed milestone timelines and transparent fixed-price terms.",
+        deliverables: "Client Problem Discovery Log (10+ interviews) & Local Trade Competitor Pricing Matrix.",
+        decisionMilestone: "Problem Gate: Confirm strong demand for transparent, milestone-managed construction services before taking on overhead."
+      },
+      {
+        phaseNumber: "Phase 2",
+        daysRange: "Days 31–60",
+        title: "Solution Validation",
+        name: "Phase 2: Days 31–60 — Solution Validation",
+        objective: "Validate project estimation workflow, digital milestone reporting, and subcontractor trade vetting processes on a controlled pilot project.",
+        activities: [
+          "Develop standardized estimating templates, fixed-price quote calculators, and payment milestone schedules.",
+          "Vet and pre-qualify 3 core subcontractor trades (e.g. electrical, plumbing, carpentry) with verified compliance and insurance.",
+          "Deliver a detailed fixed-price proposal and digital milestone roadmap to 3 active prospective renovation clients.",
+          "Test digital project management communication tools (weekly video/photo milestone updates) with prospective clients."
+        ],
+        successCriteria: "Secured at least 1 client contract with signed milestone progress payment schedule and positive subcontractor trade agreement.",
+        deliverables: "Standardized Estimation Framework, Subcontractor Trade Vetting SOP, and 1 Signed Pilot Construction Contract.",
+        decisionMilestone: "Solution Gate: Confirm that estimation model accurately covers material margins and labor contingencies before scaling project intake."
+      },
+      {
+        phaseNumber: "Phase 3",
+        daysRange: "Days 61–90",
+        title: "Commercial Validation & Decision",
+        name: "Phase 3: Days 61–90 — Commercial Validation & Decision",
+        objective: "Validate gross project margins, working capital cashflow cycles, and establish sustainable architect/designer referral pipelines.",
+        activities: [
+          "Track actual labor, material, and subcontractor costs against estimates on initial milestone deliverables to verify gross margins (>20%).",
+          "Formalize referral relationships with 2 local architects, designers, or building supply merchants.",
+          "Establish formal trade credit accounts with building merchants and implement strict milestone deposit billing.",
+          "Evaluate operational cashflow, capacity constraints, and decide on hiring permanent site supervisors or additional apprentices."
+        ],
+        successCriteria: "Demonstrated gross project margins exceeding 20%, positive cashflow on progress payments, and at least 2 qualified project pipeline leads.",
+        deliverables: "Project Margin & Cashflow Reconciliation Report, 2 Trade Referral Agreements, and 90-Day Scaling Plan.",
+        decisionMilestone: "Commercial Gateway: Make disciplined Go / Scale decision on expanding trade capacity and booking future project pipeline."
+      }
+    ];
+    const ninetyDayRoadmap = {
+      phases: ninetyDayPhases,
+      steps: [
+        { week: 'W 1-2', objective: 'Client Discovery Outreach', tasks: 'Interview 8 homeowners and 4 architects on quote delays and budget blowouts.', hours: '5 hrs/wk', evidence: 'Client discovery interview transcripts' },
+        { week: 'W 3-4', objective: 'Competitor Pricing Analysis', tasks: 'Benchmark regional builder rates, markup structures, and standard contracting terms.', hours: '5 hrs/wk', evidence: 'Trade pricing & markup matrix' },
+        { week: 'W 5-6', objective: 'Estimating & Trade Vetting', tasks: 'Build standardized job cost calculator and vet 3 core subcontractor trades.', hours: '5 hrs/wk', evidence: 'Job estimating model & trade agreements' },
+        { week: 'W 7-8', objective: 'Milestone Proposal Test', tasks: 'Deliver fixed-price proposal with digital milestones to 2 active prospects.', hours: '5 hrs/wk', evidence: '1 signed pilot renovation contract' },
+        { week: 'W 9-10', objective: 'Referral Pipeline Setup', tasks: 'Establish formal referral agreements with 2 local architects or designers.', hours: '5 hrs/wk', evidence: '2 signed referral agreements' },
+        { week: 'W 11-12', objective: 'Margin & Capacity Review', tasks: 'Reconcile project actual margins (>20%) and decide on trade crew expansion.', hours: '5 hrs/wk', evidence: 'Margin Reconciliation & Growth Plan' }
+      ]
+    };
+    return {
+      immediate7DayAction,
+      threePriorityActions,
+      topFivePriorities,
+      thirtyDayPlan,
+      ninetyDayPhases,
+      ninetyDayRoadmap,
+      doThisBeforeBuilding: `Conduct 8–10 structured customer discovery interviews with property owners and architects (${targetLabel}) to confirm demand for fixed-price contracts and milestone reporting before hiring permanent crews.`,
+      nextEvidenceGateway: "Complete 10 client discovery interviews confirming strong demand for cost transparency, followed by 1 signed pilot contract with progress milestones, before expanding overhead.",
+      reassessmentTrigger: "Completion of 10 client discovery interviews or signing of first milestone construction contract."
+    };
+  }
+
+  if (isAiDecision) {
+    const targetLabel = synthesizeTargetCustomerLabel(targetMarket);
+    const immediate7DayAction = `Outreach to 15 early-stage founders and startup incubator managers to schedule 6 initial discovery interviews.`;
+    const threePriorityActions = [
+      {
+        heading: "1. Phase 1 Founder Discovery Interviews.",
+        explanation: `Conduct 10–12 structured discovery interviews with startup founders and advisors (${targetLabel}) to quantify frustration with superficial prompts, unvalidated assumptions, and advisory costs.`,
+        outcome: "10–12 completed founder interview transcripts and pain confirmation score."
+      },
+      {
+        heading: "2. Prototype Walkthrough & Evaluation Audits.",
+        explanation: "Run 6 sample venture assessments across diverse business archetypes and conduct walkthrough sessions with target founders to test report usefulness and roadmap clarity.",
+        outcome: "6 founder review logs and calibrated evaluation output."
+      },
+      {
+        heading: "3. Pricing Validation & Organization Commitments.",
+        explanation: "Present per-assessment and portfolio subscription pricing to 10 founders and 2 incubator directors to test willingness to pay before committing further engineering.",
+        outcome: "3 paid assessment purchases or 1 incubator partnership LOI."
+      }
+    ];
+    const topFivePriorities = [
+      { priority: "Founder Problem Discovery", action: "Interview 10–12 early-stage founders on idea validation confusion and wasted development capital.", metric: "10–12 completed interview notes" },
+      { priority: "Severity & Willingness to Pay", action: "Verify that at least 75% of founders report need for rigorous, objective decision intelligence.", metric: "75% pain confirmation rate" },
+      { priority: "Multi-Archetype Stress Testing", action: "Audit report generation accuracy across hardware, SaaS, marketplace, services, and regulated ventures.", metric: "Zero cross-archetype contamination" },
+      { priority: "Test Pricing Elasticity", action: "Present per-assessment and subscription pricing tiers to prospective users for commercial feedback.", metric: "3 paid assessment pre-orders" },
+      { priority: "Execution Cadence", action: `Allocate ${hoursBand} dedicated strictly to founder discovery and model calibration milestones.`, metric: "Weekly validation log" }
+    ];
+    const thirtyDayPlan = {
+      week1: { objective: "Founder Outreach & Interview Setup", tasks: ["Identify 20 early-stage founders and 5 accelerator mentors", "Schedule 6 initial discovery interviews"], expectedResult: "6 confirmed interview bookings" },
+      week2: { objective: "Phase 1 Founder Discovery (10 Users)", tasks: ["Execute structured discovery interviews on validation hurdles", "Log dissatisfaction with generic AI prompts and expensive consultants"], expectedResult: "Founder discovery synthesis & pain confirmation score" },
+      week3: { objective: "Report Walkthrough & Accuracy Test", tasks: ["Conduct structured evaluation walkthroughs with 4 target founders", "Identify and resolve any confusing scoring narratives"], expectedResult: "Founder evaluation feedback log & report refinement" },
+      week4: { objective: "Pricing Feedback & Phase 2 Gateway Decision", tasks: ["Test commercial subscription and per-report pricing with 6 prospects", "Make disciplined Go / Pivot decision to expand to full commercial launch"], expectedResult: "Validation Milestone Decision Report" }
+    };
+    const ninetyDayPhases = [
+      {
+        phaseNumber: "Phase 1",
+        daysRange: "Days 1–30",
+        title: "Problem Validation",
+        name: "Phase 1: Days 1–30 — Problem Validation",
+        objective: "Validate founder and accelerator demand for structured commercial validation frameworks over generic AI prompts or expensive advisors.",
+        activities: [
+          "Outreach to 25 early-stage founders, startup incubators, and university entrepreneurship program directors.",
+          "Conduct 10–12 structured discovery interviews on current idea evaluation methods, advisory costs, and validation confusion.",
+          "Benchmark existing alternatives (manual consulting, generic LLM prompts, standard pitch deck templates).",
+          "Synthesize founder pain thresholds around objective scoring, gating risk identification, and structured next steps."
+        ],
+        successCriteria: "At least 75% of interviewed founders state current tools provide superficial answers and fail to identify critical commercial showstoppers.",
+        deliverables: "Founder Discovery Synthesis Report (10+ transcripts) & Problem Severity Matrix.",
+        decisionMilestone: "Problem Gate: Confirm strong willingness among founders and incubators to seek structured assessment intelligence before building."
+      },
+      {
+        phaseNumber: "Phase 2",
+        daysRange: "Days 31–60",
+        title: "Solution Validation",
+        name: "Phase 2: Days 31–60 — Solution Validation",
+        objective: "Validate assessment accuracy, report actionability, and founder comprehension using interactive prototype walkthroughs and manual audits.",
+        activities: [
+          "Run 8 sample business ideas through the 12-page commercial evaluation pipeline across diverse archetypes (hardware, software, services, regulated).",
+          "Conduct structured review sessions with 6 target founders to test report usefulness, clarity of scores, and roadmap practicality.",
+          "Calibrate evaluation rules to eliminate generic advice, hallucinated metrics, and cross-archetype contamination.",
+          "Deploy interactive web assessment dashboard with shareable executive summary links."
+        ],
+        successCriteria: "Over 80% of testing founders rate the report as significantly more actionable than generic alternatives and would act on the roadmap.",
+        deliverables: "Calibrated Evaluation Report Pipeline, 6 Founder Feedback Logs, and Web Results Dashboard.",
+        decisionMilestone: "Solution Gate: Confirm high assessment accuracy and zero cross-concept contamination before launching commercial paywalls."
+      },
+      {
+        phaseNumber: "Phase 3",
+        daysRange: "Days 61–90",
+        title: "Commercial Validation & Decision",
+        name: "Phase 3: Days 61–90 — Commercial Validation & Decision",
+        objective: "Test pricing elasticity, validate incubator/partner distribution channels, and make commercial launch decision.",
+        activities: [
+          "Present pay-per-assessment and portfolio subscription pricing to 10 prospective founders and 2 accelerator managers.",
+          "Secure 3 paid assessment purchases or written commitments from startup support organizations.",
+          "Track self-serve onboarding completion rates, user conversion funnels, and customer feedback loops.",
+          "Reassess unit economics (AI compute cost vs. assessment price) and establish 90-day growth roadmap."
+        ],
+        successCriteria: "Achieved at least 3 paid customer conversions, gross profit margins exceeding 70% per assessment, and 1 accelerator partnership LOI.",
+        deliverables: "Unit Economics Model, 3 Paid Customer Case Studies, and Commercial Launch Strategy.",
+        decisionMilestone: "Commercial Gateway: Go / No-Go decision on public commercial launch and capital-efficient growth campaign."
+      }
+    ];
+    const ninetyDayRoadmap = {
+      phases: ninetyDayPhases,
+      steps: [
+        { week: 'W 1-2', objective: 'Founder Problem Discovery', tasks: 'Interview 10 founders and 4 mentors on idea validation hurdles and wasted capital.', hours: '5 hrs/wk', evidence: 'Founder interview transcript log' },
+        { week: 'W 3-4', objective: 'Alternative Benchmarking', tasks: 'Benchmark generic AI prompts and consulting alternatives against structured evaluation criteria.', hours: '5 hrs/wk', evidence: 'Competitive benchmark matrix' },
+        { week: 'W 5-6', objective: 'Report Accuracy Audits', tasks: 'Run 6 diverse archetype evaluations and audit report actionability with test founders.', hours: '5 hrs/wk', evidence: 'Report accuracy audit feedback' },
+        { week: 'W 7-8', objective: 'Pricing & LOI Testing', tasks: 'Present subscription and pay-per-report pricing to 8 prospective founders and 2 incubators.', hours: '5 hrs/wk', evidence: '3 paid assessment commitments' },
+        { week: 'W 9-10', objective: 'Onboarding & Funnel Analytics', tasks: 'Measure self-serve assessment completion rates and founder retention satisfaction.', hours: '5 hrs/wk', evidence: 'Conversion funnel analytics report' },
+        { week: 'W 11-12', objective: 'Commercial Launch Gateway', tasks: 'Reassess unit economics and make disciplined Go/Scale decision on public launch campaign.', hours: '5 hrs/wk', evidence: 'Commercial Launch Decision Report' }
+      ]
+    };
+    return {
+      immediate7DayAction,
+      threePriorityActions,
+      topFivePriorities,
+      thirtyDayPlan,
+      ninetyDayPhases,
+      ninetyDayRoadmap,
+      doThisBeforeBuilding: `Conduct 10–12 structured customer discovery interviews with founders and incubators (${targetLabel}) to confirm demand for structured validation intelligence before committing custom software engineering.`,
+      nextEvidenceGateway: "Complete 10 founder discovery interviews confirming high demand for objective scoring, followed by 3 paid assessment commitments, before launching commercial marketing.",
+      reassessmentTrigger: "Completion of 10 founder discovery interviews or securing 3 paid assessment purchases."
+    };
+  }
+
+  // FinTech, SaaS & Commercial Digital Ventures (Default)
   const targetLabel = synthesizeTargetCustomerLabel(targetMarket);
   const immediate7DayAction = `Reach out to 10 prospective target customers (${targetLabel}) to schedule 5 initial problem discovery interviews.`;
   const threePriorityActions = [
@@ -827,12 +1232,75 @@ function generateActionSourceOfTruth(reqData = {}, reconciled = {}, ventureType 
     week3: { objective: "Solution Walkthrough & Pricing Test", tasks: ["Present lightweight manual workflow to 5 interviewed prospects", "Test indicative monthly pricing and document objections"], expectedResult: "Willingness-to-pay feedback report" },
     week4: { objective: "Validation Review & Phase 2 Gateway Decision", tasks: ["Assess interview signals and pilot interest against 70% threshold", "Make disciplined Go / Pivot decision to expand to 20–30 cumulative interviews across 90-day roadmap"], expectedResult: "Validation Milestone Decision Report" }
   };
+  const ninetyDayPhases = [
+    {
+      phaseNumber: "Phase 1",
+      daysRange: "Days 1–30",
+      title: "Problem Validation",
+      name: "Phase 1: Days 1–30 — Problem Validation",
+      objective: `Validate customer pain severity, existing workaround costs, and urgency of the problem with target prospects in ${targetJurisdiction}.`,
+      activities: [
+        `Identify and contact 20 target business prospects matching ideal customer profile in ${targetJurisdiction}.`,
+        "Conduct 8–10 structured discovery interviews to uncover operational friction and manual workflow costs.",
+        "Analyze current competitive alternatives and quantify budget allocated to existing workarounds.",
+        "Synthesize interview findings to establish quantifiable value proposition and success criteria."
+      ],
+      successCriteria: "At least 70% of interviewed prospects confirm significant operational pain and actively seek a superior solution.",
+      deliverables: "Customer Discovery Synthesis Report (8–10 interview transcripts) & Problem Urgency Scorecard.",
+      decisionMilestone: "Problem Gate: If problem urgency fails to meet the 70% threshold, refine target audience or pivot problem definition."
+    },
+    {
+      phaseNumber: "Phase 2",
+      daysRange: "Days 31–60",
+      title: "Solution Validation",
+      name: "Phase 2: Days 31–60 — Solution Validation",
+      objective: "Demonstrate solution mechanics using clickable wireframes, prototype demos, or manual concierge workflows to validate user adoption.",
+      activities: [
+        "Create a low-code interactive prototype or manual concierge service workflow.",
+        "Conduct 5 structured walkthrough sessions with target prospects, observing friction and engagement.",
+        "Collect feedback on feature prioritization, essential integrations, and ease of workflow adoption.",
+        "Refine product scope to minimum viable feature set based on user walkthrough data."
+      ],
+      successCriteria: "At least 4 out of 5 testing prospects complete the core workflow successfully and express strong adoption intent.",
+      deliverables: "Interactive Solution Prototype, 5 User Walkthrough Video Logs, and MVP Feature Specification.",
+      decisionMilestone: "Solution Gate: Confirm workflow adoption willingness before committing capital to full custom software development."
+    },
+    {
+      phaseNumber: "Phase 3",
+      daysRange: "Days 61–90",
+      title: "Commercial Validation & Decision",
+      name: "Phase 3: Days 61–90 — Commercial Validation & Decision",
+      objective: "Validate willingness to pay, test subscription pricing models, secure early commercial commitments, and decide on build launch.",
+      activities: [
+        "Present formal pricing proposals (monthly subscription or pilot agreements) to 6 qualified prospects.",
+        "Obtain at least 2 signed Letters of Intent (LOIs) or paid pre-commitments with target pricing terms.",
+        "Model customer acquisition costs, ongoing infrastructure expenses, and projected gross margins.",
+        "Make disciplined Go / Pivot decision on building full production system vs. refining offer."
+      ],
+      successCriteria: "Secured 2 signed commercial LOIs or paid deposits with projected gross margins exceeding 60%.",
+      deliverables: "Commercial Pricing Validation Report, 2 Signed Letters of Intent, and Final Go / Pivot Roadmap.",
+      decisionMilestone: "Commercial Gateway: Make disciplined Go / Pivot decision on whether to commence full production development."
+    }
+  ];
+  const ninetyDayRoadmap = {
+    phases: ninetyDayPhases,
+    steps: [
+      { week: 'W 1-2', objective: 'Problem Discovery', tasks: 'Draft interview guide; reach out to 10 target prospects', hours: '5 hrs/wk', evidence: 'Target outreach log' },
+      { week: 'W 3-4', objective: 'Customer Interviews', tasks: 'Conduct 6 structured interviews; record pain points', hours: '5 hrs/wk', evidence: '6 interview transcripts' },
+      { week: 'W 5-6', objective: 'Solution Workflow Test', tasks: 'Test interactive prototype or workflow with 3 target users', hours: '5 hrs/wk', evidence: 'User feedback logs' },
+      { week: 'W 7-8', objective: 'Price & Offer Test', tasks: 'Present formal pricing terms to 5 target prospects', hours: '5 hrs/wk', evidence: '2 LOIs / deposit commitments' },
+      { week: 'W 9-10', objective: 'Pilot Evaluation', tasks: 'Measure initial retention, manual effort, and user satisfaction', hours: '5 hrs/wk', evidence: 'Pilot metrics report' },
+      { week: 'W 11-12', objective: 'Commercial Decision', tasks: 'Reassess evidence; decide whether to Build, Pivot, or Stop', hours: '5 hrs/wk', evidence: 'PitchLab Reassessment' }
+    ]
+  };
 
   return {
     immediate7DayAction,
     threePriorityActions,
     topFivePriorities,
     thirtyDayPlan,
+    ninetyDayPhases,
+    ninetyDayRoadmap,
     doThisBeforeBuilding: `Conduct 5–10 structured customer discovery interviews with ${targetLabel} to confirm problem urgency and willingness to pay before building software.`,
     nextEvidenceGateway: "Complete 5–10 Phase 1 discovery interviews confirming high problem urgency, followed by 2 written pilot commitments, before building custom software.",
     reassessmentTrigger: "Completion of 10 customer discovery interviews or receipt of 2 written pilot commitments."
@@ -1737,12 +2205,10 @@ exports.pitchLabEvaluation = onCall({
       };
 
       // Pre-Feasibility 90-Day Roadmap for Heavy/Regulated/Infrastructure concepts
-      evaluationData.thirtyDayPlan = {
-        week1: { objective: "Legal & Regulatory Feasibility Assessment", tasks: ["Obtain specialist legal advice on statutory framework, local legislation and legal prohibitions", "Identify required regulatory approval bodies and compliance mandates"], expectedResult: "Comprehensive assessment of legal permissibility and statutory barriers" },
-        week2: { objective: "Specialist Technical & Domain Expert Consultation", tasks: ["Consult independent domain engineers, regulatory specialists or industry advisers", "Map required technical qualifications and specialist team gaps"], expectedResult: "Expert feedback on technical, safety, and operational feasibility" },
-        week3: { objective: "Technical & Infrastructure Feasibility Study", tasks: ["Assess grid, site, environmental, and infrastructure prerequisites", "Evaluate technology readiness level and deployment dependencies"], expectedResult: "High-level technical and site feasibility assessment report" },
-        week4: { objective: "Pre-Feasibility Decision (Proceed / Pivot / Stop)", tasks: ["Model indicative project economics, CAPEX/OPEX, and capital requirements", "Present pre-feasibility findings to make a disciplined Go / Pivot / Stop decision"], expectedResult: "Formal Pre-Feasibility Recommendation & Risk Gateway Report" }
-      };
+      const nucActionTruth = generateActionSourceOfTruth(reqData, reconciled, ventureType, targetJurisdiction);
+      evaluationData.thirtyDayPlan = nucActionTruth.thirtyDayPlan;
+      evaluationData.ninetyDayPhases = nucActionTruth.ninetyDayPhases;
+      evaluationData.ninetyDayRoadmap = nucActionTruth.ninetyDayRoadmap;
 
       evaluationData.actionPlan = evaluationData.actionPlan || {};
       evaluationData.actionPlan.topFivePriorities = [
@@ -2119,6 +2585,8 @@ exports.pitchLabEvaluation = onCall({
     evaluationData.summaryBlock.doThisBeforeBuildingMore = actionSourceOfTruth.doThisBeforeBuilding;
     evaluationData.threePriorityActions = actionSourceOfTruth.threePriorityActions;
     evaluationData.thirtyDayPlan = actionSourceOfTruth.thirtyDayPlan;
+    evaluationData.ninetyDayPhases = actionSourceOfTruth.ninetyDayPhases;
+    evaluationData.ninetyDayRoadmap = actionSourceOfTruth.ninetyDayRoadmap;
     evaluationData.nextEvidenceGateway = actionSourceOfTruth.nextEvidenceGateway;
     evaluationData.reassessmentTrigger = actionSourceOfTruth.reassessmentTrigger;
 
@@ -2401,6 +2869,8 @@ function getMockResult(reqData = {}) {
         topFivePriorities: topFivePrioritiesList
       },
       thirtyDayPlan: thirtyDayPlanObj,
+      ninetyDayPhases: actionSourceOfTruth.ninetyDayPhases,
+      ninetyDayRoadmap: actionSourceOfTruth.ninetyDayRoadmap,
       threePriorityActions: threePriorityActionsList,
       founderPredictions: founderEvidenceGap.founderPredictions,
       founderEvidenceGap: founderEvidenceGap,

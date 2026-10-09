@@ -166,7 +166,7 @@ function classifyVentureType(rawInputs = {}) {
   if (text.match(/\b(quantum|semiconductor|nanotech|fusion|robotics|satellite|aerospace|rocket|deep tech)\b/i)) {
     return 'Deep Technology / Scientific';
   }
-  if (text.match(/\b(ai\b|artificial intelligence|decision support|decision intelligence|decision platform|startup evaluation|startup validation|idea validation|idea assessment|founder intelligence|venture evaluation|venture assessment|pitchlab)\b/i)) {
+  if (text.match(/\b(decision support|decision intelligence|decision platform|startup evaluation|startup validation|idea validation|idea assessment|founder intelligence|venture evaluation|venture assessment|pitchlab)\b/i) || (text.match(/\b(ai\b|artificial intelligence)\b/i) && text.match(/\b(decision|validation|assessment|startup|venture|portfolio)\b/i))) {
     return 'AI / Business Decision Support Software';
   }
   if (text.match(/mooring|solar-powered|device|hardware|sensor|enclosure|physical product|equipment|machinery/)) {
@@ -181,7 +181,7 @@ function classifyVentureType(rawInputs = {}) {
   if (text.match(/\b(two-sided marketplace|multi-sided marketplace|buyer-seller marketplace|peer-to-peer marketplace|freelance marketplace|service marketplace|rental marketplace)\b/i) || (text.match(/\bmarketplace\b/i) && !text.match(/\b(decision|software|developer|ai|saas|analytics|intelligence)\b/i))) {
     return 'Marketplace';
   }
-  if (text.match(/plumb|electrician|builder|carpenter|roofer|painter|hvac|mechanic|handyman|\blawn\b|\bmow\b|cleaning|pest control|landscaping|\btrade\b|\blocal service\b/)) {
+  if (text.match(/plumb|electrician|builder|building|construction|renovation|carpenter|roofer|painter|hvac|mechanic|handyman|\blawn\b|\bmow\b|cleaning|pest control|landscaping|\btrade\b|\blocal service\b/)) {
     return 'Trade / Local Service';
   }
   if (text.match(/cafe|restaurant|baking|catering|bar|pub|food truck|hotel|hospitality/)) {
