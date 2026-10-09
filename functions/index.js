@@ -2266,11 +2266,11 @@ function getMockResult(reqData = {}) {
     moatStr = "Two-sided network density, established local driver and operator relationships, customer booking habituation, and local operational presence.";
   }
 
-  let valProp = "Commercial solution addressing operational workflow friction or market demand.";
-  let revModel = "Commercial revenue model based on subscription, transaction fee, or direct service billing.";
-  let acqChannel = "Direct client outreach, industry network referrals, and targeted digital marketing.";
-  let keyCostsStr = "Solution development, customer acquisition, operational support, and ongoing service delivery.";
-  let commAssess = "Business model evaluated against customer willingness to pay and low-friction adoption.";
+  let valProp = synthesizeBusinessModelField('valueProposition', reqData, ventureType, targetJurisdiction);
+  let revModel = synthesizeBusinessModelField('revenueModel', reqData, ventureType, targetJurisdiction);
+  let acqChannel = synthesizeBusinessModelField('customerAcquisition', reqData, ventureType, targetJurisdiction);
+  let keyCostsStr = synthesizeBusinessModelField('keyCosts', reqData, ventureType, targetJurisdiction);
+  let commAssess = synthesizeBusinessModelField('commercialAssessment', reqData, ventureType, targetJurisdiction);
 
   if (isNuclear || reconciled.gatesInfo?.hasCriticalGate) {
     valProp = "Continuous, low-carbon firm electricity generation providing long-term price predictability, grid stability, and industrial decarbonisation.";

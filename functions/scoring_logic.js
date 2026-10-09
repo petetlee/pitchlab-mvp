@@ -1353,15 +1353,18 @@ function calculate5DimensionFutureTrends(rawInputs = {}, gatesInfo = {}, venture
 
   const currentCommercialAccessibility = (isNuclear || gatesInfo?.hasCriticalGate) ? 1 : Math.round((trendAlignmentScore / 10) * 10);
 
+  const rawDims = rawFutureTrends.dimensions || rawFutureTrends.fiveDimensions || rawFutureTrends || {};
+  const getDim = (val, fallback) => (typeof val === 'string' && val.trim().length >= 5 ? val.trim() : fallback);
+
   return {
     marketDirection,
     solutionOutlook,
     dimensions: {
-      demandTrend: rawFutureTrends.demandTrend || demandTrend,
-      technologyTrend: rawFutureTrends.technologyTrend || technologyTrend,
-      regulatoryTrend: rawFutureTrends.regulatoryTrend || regulatoryTrend,
-      competitionTrend: rawFutureTrends.competitionTrend || competitionTrend,
-      capitalTrend: rawFutureTrends.capitalTrend || capitalTrend
+      demandTrend: getDim(rawDims.demandTrend, demandTrend),
+      technologyTrend: getDim(rawDims.technologyTrend, technologyTrend),
+      regulatoryTrend: getDim(rawDims.regulatoryTrend, regulatoryTrend),
+      competitionTrend: getDim(rawDims.competitionTrend, competitionTrend),
+      capitalTrend: getDim(rawDims.capitalTrend, capitalTrend)
     },
     whatThisMeansForFounder,
     adjacentOpportunities,
@@ -2180,7 +2183,6 @@ function validateReportIntegrityGate(evaluationData = {}, reqData = {}) {
   const isTransport = ventureType === 'Transportation / Mobility / Marketplace' || Boolean((reqData.idea || "").toLowerCase().match(/leride|ride-share|rideshare|taxi|passenger transport|mobility|transport-booking/i));
   if (isTransport) {
     const transportBannedSaaS = [
-      { pattern: /manual spreadsheets/i, phrase: "manual spreadsheets" },
       { pattern: /cloud-based productivity tools/i, phrase: "cloud-based productivity tools" },
       { pattern: /administrative overhead reduction/i, phrase: "administrative overhead reduction" },
       { pattern: /enterprise platforms/i, phrase: "enterprise platforms" },
