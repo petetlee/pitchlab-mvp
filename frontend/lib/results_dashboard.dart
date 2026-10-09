@@ -2412,23 +2412,27 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
                   if (currentTab == 0) ...[
                     TextField(
                       controller: titleController,
+                      style: GoogleFonts.inter(color: const Color(0xFF1D1D1F)),
                       decoration: const InputDecoration(labelText: 'Public Idea Title', border: OutlineInputBorder()),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: summaryController,
+                      style: GoogleFonts.inter(color: const Color(0xFF1D1D1F)),
                       maxLines: 3,
                       decoration: const InputDecoration(labelText: 'Public Summary', border: OutlineInputBorder()),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: problemController,
+                      style: GoogleFonts.inter(color: const Color(0xFF1D1D1F)),
                       maxLines: 2,
                       decoration: const InputDecoration(labelText: 'Problem Addressed', border: OutlineInputBorder()),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: solutionController,
+                      style: GoogleFonts.inter(color: const Color(0xFF1D1D1F)),
                       maxLines: 2,
                       decoration: const InputDecoration(labelText: 'Proposed Solution', border: OutlineInputBorder()),
                     ),
@@ -2438,6 +2442,7 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
                         Expanded(
                           child: TextField(
                             controller: categoryController,
+                            style: GoogleFonts.inter(color: const Color(0xFF1D1D1F)),
                             decoration: const InputDecoration(labelText: 'Category / Sector', border: OutlineInputBorder()),
                           ),
                         ),
@@ -2445,6 +2450,7 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
                         Expanded(
                           child: TextField(
                             controller: marketController,
+                            style: GoogleFonts.inter(color: const Color(0xFF1D1D1F)),
                             decoration: const InputDecoration(labelText: 'Target Market / Region', border: OutlineInputBorder()),
                           ),
                         ),
@@ -2478,6 +2484,7 @@ class _ResultsDashboardState extends State<ResultsDashboard> with SingleTickerPr
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: TextField(
                           controller: displayNameController,
+                          style: GoogleFonts.inter(color: const Color(0xFF1D1D1F)),
                           decoration: InputDecoration(
                             labelText: identityType == 'business_name' ? 'Business Name' : 'Display Name',
                             border: const OutlineInputBorder(),

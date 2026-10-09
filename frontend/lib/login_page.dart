@@ -272,6 +272,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 TextField(
                   controller: _emailController,
+                  style: GoogleFonts.inter(color: const Color(0xFF1D1D1F)),
                   decoration: InputDecoration(
                     labelText: 'Email',
                     border: OutlineInputBorder(
@@ -285,6 +286,7 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 16),
                 TextField(
                   controller: _passwordController,
+                  style: GoogleFonts.inter(color: const Color(0xFF1D1D1F)),
                   decoration: InputDecoration(
                     labelText: 'Password',
                     border: OutlineInputBorder(
@@ -315,6 +317,7 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 16),
                   TextField(
                     controller: _adminCodeController,
+                    style: GoogleFonts.inter(color: const Color(0xFF1D1D1F)),
                     decoration: InputDecoration(
                       labelText: 'Admin Code (Optional)',
                       border: OutlineInputBorder(

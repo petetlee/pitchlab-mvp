@@ -1,9 +1,9 @@
 {
-  "appVersion": "v0.9.8",
-  "fullVersionString": "PitchLab MVP v0.9.8",
-  "changeId": "PL-20261008-CONTACT-01",
-  "parentChangeId": "PL-FIX-20261008-V0.9.7-LERIDE-SEMANTIC-INTEGRITY",
-  "buildId": "9c2a5da",
-  "deployedAt": "2026-10-08T14:45:00+13:00",
-  "deployedAtFormatted": "08 Oct 2026 14:45 NZDT"
+  "appVersion": "v0.9.9",
+  "fullVersionString": "PitchLab MVP v0.9.9",
+  "changeId": "PL-20261009-TEXTCOLOR-01",
+  "parentChangeId": "PL-20261008-CONTACT-01",
+  "buildId": "5f39e12",
+  "deployedAt": "2026-10-09T14:50:00+13:00",
+  "deployedAtFormatted": "09 Oct 2026 14:50 NZDT"
 }

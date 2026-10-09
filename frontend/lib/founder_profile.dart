@@ -294,7 +294,7 @@ class _FounderProfileState extends State<FounderProfile> {
               borderSide: BorderSide.none,
             ),
           ),
-          style: GoogleFonts.inter(),
+          style: GoogleFonts.inter(color: const Color(0xFF1D1D1F)),
           maxLines: maxLines,
           validator: (value) {
             if (required && (value == null || value.isEmpty)) {

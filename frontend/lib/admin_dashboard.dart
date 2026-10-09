@@ -200,6 +200,7 @@ class _UsersListState extends State<_UsersList> {
           padding: const EdgeInsets.all(16.0),
           child: TextField(
             controller: _searchController,
+            style: GoogleFonts.inter(color: const Color(0xFF1D1D1F)),
             onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
             decoration: InputDecoration(
               hintText: 'Search users by Name, Email, or User ID...',
@@ -559,6 +560,7 @@ class _InvitationsListState extends State<_InvitationsList> {
                     Expanded(
                       child: TextField(
                         controller: _emailController,
+                        style: GoogleFonts.inter(color: const Color(0xFF1D1D1F)),
                         keyboardType: TextInputType.emailAddress,
                         decoration: InputDecoration(
                           hintText: 'Enter founder email address',

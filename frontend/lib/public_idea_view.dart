@@ -105,6 +105,7 @@ class _PublicIdeaViewState extends State<PublicIdeaView> {
                   const SizedBox(height: 16),
                   TextField(
                     controller: nameController,
+                    style: GoogleFonts.inter(color: const Color(0xFF1D1D1F)),
                     decoration: const InputDecoration(
                       labelText: 'Your Name',
                       border: OutlineInputBorder(),
@@ -113,6 +114,7 @@ class _PublicIdeaViewState extends State<PublicIdeaView> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: emailController,
+                    style: GoogleFonts.inter(color: const Color(0xFF1D1D1F)),
                     keyboardType: TextInputType.emailAddress,
                     decoration: const InputDecoration(
                       labelText: 'Your Email Address',
@@ -122,6 +124,7 @@ class _PublicIdeaViewState extends State<PublicIdeaView> {
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     value: selectedSeeking,
+                    style: GoogleFonts.inter(color: const Color(0xFF1D1D1F)),
                     decoration: const InputDecoration(
                       labelText: 'Inquiry Category',
                       border: OutlineInputBorder(),
@@ -144,6 +147,7 @@ class _PublicIdeaViewState extends State<PublicIdeaView> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: messageController,
+                    style: GoogleFonts.inter(color: const Color(0xFF1D1D1F)),
                     maxLines: 4,
                     decoration: const InputDecoration(
                       labelText: 'Message to Founder',

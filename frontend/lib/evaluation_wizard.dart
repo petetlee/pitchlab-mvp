@@ -198,25 +198,29 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
   }
 
   Future<void> _loadFounderProfile() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      final doc = await FirebaseFirestore.instance
-          .collection('FounderProfiles')
-          .doc(user.uid)
-          .get();
-      
-      if (doc.exists && mounted) {
-        final data = doc.data()!;
-        setState(() {
-          _formData['founderExperience'] = data['founderExperience'] ?? '';
-          _formData['industryExperience'] = data['industryExperience'] ?? '';
-          _formData['timeCommitment'] = data['timeCommitment'] ?? '';
-          
-          _formData['locationCountry'] = data['locationCountry'] ?? '';
-          _formData['locationRegion'] = data['locationRegion'] ?? '';
-          _formData['locationCity'] = data['locationCity'] ?? '';
-        });
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final doc = await FirebaseFirestore.instance
+            .collection('FounderProfiles')
+            .doc(user.uid)
+            .get();
+        
+        if (doc.exists && mounted) {
+          final data = doc.data()!;
+          setState(() {
+            _formData['founderExperience'] = data['founderExperience'] ?? '';
+            _formData['industryExperience'] = data['industryExperience'] ?? '';
+            _formData['timeCommitment'] = data['timeCommitment'] ?? '';
+            
+            _formData['locationCountry'] = data['locationCountry'] ?? '';
+            _formData['locationRegion'] = data['locationRegion'] ?? '';
+            _formData['locationCity'] = data['locationCity'] ?? '';
+          });
+        }
       }
+    } catch (e) {
+      print('⚠️ PitchLab: Could not load founder profile: $e');
     }
   }
 
@@ -1302,7 +1306,7 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
               borderSide: BorderSide.none,
             ),
           ),
-          style: GoogleFonts.inter(fontSize: 16),
+          style: GoogleFonts.inter(fontSize: 16, color: const Color(0xFF1D1D1F)),
         ),
       ],
     );
@@ -1452,7 +1456,7 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
               },
               maxLines: null,
               minLines: 8,
-              style: GoogleFonts.inter(fontSize: 15, height: 1.5),
+              style: GoogleFonts.inter(fontSize: 15, height: 1.5, color: const Color(0xFF1D1D1F)),
               decoration: InputDecoration(
                 hintText: 'For example: I have worked in this industry for eight years and have direct experience with the problem this business will solve. My background includes managing customers, preparing budgets and leading operational projects. I already know several potential customers who may be willing to test the idea. I am motivated to pursue this because...',
                 hintStyle: GoogleFonts.inter(fontSize: 14, color: const Color(0xFFA1A1A6)),
@@ -1831,7 +1835,7 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
                                       onPressed: () => _listen(question['key']),
                                     ),
                                   ),
-                                  style: GoogleFonts.inter(fontSize: 20),
+                                  style: GoogleFonts.inter(fontSize: 20, color: const Color(0xFF1D1D1F)),
                                   maxLines: null,
                                   autofocus: true,
                                 ).animate().fadeIn(delay: 200.ms),
@@ -2029,7 +2033,7 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
                     borderSide: const BorderSide(color: Color(0xFFE5E5EA)),
                   ),
                 ),
-                style: GoogleFonts.inter(fontSize: 14),
+                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF1D1D1F)),
               ),
             ],
           ),

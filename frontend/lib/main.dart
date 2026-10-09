@@ -112,11 +112,38 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'PitchLab',
       debugShowCheckedModeBanner: false,
+      themeMode: ThemeMode.light,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0071E3)),
+        brightness: Brightness.light,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF0071E3),
+          brightness: Brightness.light,
+          surface: Colors.white,
+        ),
         useMaterial3: true,
+        scaffoldBackgroundColor: Colors.white,
+        textTheme: GoogleFonts.interTextTheme(ThemeData.light().textTheme).apply(
+          bodyColor: const Color(0xFF1D1D1F),
+          displayColor: const Color(0xFF1D1D1F),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: const Color(0xFFF5F5F7),
+          labelStyle: GoogleFonts.inter(color: const Color(0xFF1D1D1F)),
+          hintStyle: GoogleFonts.inter(color: const Color(0xFF86868B)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFE5E5EA)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFF0071E3), width: 2),
+          ),
+        ),
       ),
       home: const LandingPage(),
     );
   }
 }
+
