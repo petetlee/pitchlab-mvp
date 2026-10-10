@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'results_dashboard.dart';
 import 'evaluation_wizard.dart';
 import 'pdf_service.dart';
+import 'saved_drafts_widget.dart';
 
 class HistoryView extends StatefulWidget {
   const HistoryView({super.key});
@@ -96,6 +97,8 @@ class _HistoryViewState extends State<HistoryView> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          const SavedDraftsWidget(),
+                          const SizedBox(height: 12),
                           Container(
                             padding: const EdgeInsets.all(16),
                             margin: const EdgeInsets.only(bottom: 20),

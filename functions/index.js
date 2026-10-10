@@ -2669,6 +2669,16 @@ exports.pitchLabEvaluation = onCall({
       evaluationData.userId = userId;
       // Sync administrative user summary (non-sensitive metrics only)
       await syncUserAdminSummary(userId);
+
+      // Clean up the draft document ONLY AFTER successful evaluation score creation
+      if (request.data && request.data.draftId) {
+        try {
+          await db.collection("EvaluationDrafts").doc(String(request.data.draftId).trim()).delete();
+          console.log(`PitchLab: Cleaned up draft ${request.data.draftId} after successful evaluation.`);
+        } catch (draftCleanErr) {
+          console.warn("PitchLab: Could not delete draft after submission (non-fatal):", draftCleanErr.message);
+        }
+      }
     } catch (dbErr) {
       console.warn("PitchLab: Firestore EvaluationScore write warning (non-fatal):", dbErr.message);
     }
@@ -3946,6 +3956,260 @@ exports.moderatePublicIdea = onCall({
   });
 
   return { success: true };
+});
+
+// Central Configurable Constants for Draft Controls (PL-20261010-SAVE-RESUME-02)
+const MAX_GLOBAL_DRAFTS = 10000;
+const MAX_ACCOUNT_DRAFTS = 3;
+const MAX_FIELD_LENGTH = 2500;
+const DRAFT_EXPIRY_DAYS = 90;
+const MIGRATION_GRACE_DATE = new Date("2026-10-10T00:00:00Z");
+
+/**
+ * Save or update an assessment draft (PL-20261010-SAVE-RESUME-02)
+ */
+exports.saveEvaluationDraft = onCall({
+  cors: true,
+  region: "us-central1",
+}, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "User must be signed in to save a draft.");
+  }
+
+  const userId = request.auth.uid;
+  const { draftId, formData, currentStep, clientLastSavedAt } = request.data || {};
+
+  if (!formData || typeof formData !== "object") {
+    throw new HttpsError("invalid-argument", "Missing or invalid form data.");
+  }
+
+  // 1. Validate max answer length (no silent truncation!)
+  for (const [key, val] of Object.entries(formData)) {
+    if (typeof val === "string" && val.length > MAX_FIELD_LENGTH) {
+      throw new HttpsError("invalid-argument", `Answer length limit exceeded for field '${key}' (maximum ${MAX_FIELD_LENGTH} characters). Please shorten your response.`);
+    }
+  }
+
+  // 2. Strip heavy binary data (e.g. cvBase64) to keep draft storage small
+  const sanitizedFormData = { ...formData };
+  delete sanitizedFormData.cvBase64; // Heavy binary stripped! cvFileName retained.
+
+  // 3. Document payload size check (must be <= 15KB)
+  const payloadSize = Buffer.byteLength(JSON.stringify(sanitizedFormData), "utf8");
+  if (payloadSize > 15000) {
+    throw new HttpsError("invalid-argument", `Draft size limit exceeded (${Math.round(payloadSize / 1024)} KB). Maximum allowed draft size is 15 KB.`);
+  }
+
+  // Target draft doc ID
+  const targetDraftId = (draftId && String(draftId).trim().length > 0) 
+    ? String(draftId).trim() 
+    : `draft_${userId}_${Date.now()}`;
+
+  const draftRef = db.collection("EvaluationDrafts").doc(targetDraftId);
+  const existingDoc = await draftRef.get();
+
+  // 4. Check if creating a NEW draft vs updating existing
+  const isNewDraft = !existingDoc.exists;
+
+  if (isNewDraft) {
+    // Check Global System Draft Capacity Protection Switch
+    const sysConfigDoc = await db.collection("SystemConfig").doc("drafts").get();
+    const allowNewDrafts = sysConfigDoc.exists ? (sysConfigDoc.data()?.allowNewDrafts !== false) : true;
+    if (!allowNewDrafts) {
+      throw new HttpsError("resource-exhausted", "PitchLab has reached maximum draft capacity. Creation of new drafts is currently paused to protect database capacity. Please resume an existing draft or complete your submission.");
+    }
+
+    // Check account draft limit (MAX 3 active drafts per account)
+    const activeDraftsSnap = await db.collection("EvaluationDrafts")
+      .where("userId", "==", userId)
+      .where("appId", "==", "pitchlab")
+      .where("isComplete", "==", false)
+      .get();
+
+    if (activeDraftsSnap.docs.length >= MAX_ACCOUNT_DRAFTS) {
+      throw new HttpsError("failed-precondition", `Draft limit reached. You can store a maximum of ${MAX_ACCOUNT_DRAFTS} active drafts per account. Please continue or delete an existing draft.`);
+    }
+  } else {
+    // Verify ownership
+    if (existingDoc.data().userId !== userId) {
+      throw new HttpsError("permission-denied", "You do not have permission to modify this draft.");
+    }
+
+    // Race condition prevention: check timestamp
+    if (clientLastSavedAt) {
+      const existingUpdatedAt = existingDoc.data().updatedAt?.toDate?.() || new Date(existingDoc.data().updatedAt);
+      const clientTime = new Date(clientLastSavedAt);
+      if (existingUpdatedAt && clientTime && (existingUpdatedAt.getTime() - clientTime.getTime() > 2000)) {
+        console.warn(`PitchLab: Delayed save prevented for draft ${targetDraftId}. Existing server version is newer.`);
+        return { 
+          success: true, 
+          draftId: targetDraftId, 
+          updatedAt: existingUpdatedAt.toISOString(),
+          skipped: true,
+          message: "Server has a newer version of this draft." 
+        };
+      }
+    }
+  }
+
+  // Generate clean idea name fallback
+  const rawIdeaText = (sanitizedFormData.idea || sanitizedFormData.problem || "").trim();
+  const ideaName = rawIdeaText.length > 0 ? (rawIdeaText.length > 55 ? rawIdeaText.slice(0, 52) + "..." : rawIdeaText) : "Untitled Idea";
+
+  const now = FieldValue.serverTimestamp();
+  const draftRecord = {
+    draftId: targetDraftId,
+    userId,
+    appId: "pitchlab",
+    ideaName,
+    currentStep: typeof currentStep === "number" ? currentStep : 0,
+    formVersion: VERSION_INFO.appVersion || "v0.11.0",
+    formData: sanitizedFormData,
+    updatedAt: now,
+    lastSavedAt: now,
+    isComplete: false,
+  };
+
+  if (isNewDraft) {
+    draftRecord.createdAt = now;
+  }
+
+  await draftRef.set(draftRecord, { merge: true });
+  console.log(`PitchLab: Draft ${targetDraftId} saved for user ${userId}. Step: ${currentStep}.`);
+
+  return {
+    success: true,
+    draftId: targetDraftId,
+    updatedAt: new Date().toISOString(),
+  };
+});
+
+/**
+ * Delete a specific draft
+ */
+exports.deleteEvaluationDraft = onCall({
+  cors: true,
+  region: "us-central1",
+}, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "User must be signed in.");
+  }
+
+  const { draftId } = request.data || {};
+  if (!draftId) {
+    throw new HttpsError("invalid-argument", "Missing draftId.");
+  }
+
+  const draftRef = db.collection("EvaluationDrafts").doc(String(draftId).trim());
+  const docSnap = await draftRef.get();
+
+  if (!docSnap.exists) {
+    return { success: true, message: "Draft already deleted or does not exist." };
+  }
+
+  if (docSnap.data().userId !== request.auth.uid) {
+    throw new HttpsError("permission-denied", "You do not own this draft.");
+  }
+
+  await draftRef.delete();
+  console.log(`PitchLab: Draft ${draftId} deleted by user ${request.auth.uid}.`);
+  return { success: true, draftId };
+});
+
+/**
+ * List active drafts for the signed-in founder
+ */
+exports.getUserDrafts = onCall({
+  cors: true,
+  region: "us-central1",
+}, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "User must be signed in.");
+  }
+
+  const userId = request.auth.uid;
+  const snapshot = await db.collection("EvaluationDrafts")
+    .where("userId", "==", userId)
+    .where("appId", "==", "pitchlab")
+    .get();
+
+  const nowMs = Date.now();
+  const ninetyDaysMs = DRAFT_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+
+  const drafts = snapshot.docs.map(doc => {
+    const data = doc.data();
+    let updatedMs = nowMs;
+    if (data.updatedAt) {
+      if (typeof data.updatedAt.toMillis === "function") {
+        updatedMs = data.updatedAt.toMillis();
+      } else if (typeof data.updatedAt.toDate === "function") {
+        updatedMs = data.updatedAt.toDate().getTime();
+      } else if (typeof data.updatedAt === "string" || typeof data.updatedAt === "number") {
+        updatedMs = new Date(data.updatedAt).getTime();
+      }
+    }
+
+    // Apply Migration / Grace Period: if updated before MIGRATION_GRACE_DATE, baseline is MIGRATION_GRACE_DATE
+    const effectiveUpdatedMs = Math.max(updatedMs, MIGRATION_GRACE_DATE.getTime());
+    const expiresMs = effectiveUpdatedMs + ninetyDaysMs;
+    const daysRemaining = Math.max(0, Math.ceil((expiresMs - nowMs) / (1000 * 60 * 60 * 24)));
+
+    return {
+      draftId: doc.id,
+      ideaName: data.ideaName || "Untitled Draft",
+      currentStep: data.currentStep || 0,
+      formVersion: data.formVersion || "v0.11.0",
+      formData: data.formData || {},
+      updatedAt: new Date(updatedMs).toISOString(),
+      expiresAt: new Date(expiresMs).toISOString(),
+      daysRemaining,
+      isExpired: nowMs > expiresMs,
+    };
+  }).filter(d => !d.isExpired); // Filter out expired drafts
+
+  // Sort by updatedAt descending
+  drafts.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+  return { drafts, count: drafts.length, maxLimit: MAX_ACCOUNT_DRAFTS };
+});
+
+/**
+ * Cleanup expired incomplete drafts (90-day retention rule)
+ */
+exports.cleanupExpiredDrafts = onCall({
+  cors: true,
+  region: "us-central1",
+}, async (request) => {
+  const ninetyDaysAgo = new Date(Date.now() - (DRAFT_EXPIRY_DAYS * 24 * 60 * 60 * 1000));
+  
+  // Bounded batch deletion (max 100 docs per run to prevent full table scans and high CPU charges)
+  const snapshot = await db.collection("EvaluationDrafts")
+    .where("appId", "==", "pitchlab")
+    .where("isComplete", "==", false)
+    .where("updatedAt", "<", ninetyDaysAgo)
+    .limit(100)
+    .get();
+
+  let cleaned = 0;
+  const batch = db.batch();
+  snapshot.docs.forEach(doc => {
+    const data = doc.data();
+    // Verify grace period
+    const updatedMs = data.updatedAt?.toMillis ? data.updatedAt.toMillis() : new Date(data.updatedAt).getTime();
+    if (updatedMs < MIGRATION_GRACE_DATE.getTime() && (Date.now() - MIGRATION_GRACE_DATE.getTime()) < (DRAFT_EXPIRY_DAYS * 86400000)) {
+      // Still in grace period, do not delete yet!
+      return;
+    }
+    batch.delete(doc.ref);
+    cleaned++;
+  });
+
+  if (cleaned > 0) {
+    await batch.commit();
+  }
+
+  console.log(`PitchLab Draft Cleanup: Purged ${cleaned} expired drafts.`);
+  return { success: true, cleanedCount: cleaned };
 });
 
 exports.syncUserAdminSummary = syncUserAdminSummary;

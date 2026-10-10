@@ -11,6 +11,7 @@ import 'login_page.dart';
 import 'admin_dashboard.dart';
 import 'public_idea_view.dart';
 import 'private_share_view.dart';
+import 'saved_drafts_widget.dart';
 import 'config/version_config.dart';
 
 class LandingPage extends StatefulWidget {
@@ -247,32 +248,18 @@ class _LandingPageState extends State<LandingPage> {
       return;
     }
 
-    // Show loading spinner
-    if (!context.mounted) return;
-    showDialog(
+    // Check draft limits and prompt if limit reached
+    await checkDraftLimitAndPrompt(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(),
-      ),
+      onContinueNew: () {
+        if (context.mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const EvaluationWizard()),
+          );
+        }
+      },
     );
-
-    try {
-      if (context.mounted) {
-        Navigator.pop(context); // Dismiss loading spinner
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const EvaluationWizard()),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        Navigator.pop(context); // Dismiss loading spinner
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error checking evaluation status: $e')),
-        );
-      }
-    }
   }
 
   @override
@@ -486,6 +473,14 @@ class _LandingPageState extends State<LandingPage> {
                             ],
                           ),
                   ).animate().fadeIn(delay: 900.ms),
+
+                  const SizedBox(height: 20),
+
+                  // Saved Drafts (In Progress) Section
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 680),
+                    child: const SavedDraftsWidget(),
+                  ).animate().fadeIn(delay: 920.ms),
 
                   const SizedBox(height: 24),
 

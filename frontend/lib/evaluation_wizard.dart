@@ -18,7 +18,8 @@ import 'config/version_config.dart';
 class EvaluationWizard extends StatefulWidget {
   final Map<String, dynamic>? initialData;
   final int initialStep;
-  const EvaluationWizard({super.key, this.initialData, this.initialStep = 0});
+  final String? draftId;
+  const EvaluationWizard({super.key, this.initialData, this.initialStep = 0, this.draftId});
 
   @override
   State<EvaluationWizard> createState() => _EvaluationWizardState();
@@ -34,6 +35,15 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
   double _confidence = 1.0;
   Uint8List? _selectedCvBytes;
   String? _selectedCvName;
+
+  // Save & Resume State (PL-20261010-SAVE-RESUME-02)
+  String? _draftId;
+  bool _isDirty = false;
+  bool _isSavingDraft = false;
+  String _saveStatus = 'saved'; // 'saved', 'saving', 'dirty', 'error'
+  String? _saveErrorMessage;
+  Timer? _autoSaveTimer;
+  DateTime? _lastSavedTime;
 
   // Live Submission Progress Tracking
   String? _submissionId;
@@ -178,6 +188,8 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
     super.initState();
     _currentStep = widget.initialStep;
     _pageController = PageController(initialPage: widget.initialStep);
+    final user = FirebaseAuth.instance.currentUser;
+    _draftId = widget.draftId ?? (user != null ? 'draft_${user.uid}_${DateTime.now().millisecondsSinceEpoch}' : null);
     _checkQuota();
     
     // Initialize form data with initialData if provided
@@ -193,11 +205,149 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
       if (q['key'] != null && q['type'] == 'text') {
         final initialValue = _formData[q['key']!]?.toString() ?? '';
         _controllers[q['key']!] = TextEditingController(text: initialValue);
+        _controllers[q['key']!]!.addListener(_markDirty);
       }
     }
+    _predStatedRiskController.addListener(_markDirty);
+
     _speech = stt.SpeechToText();
     if (widget.initialData == null) {
       _loadFounderProfile();
+    }
+    _setupAutoSave();
+  }
+
+  void _setupAutoSave() {
+    _autoSaveTimer?.cancel();
+    _autoSaveTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (_isDirty && !_isLoading && !_isSavingDraft && mounted) {
+        _saveDraft(isAutoSave: true);
+      }
+    });
+  }
+
+  void _markDirty() {
+    if (!_isDirty && mounted) {
+      setState(() {
+        _isDirty = true;
+        _saveStatus = 'dirty';
+      });
+    }
+  }
+
+  Future<bool> _saveDraft({bool isExiting = false, bool isAutoSave = false}) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.isAnonymous) {
+      if (isExiting && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sign in to save and resume drafts across devices.'),
+            backgroundColor: Colors.black87,
+          ),
+        );
+      }
+      return false;
+    }
+
+    if (_isSavingDraft) return false;
+
+    // Sync text controllers to _formData
+    for (var entry in _controllers.entries) {
+      _formData[entry.key] = entry.value.text.trim();
+    }
+    _formData['predStatedRisk'] = _predStatedRiskController.text.trim();
+    _formData['predOverallConfidence'] = _predOverallConfidence;
+    _formData['predProblemStrength'] = _predProblemStrength;
+    _formData['predDifferentiation'] = _predDifferentiation;
+    _formData['predCompetitionDifficulty'] = _predCompetitionDifficulty;
+    _formData['predCustomerDemand'] = _predCustomerDemand;
+
+    // Validate max answer length (2,500 chars per text field)
+    for (var entry in _formData.entries) {
+      if (entry.value is String && (entry.value as String).length > 2500) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Field "${entry.key}" exceeds maximum 2,500 characters limit.'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+        return false;
+      }
+    }
+
+    setState(() {
+      _isSavingDraft = true;
+      _saveStatus = 'saving';
+      _saveErrorMessage = null;
+    });
+
+    try {
+      final callable = FirebaseFunctions.instanceFor(region: "us-central1")
+          .httpsCallable('saveEvaluationDraft');
+      
+      final payload = {
+        'draftId': _draftId,
+        'currentStep': _currentStep,
+        'formData': _formData,
+        'clientLastSavedAt': _lastSavedTime?.toIso8601String(),
+      };
+
+      final response = await callable.call(payload);
+      final resData = response.data as Map<String, dynamic>? ?? {};
+
+      if (resData['success'] == true) {
+        final assignedDraftId = resData['draftId']?.toString() ?? _draftId;
+        if (mounted) {
+          setState(() {
+            _draftId = assignedDraftId;
+            _isDirty = false;
+            _isSavingDraft = false;
+            _saveStatus = 'saved';
+            _lastSavedTime = DateTime.now();
+          });
+
+          if (isExiting) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Progress saved! Drafts are saved for 90 days after your last save.'),
+                backgroundColor: Color(0xFF0071E3),
+                duration: Duration(seconds: 3),
+              ),
+            );
+            Navigator.pop(context, true);
+          }
+        }
+        return true;
+      } else {
+        throw Exception(resData['message'] ?? 'Save failed.');
+      }
+    } catch (e) {
+      print('❌ PitchLab: Save draft error: $e');
+      if (mounted) {
+        final errStr = e.toString().replaceAll('Exception: ', '').replaceAll('FirebaseFunctionsException: ', '');
+        setState(() {
+          _isSavingDraft = false;
+          _saveStatus = 'error';
+          _saveErrorMessage = errStr;
+        });
+
+        if (isExiting || !isAutoSave) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Unable to save — Retry. ($errStr)'),
+              backgroundColor: Colors.redAccent,
+              action: SnackBarAction(
+                label: 'Retry',
+                textColor: Colors.white,
+                onPressed: () => _saveDraft(isExiting: isExiting),
+              ),
+            ),
+          );
+        }
+      }
+      return false;
     }
   }
 
@@ -333,6 +483,7 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
 
   @override
   void dispose() {
+    _autoSaveTimer?.cancel();
     _elapsedTimer?.cancel();
     _progressSubscription?.cancel();
     for (var controller in _controllers.values) {
@@ -540,6 +691,9 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
 
   void _nextStep() {
     FocusScope.of(context).unfocus();
+    if (_isDirty) {
+      _saveDraft(isAutoSave: true);
+    }
     if (_currentStep < _questions.length - 1) {
       _pageController.nextPage(
         duration: 400.ms,
@@ -555,6 +709,9 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
 
   void _previousStep() {
     FocusScope.of(context).unfocus();
+    if (_isDirty) {
+      _saveDraft(isAutoSave: true);
+    }
     if (_currentStep > 0) {
       _pageController.previousPage(
         duration: 400.ms,
@@ -599,6 +756,7 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
   Future<void> _submitEvaluation() async {
     final String submissionId = '${DateTime.now().millisecondsSinceEpoch}_${(1000 + (9000 * 0.5)).toInt()}';
     _formData['submissionId'] = submissionId;
+    _formData['draftId'] = _draftId;
 
     setState(() => _isLoading = true);
     _startSubmissionProgress(submissionId);
@@ -1736,17 +1894,60 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.close, color: Colors.black),
+          tooltip: 'Close without saving',
           onPressed: () => Navigator.pop(context),
         ),
-        title: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: LinearProgressIndicator(
-            value: (_currentStep + 1) / _questions.length,
-            backgroundColor: const Color(0xFFE5E5EA),
-            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF0071E3)),
-            minHeight: 8,
-          ),
+        title: Row(
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: LinearProgressIndicator(
+                  value: (_currentStep + 1) / _questions.length,
+                  backgroundColor: const Color(0xFFE5E5EA),
+                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF0071E3)),
+                  minHeight: 8,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            if (_saveStatus == 'saving') ...[
+              const SizedBox(
+                width: 12,
+                height: 12,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0071E3)),
+              ),
+              const SizedBox(width: 4),
+              Text('Saving...', style: GoogleFonts.inter(fontSize: 11, color: Colors.black54)),
+            ] else if (_saveStatus == 'saved') ...[
+              const Icon(Icons.check_circle_outline, size: 14, color: Colors.green),
+              const SizedBox(width: 4),
+              Text('Saved', style: GoogleFonts.inter(fontSize: 11, color: Colors.green)),
+            ] else if (_saveStatus == 'error') ...[
+              InkWell(
+                onTap: () => _saveDraft(),
+                child: Row(
+                  children: [
+                    const Icon(Icons.error_outline, size: 14, color: Colors.redAccent),
+                    const SizedBox(width: 4),
+                    Text('Retry save', style: GoogleFonts.inter(fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ],
+          ],
         ),
+        actions: [
+          TextButton.icon(
+            onPressed: _isSavingDraft ? null : () => _saveDraft(isExiting: true),
+            icon: const Icon(Icons.bookmark_outline, size: 16, color: Color(0xFF0071E3)),
+            label: Text(
+              'Save & Exit',
+              style: GoogleFonts.inter(color: const Color(0xFF0071E3), fontWeight: FontWeight.w600, fontSize: 13),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: _isLoading
           ? SafeArea(

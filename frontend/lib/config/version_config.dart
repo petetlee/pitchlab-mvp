@@ -1,12 +1,11 @@
 class VersionConfig {
-  static const String appVersion = 'v0.10.3';
-  static const String fullVersionString = 'PitchLab MVP v0.10.3';
-  static const String changeId = 'PL-20261009-03-MOBILE-SAFARI-INPUT';
-  static const String parentChangeId = 'PL-FIX-20261009-003';
-  static const String buildId = 'd83a1e9';
-  static const String deployedAtFormatted = '09 Oct 2026 23:20 NZDT';
+  static const String appVersion = 'v0.11.0';
+  static const String fullVersionString = 'PitchLab MVP v0.11.0';
+  static const String changeId = 'PL-20261010-SAVE-RESUME-02';
+  static const String parentChangeId = 'PL-20261009-03-MOBILE-SAFARI-INPUT';
+  static const String buildId = 'sr20261010';
+  static const String deployedAtFormatted = '10 Oct 2026 16:00 NZDT';
 
   static String get displayMarker => '$fullVersionString • Build $buildId • $changeId';
   static String get pdfFooterMarker => '$fullVersionString • Build $buildId • $changeId';
 }
-

@@ -27,6 +27,13 @@ service cloud.firestore {
     match /FounderCVMetadata/{userId} {
       allow create, read, update, delete: if request.auth != null && request.auth.uid == userId;
     }
+
+    // Evaluation Drafts Collection - Strictly Owner-Only (No Admin Access to idea content)
+    match /EvaluationDrafts/{draftId} {
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
+    }
     
     // Idea Inputs - Strictly Owner-Only (No Admin Access)
     match /IdeaInputs/{inputId} {
