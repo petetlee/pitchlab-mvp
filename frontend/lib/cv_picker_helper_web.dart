@@ -8,13 +8,21 @@ Future<CvFileResult?> pickCvFile() async {
     final completer = Completer<CvFileResult?>();
 
     final uploadInput = html.FileUploadInputElement();
+    // Use clear extension list for iOS Safari Files app / iCloud Drive compatibility
     uploadInput.accept = '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     uploadInput.multiple = false;
 
-    StreamSubscription? focusSub;
+    // Attach to DOM off-screen: WebKit on iOS Safari requires input attachment to prevent garbage collection
+    uploadInput.style.position = 'fixed';
+    uploadInput.style.top = '-1000px';
+    uploadInput.style.left = '-1000px';
+    uploadInput.style.opacity = '0';
+    html.document.body?.append(uploadInput);
 
     void cleanup() {
-      focusSub?.cancel();
+      try {
+        uploadInput.remove();
+      } catch (_) {}
     }
 
     uploadInput.onChange.listen((event) {
@@ -69,17 +77,17 @@ Future<CvFileResult?> pickCvFile() async {
       reader.readAsArrayBuffer(file);
     });
 
-    focusSub = html.window.onFocus.listen((_) {
-      Future.delayed(const Duration(milliseconds: 500), () {
+    // Native cancel event supported in modern browsers including iOS Safari 16+
+    uploadInput.addEventListener('cancel', (event) {
+      Future.delayed(const Duration(milliseconds: 300), () {
         if (!completer.isCompleted) {
-          if (uploadInput.files == null || uploadInput.files!.isEmpty) {
-            completer.complete(null);
-            cleanup();
-          }
+          completer.complete(null);
+          cleanup();
         }
       });
     });
 
+    // Directly click inside synchronous gesture stack
     uploadInput.click();
 
     return completer.future;

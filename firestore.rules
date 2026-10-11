@@ -79,5 +79,11 @@ service cloud.firestore {
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
       allow read, delete, update: if isAdmin();
     }
+
+    // Submission Progress - Authenticated founders can read progress documents
+    match /SubmissionProgress/{subId} {
+      allow read: if request.auth != null;
+      allow write: if false; // Maintained server-side via trusted Cloud Functions
+    }
   }
 }

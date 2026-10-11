@@ -4,16 +4,15 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'results_dashboard.dart';
 import 'cv_picker_helper.dart';
 import 'history_view.dart';
-import 'config/version_config.dart';
 
 class EvaluationWizard extends StatefulWidget {
   final Map<String, dynamic>? initialData;
@@ -35,6 +34,14 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
   double _confidence = 1.0;
   Uint8List? _selectedCvBytes;
   String? _selectedCvName;
+
+  // CV Upload State (PL-FIX-20261012-01-SAFARI-SUBMISSION-UPLOAD)
+  bool _isUploadingCv = false;
+  double _cvUploadProgress = 0.0;
+  String? _cvUploadError;
+  String? _cvStoragePath;
+  String? _uploadedCvFileName;
+  int? _uploadedCvFileSize;
 
   // Save & Resume State (PL-20261010-SAVE-RESUME-02)
   String? _draftId;
@@ -195,10 +202,15 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
     // Initialize form data with initialData if provided
     if (widget.initialData != null) {
       widget.initialData!.forEach((key, value) {
-        if (_formData.containsKey(key)) {
+        if (_formData.containsKey(key) || key.startsWith('cv')) {
           _formData[key] = value;
         }
       });
+      if (_formData['cvStoragePath'] != null && _formData['cvStoragePath'].toString().isNotEmpty) {
+        _cvStoragePath = _formData['cvStoragePath'].toString();
+        _uploadedCvFileName = _formData['cvFileName']?.toString();
+        _uploadedCvFileSize = _formData['cvFileSize'] is int ? _formData['cvFileSize'] as int : null;
+      }
     }
 
     for (var q in _questions) {
@@ -753,8 +765,54 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
     }
   }
 
+  void _onEvaluationSuccess(Map<String, dynamic> evalMap) async {
+    if (!mounted) return;
+    _progressSubscription?.cancel();
+    _elapsedTimer?.cancel();
+    setState(() {
+      _currentStageIndex = 5;
+      _currentStageName = 'Assessment complete!';
+      _progressPercentage = 100;
+    });
+
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (!mounted) return;
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ResultsDashboard(
+          evaluation: evalMap,
+        ),
+      ),
+    );
+  }
+
   Future<void> _submitEvaluation() async {
-    final String submissionId = '${DateTime.now().millisecondsSinceEpoch}_${(1000 + (9000 * 0.5)).toInt()}';
+    // 1. Guard against active in-flight CV upload
+    if (_isUploadingCv) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('CV upload is still in progress. Please wait a moment for the upload to complete, or remove the CV to submit now.'),
+            backgroundColor: Colors.orangeAccent,
+          ),
+        );
+      }
+      return;
+    }
+
+    // 2. Sanitize CV references: if no verified upload, remove any dangling CV keys
+    if (_cvStoragePath == null || _cvStoragePath!.isEmpty) {
+      _formData.remove('cvStoragePath');
+      _formData.remove('cvBase64');
+      _formData.remove('cvFileName');
+      _formData.remove('cvFileSize');
+    }
+
+    // 3. Reuse or generate idempotent submission ID
+    final String submissionId = _submissionId ?? '${DateTime.now().millisecondsSinceEpoch}_${(1000 + (9000 * 0.5)).toInt()}';
+    _submissionId = submissionId;
     _formData['submissionId'] = submissionId;
     _formData['draftId'] = _draftId;
 
@@ -793,7 +851,7 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
       'statedBiggestRisk': _predStatedRiskController.text.trim(),
     };
 
-    print('🚀 PitchLab: _formData being submitted: $_formData');
+    print('🚀 PitchLab: _formData being submitted: (keys: ${_formData.keys.toList()})');
     
     // Front-end Pre-submission Quota Guard
     if (!_isAdmin && _quotaUsed >= 3) {
@@ -803,28 +861,15 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
     }
 
     try {
-      var user = FirebaseAuth.instance.currentUser;
+      var user = await _ensureUser();
       print('🚀 PitchLab: Submitting evaluation. Current User: ${user?.uid}');
       
       if (user != null) {
         try {
-          print('🚀 PitchLab: Forcing token refresh to ensure propagation...');
-          await user.getIdToken(true);
+          print('🚀 PitchLab: Verifying auth token...');
+          await user.getIdToken(false);
         } catch (tokenError) {
-          print('⚠️ PitchLab: Token refresh failed (likely Emulator restart): $tokenError');
-          print('⚠️ PitchLab: Forcing sign out to clear corrupt token state...');
-          await FirebaseAuth.instance.signOut();
-          user = null;
-        }
-      }
-
-      if (user == null) {
-        try {
-          print('🚀 PitchLab: Signing in anonymously for evaluation submission...');
-          final userCred = await FirebaseAuth.instance.signInAnonymously();
-          user = userCred.user;
-        } catch (authErr) {
-          print('⚠️ PitchLab: Anonymous sign in failed: $authErr');
+          print('PitchLab: Token verification note: $tokenError');
         }
       }
 
@@ -832,31 +877,11 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
 
       print('🚀 PitchLab: Calling pitchLabEvaluation (us-central1)...');
       final callable = FirebaseFunctions.instanceFor(region: "us-central1")
-          .httpsCallable('pitchLabEvaluation', options: HttpsCallableOptions(timeout: const Duration(seconds: 300)));
+          .httpsCallable('pitchLabEvaluation', options: HttpsCallableOptions(timeout: const Duration(seconds: 180)));
       final result = await callable.call(_formData);
-      print('✅ PitchLab: Function call successful. Data: ${result.data}');
+      print('✅ PitchLab: Function call successful.');
       
-      if (!mounted) return;
-      
-      _progressSubscription?.cancel();
-      _elapsedTimer?.cancel();
-      setState(() {
-        _currentStageIndex = 5;
-        _currentStageName = 'Assessment complete!';
-        _progressPercentage = 100;
-      });
-
-      await Future.delayed(const Duration(milliseconds: 300));
-      if (!mounted) return;
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ResultsDashboard(
-            evaluation: Map<String, dynamic>.from(result.data),
-          ),
-        ),
-      );
+      _onEvaluationSuccess(Map<String, dynamic>.from(result.data));
       return;
     } catch (e) {
       print('❌ PitchLab SUBMISSION ERROR: $e');
@@ -869,96 +894,50 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
         return;
       }
 
-      // Fail-safe recovery: Automatically clear auth state, re-authenticate anonymously, and retry once
+      // Reconnection Check: The server might have finished processing during Safari network drops or backgrounding
+      print('⚠️ PitchLab: Checking SubmissionProgress doc to reconnect to in-flight or completed job...');
       try {
-        print('⚠️ PitchLab: Submission exception encountered. Re-authenticating anonymously and retrying...');
-        await FirebaseAuth.instance.signOut();
-        final freshCred = await FirebaseAuth.instance.signInAnonymously();
-        _formData['userId'] = freshCred.user?.uid ?? 'anonymous-user';
-
-        final retryCallable = FirebaseFunctions.instanceFor(region: "us-central1")
-            .httpsCallable('pitchLabEvaluation', options: HttpsCallableOptions(timeout: const Duration(seconds: 300)));
-        final retryResult = await retryCallable.call(_formData);
-        print('✅ PitchLab: Retry successful! Data: ${retryResult.data}');
-
-        if (!mounted) return;
-        _progressSubscription?.cancel();
-        _elapsedTimer?.cancel();
-        setState(() {
-          _currentStageIndex = 5;
-          _currentStageName = 'Assessment complete!';
-          _progressPercentage = 100;
-        });
-
-        await Future.delayed(const Duration(milliseconds: 300));
-        if (!mounted) return;
-
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ResultsDashboard(
-              evaluation: Map<String, dynamic>.from(retryResult.data),
-            ),
-          ),
-        );
-        return;
-      } catch (retryError) {
-        print('❌ PitchLab Callable Retry Error: $retryError');
-        print('🚀 PitchLab: Activating Direct HTTP POST Fallback to emulator endpoint...');
-        try {
-          final bool isLocalHost = kIsWeb && (Uri.base.host == 'localhost' || Uri.base.host == '127.0.0.1' || Uri.base.host.startsWith('192.168.'));
-          final String host = kIsWeb
-              ? (Uri.base.host.isNotEmpty ? Uri.base.host : '127.0.0.1')
-              : '10.0.2.2';
-          final Uri httpUrl = isLocalHost
-              ? Uri.parse('http://$host:5001/demo-pitchlab/us-central1/pitchLabEvaluation')
-              : Uri.parse('https://us-central1-antigravity-pitchlab.cloudfunctions.net/pitchLabEvaluation');
-          print('🚀 PitchLab: Sending direct HTTP POST fallback to $httpUrl...');
-          final httpRes = await http.post(
-            httpUrl,
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'data': _formData}),
-          ).timeout(const Duration(seconds: 300));
-
-          print('🚀 PitchLab: Direct HTTP Status Code: ${httpRes.statusCode}');
-          if (httpRes.statusCode == 200) {
-            final resJson = jsonDecode(httpRes.body);
-            final rawData = resJson['result'] ?? resJson['data'] ?? resJson;
-            final evalMap = Map<String, dynamic>.from(rawData);
-            print('✅ PitchLab: Direct HTTP Fallback successful! Score: ${evalMap['overallScore']}');
-
-            if (!mounted) return;
-            _progressSubscription?.cancel();
-            _elapsedTimer?.cancel();
-            setState(() {
-              _currentStageIndex = 5;
-              _currentStageName = 'Assessment complete!';
-              _progressPercentage = 100;
-            });
-
-            await Future.delayed(const Duration(milliseconds: 300));
-            if (!mounted) return;
-
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ResultsDashboard(
-                  evaluation: evalMap,
-                ),
-              ),
-            );
-            return;
+        for (int attempt = 0; attempt < 4; attempt++) {
+          await Future.delayed(Duration(seconds: attempt == 0 ? 1 : 2));
+          if (!mounted) return;
+          final progressSnap = await FirebaseFirestore.instance.collection('SubmissionProgress').doc(submissionId).get();
+          if (progressSnap.exists) {
+            final progressData = progressSnap.data();
+            if (progressData != null) {
+              final status = progressData['status']?.toString();
+              if (status == 'completed') {
+                final rawResult = progressData['result'];
+                if (rawResult is Map) {
+                  print('✅ PitchLab: Reconnected and recovered completed evaluation payload!');
+                  _onEvaluationSuccess(Map<String, dynamic>.from(rawResult));
+                  return;
+                }
+                final evalId = progressData['evaluationId']?.toString();
+                if (evalId != null && evalId.isNotEmpty) {
+                  final evalDoc = await FirebaseFirestore.instance.collection('EvaluationScore').doc(evalId).get();
+                  if (evalDoc.exists && evalDoc.data() != null) {
+                    print('✅ PitchLab: Reconnected and fetched completed EvaluationScore document!');
+                    _onEvaluationSuccess(Map<String, dynamic>.from(evalDoc.data()!));
+                    return;
+                  }
+                }
+              } else if (status == 'failed') {
+                final failReason = progressData['error']?.toString() ?? 'Assessment processing could not complete.';
+                _handleSubmissionError(failReason);
+                return;
+              }
+            }
           }
-        } catch (httpErr) {
-          print('❌ PitchLab Direct HTTP Fallback Error: $httpErr');
         }
+      } catch (reconErr) {
+        print('PitchLab: Reconnection check error: $reconErr');
       }
-      
-      String friendlyError = 'Submission failed: $e';
-      if (e.toString().contains('unauthenticated')) {
-        friendlyError = 'Authentication Error: Your session expired or was reset by the server emulator. Please try again.';
-      } else if (e.toString().contains('firebase_functions/internal') || e.toString().contains('internal')) {
-        friendlyError = 'An unexpected server issue occurred during processing. Please tap "Try Again".';
+
+      String friendlyError = 'A temporary network interruption occurred while finalizing your assessment. Your answers are safely preserved. Tap "Try Again" to resume.';
+      if (errStr.contains('unauthenticated')) {
+        friendlyError = 'Session verification paused. Please tap "Try Again" to reconnect.';
+      } else if (errStr.contains('deadline-exceeded') || errStr.contains('timeout')) {
+        friendlyError = 'Assessment processing took longer than expected due to network delay. Tap "Try Again" to retrieve your report.';
       }
       
       _handleSubmissionError(friendlyError);
@@ -1235,14 +1214,41 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    "Don't worry: All your typed responses and uploaded CV documents are safely preserved.",
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.red.shade700,
-                    ),
+                  Builder(
+                    builder: (context) {
+                      final hasVerifiedCv = _cvStoragePath != null && _cvStoragePath!.isNotEmpty;
+                      final preservationText = hasVerifiedCv
+                          ? "Don't worry: All your typed responses and verified uploaded CV document (${_uploadedCvFileName ?? 'attached'}) are safely preserved."
+                          : "Don't worry: All your typed responses are safely preserved.";
+                      return Text(
+                        preservationText,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.red.shade700,
+                        ),
+                      );
+                    },
                   ),
+                  if (_submissionId != null) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Text(
+                        "Support Ref: PL-$_submissionId",
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.red.shade800,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -1302,17 +1308,54 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
     );
   }
 
+  bool _isValidCvFormat(String fileName, Uint8List bytes) {
+    final ext = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
+    if (['pdf', 'doc', 'docx'].contains(ext)) {
+      return true;
+    }
+    // Check magic bytes for robust Safari validation
+    if (bytes.length >= 4) {
+      // PDF: %PDF (0x25, 0x50, 0x44, 0x46)
+      if (bytes[0] == 0x25 && bytes[1] == 0x50 && bytes[2] == 0x44 && bytes[3] == 0x46) return true;
+      // DOCX / ZIP: PK\x03\x04 (0x50, 0x4B, 0x03, 0x04)
+      if (bytes[0] == 0x50 && bytes[1] == 0x4B && bytes[2] == 0x03 && bytes[3] == 0x04) return true;
+      // DOC: \xD0\xCF\x11\xE0
+      if (bytes[0] == 0xD0 && bytes[1] == 0xCF && bytes[2] == 0x11 && bytes[3] == 0xE0) return true;
+    }
+    return false;
+  }
+
+  String _detectMimeType(String fileName) {
+    final ext = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : '';
+    if (ext == 'pdf') return 'application/pdf';
+    if (ext == 'docx') return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    if (ext == 'doc') return 'application/msword';
+    return 'application/octet-stream';
+  }
+
+  Future<User?> _ensureUser() async {
+    var user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      try {
+        final cred = await FirebaseAuth.instance.signInAnonymously();
+        user = cred.user;
+      } catch (e) {
+        print('PitchLab: Anonymous sign-in attempt: $e');
+      }
+    }
+    return user;
+  }
+
   Future<void> _pickCV() async {
     try {
       final cvResult = await pickCvFile();
 
       if (cvResult == null) {
-        // User cancelled file picker dialog
+        // User cancelled file picker dialog - keep existing state intact
         return;
       }
 
-      final extension = cvResult.name.contains('.') ? cvResult.name.split('.').last.toLowerCase() : '';
-      if (!['pdf', 'doc', 'docx'].contains(extension)) {
+      if (!_isValidCvFormat(cvResult.name, cvResult.bytes)) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -1326,7 +1369,7 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
 
       // Check max file size (10 MB limit)
       const maxSizeBytes = 10 * 1024 * 1024;
-      if (cvResult.size > maxSizeBytes) {
+      if (cvResult.size > maxSizeBytes || cvResult.bytes.lengthInBytes > maxSizeBytes) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -1338,33 +1381,122 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
         return;
       }
 
+      final user = await _ensureUser();
+      if (user == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Authentication required to upload files. Please try again.'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+        return;
+      }
+
+      setState(() {
+        _isUploadingCv = true;
+        _cvUploadProgress = 0.1;
+        _cvUploadError = null;
+      });
+
+      final safeName = cvResult.name.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+      final draftSuffix = _draftId != null ? _draftId! : 'eval_${DateTime.now().millisecondsSinceEpoch}';
+      final storagePath = 'cvs/${user.uid}/${draftSuffix}_$safeName';
+
+      final storageRef = FirebaseStorage.instance.ref().child(storagePath);
+      final metadata = SettableMetadata(
+        contentType: _detectMimeType(cvResult.name),
+        customMetadata: {
+          'originalName': cvResult.name,
+          'uploadedAt': DateTime.now().toIso8601String(),
+          'draftId': _draftId ?? '',
+        },
+      );
+
+      final uploadTask = storageRef.putData(cvResult.bytes, metadata);
+
+      uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
+        if (snapshot.totalBytes > 0 && mounted) {
+          setState(() {
+            _cvUploadProgress = (snapshot.bytesTransferred / snapshot.totalBytes).clamp(0.0, 1.0);
+          });
+        }
+      });
+
+      await uploadTask;
+
       _selectedCvBytes = cvResult.bytes;
       _selectedCvName = cvResult.name;
       final base64String = base64Encode(cvResult.bytes);
 
       setState(() {
-        _formData['cvBase64'] = base64String;
+        _isUploadingCv = false;
+        _cvUploadProgress = 1.0;
+        _cvUploadError = null;
+        _cvStoragePath = storagePath;
+        _uploadedCvFileName = cvResult.name;
+        _uploadedCvFileSize = cvResult.size;
+
+        _formData['cvStoragePath'] = storagePath;
         _formData['cvFileName'] = cvResult.name;
+        _formData['cvFileSize'] = cvResult.size;
+        _formData['cvBase64'] = base64String;
       });
+
+      _markDirty();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('CV attached: ${cvResult.name}'),
+            content: Text('CV uploaded: ${cvResult.name}'),
             backgroundColor: Colors.green,
           ),
         );
       }
     } catch (e) {
+      print('PitchLab: Error uploading CV: $e');
       if (mounted) {
+        setState(() {
+          _isUploadingCv = false;
+          _cvUploadError = 'Upload failed: $e';
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error picking CV: $e'),
+            content: Text('Unable to upload CV. Tap to retry, or continue without CV.'),
             backgroundColor: Colors.redAccent,
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: _pickCV,
+            ),
           ),
         );
       }
     }
+  }
+
+  void _removeCV() {
+    if (_cvStoragePath != null && _cvStoragePath!.isNotEmpty) {
+      try {
+        FirebaseStorage.instance.ref().child(_cvStoragePath!).delete().catchError((_) {});
+      } catch (_) {}
+    }
+    setState(() {
+      _selectedCvBytes = null;
+      _selectedCvName = null;
+      _cvStoragePath = null;
+      _uploadedCvFileName = null;
+      _uploadedCvFileSize = null;
+      _isUploadingCv = false;
+      _cvUploadProgress = 0.0;
+      _cvUploadError = null;
+      _formData.remove('cvStoragePath');
+      _formData.remove('cvFileName');
+      _formData.remove('cvFileSize');
+      _formData.remove('cvBase64');
+    });
+    _markDirty();
   }
 
   Widget _buildOptionsSelector(Map<String, dynamic> question) {
@@ -1707,54 +1839,69 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFFF5F5F7),
+              color: hasCv ? const Color(0xFFF0FDF4) : const Color(0xFFF5F5F7),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE5E5EA)),
+              border: Border.all(color: hasCv ? const Color(0xFF86EFAC) : const Color(0xFFE5E5EA)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.badge_outlined, color: Color(0xFF0071E3), size: 20),
+                    Icon(hasCv ? Icons.check_circle : Icons.badge_outlined, color: hasCv ? Colors.green.shade700 : const Color(0xFF0071E3), size: 20),
                     const SizedBox(width: 8),
-                    Text('Upload Your CV or Résumé — Optional', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14)),
+                    Text(
+                      hasCv ? 'CV Uploaded' : 'Upload Your CV or Résumé — Optional',
+                      style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'You may upload your CV or résumé to provide additional information about your qualifications and employment history. 🔒 Privacy Guarantee: CVs are processed in-memory during your assessment only and are NEVER saved or stored on our servers.',
+                  hasCv
+                      ? 'Verified & stored in isolated storage: ${_uploadedCvFileName ?? cvFileName} (${_uploadedCvFileSize != null ? (_uploadedCvFileSize! / (1024 * 1024)).toStringAsFixed(1) + " MB" : "Attached"}). Stored strictly owner-only for your assessment.'
+                      : 'You may upload your CV or résumé (PDF, DOC, DOCX up to 10MB) to provide additional context. 🔒 Privacy: Stored with strict owner-only access and used only to assess founder capability.',
                   style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF6E6E73), height: 1.3),
                 ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: _pickCV,
-                      icon: Icon(hasCv ? Icons.check_circle : Icons.upload_file, size: 16),
-                      label: Text(hasCv ? 'Change CV ($cvFileName)' : 'Upload CV (PDF/DOCX)'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: hasCv ? Colors.green.shade700 : const Color(0xFF0071E3),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                if (_isUploadingCv) ...[
+                  const SizedBox(height: 12),
+                  LinearProgressIndicator(
+                    value: _cvUploadProgress > 0 ? _cvUploadProgress : null,
+                    backgroundColor: const Color(0xFFE5E5EA),
+                    color: const Color(0xFF0071E3),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Uploading CV... ${(_cvUploadProgress * 100).toInt()}%',
+                    style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF0071E3), fontWeight: FontWeight.w500),
+                  ),
+                ] else ...[
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: _pickCV,
+                        icon: Icon(hasCv ? Icons.swap_horiz : Icons.upload_file, size: 16),
+                        label: Text(hasCv ? 'Change CV' : 'Select CV (PDF, DOC, DOCX)'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: hasCv ? Colors.green.shade700 : const Color(0xFF0071E3),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
                       ),
-                    ),
-                    if (hasCv) ...[
-                      TextButton(
-                        onPressed: () {
-                          setState(() {
-                            _formData['cvBase64'] = '';
-                            _formData['cvFileName'] = '';
-                          });
-                        },
-                        child: const Text('Remove CV', style: TextStyle(color: Colors.redAccent, fontSize: 12)),
-                      ),
+                      if (hasCv) ...[
+                        TextButton.icon(
+                          onPressed: _removeCV,
+                          icon: const Icon(Icons.delete_outline, size: 14, color: Colors.redAccent),
+                          label: const Text('Remove CV', style: TextStyle(color: Colors.redAccent, fontSize: 12)),
+                        ),
+                      ],
                     ],
-                  ],
-                ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1779,8 +1926,10 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
   }
 
   Widget _buildCVUploadSelector() {
-    final fileName = _formData['cvFileName'] ?? '';
-    final hasFile = fileName.isNotEmpty;
+    final fileName = _uploadedCvFileName ?? _formData['cvFileName'] ?? '';
+    final hasFile = (_cvStoragePath != null && _cvStoragePath!.isNotEmpty) ||
+                    (_formData['cvStoragePath'] != null && _formData['cvStoragePath'].toString().isNotEmpty) ||
+                    fileName.isNotEmpty;
 
     return Center(
       child: Column(
@@ -1790,10 +1939,10 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
             width: double.infinity,
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
-              color: hasFile ? const Color(0xFFF0F7FF) : const Color(0xFFF5F5F7),
+              color: hasFile ? const Color(0xFFF0FDF4) : const Color(0xFFF5F5F7),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: hasFile ? const Color(0xFF0071E3) : const Color(0xFFE5E5EA),
+                color: hasFile ? const Color(0xFF86EFAC) : const Color(0xFFE5E5EA),
                 style: BorderStyle.solid,
                 width: 2,
               ),
@@ -1807,7 +1956,7 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  hasFile ? 'CV Attached: $fileName' : 'Upload Your Founder CV or Résumé (Optional)',
+                  hasFile ? 'CV Uploaded: $fileName' : 'Upload Your Founder CV or Résumé (Optional)',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.inter(
                     fontWeight: FontWeight.bold,
@@ -1818,42 +1967,49 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
                 const SizedBox(height: 8),
                 Text(
                   hasFile
-                      ? 'CV Attached (In-Memory Only). 🔒 Your CV is processed live for this assessment and will not be saved or stored.'
-                      : 'Attach your CV (PDF, DOC, DOCX up to 10MB) to enrich your assessment. 🔒 In-Memory Only: Files are never saved to server storage.',
+                      ? 'Verified & stored in isolated storage: $fileName${_uploadedCvFileSize != null ? ' (' + (_uploadedCvFileSize! / (1024 * 1024)).toStringAsFixed(1) + ' MB)' : ''}. Stored strictly owner-only for your assessment.'
+                      : 'Attach your CV (PDF, DOC, DOCX up to 10MB) to enrich your assessment. 🔒 Stored in isolated owner-only cloud storage.',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.inter(
                     fontSize: 14,
                     color: const Color(0xFF86868B),
                   ),
                 ),
-                const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  onPressed: _pickCV,
-                  icon: Icon(hasFile ? Icons.swap_horiz : Icons.upload_file, size: 20),
-                  label: Text(hasFile ? 'Change CV File' : 'Select CV File (PDF / DOCX)'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: hasFile ? const Color(0xFF34C759) : const Color(0xFF0071E3),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                if (_isUploadingCv) ...[
+                  const SizedBox(height: 20),
+                  LinearProgressIndicator(
+                    value: _cvUploadProgress > 0 ? _cvUploadProgress : null,
+                    backgroundColor: const Color(0xFFE5E5EA),
+                    color: const Color(0xFF0071E3),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Uploading CV... ${(_cvUploadProgress * 100).toInt()}%',
+                    style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF0071E3), fontWeight: FontWeight.w500),
+                  ),
+                ] else ...[
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    onPressed: _pickCV,
+                    icon: Icon(hasFile ? Icons.swap_horiz : Icons.upload_file, size: 20),
+                    label: Text(hasFile ? 'Change CV File' : 'Select CV File (PDF / DOCX)'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: hasFile ? const Color(0xFF34C759) : const Color(0xFF0071E3),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   ),
-                ),
-                if (hasFile) ...[
-                  const SizedBox(height: 12),
-                  TextButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        _formData['cvBase64'] = '';
-                        _formData['cvFileName'] = '';
-                        _selectedCvBytes = null;
-                        _selectedCvName = null;
-                      });
-                    },
-                    icon: const Icon(Icons.delete_outline, size: 16, color: Colors.redAccent),
-                    label: const Text('Remove File', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
-                  ),
+                  if (hasFile) ...[
+                    const SizedBox(height: 12),
+                    TextButton.icon(
+                      onPressed: _removeCV,
+                      icon: const Icon(Icons.delete_outline, size: 16, color: Colors.redAccent),
+                      label: const Text('Remove File', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
+                    ),
+                  ],
                 ],
               ],
             ),
@@ -1872,7 +2028,7 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Your CV is processed securely by PitchLab AI to extract domain expertise and credentials. It is never shared or stored externally.',
+                    'Your CV is stored with strict owner-only access and processed securely by PitchLab AI to assess founder capability. It is never shared or made public.',
                     style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF6E6E73), height: 1.4),
                   ),
                 ),
@@ -1910,43 +2066,45 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
                 ),
               ),
             ),
-            const SizedBox(width: 10),
-            if (_saveStatus == 'saving') ...[
-              const SizedBox(
-                width: 12,
-                height: 12,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0071E3)),
-              ),
-              const SizedBox(width: 4),
-              Text('Saving...', style: GoogleFonts.inter(fontSize: 11, color: Colors.black54)),
-            ] else if (_saveStatus == 'saved') ...[
-              const Icon(Icons.check_circle_outline, size: 14, color: Colors.green),
-              const SizedBox(width: 4),
-              Text('Saved', style: GoogleFonts.inter(fontSize: 11, color: Colors.green)),
-            ] else if (_saveStatus == 'error') ...[
-              InkWell(
-                onTap: () => _saveDraft(),
-                child: Row(
-                  children: [
-                    const Icon(Icons.error_outline, size: 14, color: Colors.redAccent),
-                    const SizedBox(width: 4),
-                    Text('Retry save', style: GoogleFonts.inter(fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.bold)),
-                  ],
+            if (!_isLoading) ...[
+              const SizedBox(width: 10),
+              if (_saveStatus == 'saving') ...[
+                const SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0071E3)),
                 ),
-              ),
+                const SizedBox(width: 4),
+                Text('Saving...', style: GoogleFonts.inter(fontSize: 11, color: Colors.black54)),
+              ] else if (_saveStatus == 'saved') ...[
+                const Icon(Icons.check_circle_outline, size: 14, color: Colors.green),
+                const SizedBox(width: 4),
+                Text('Saved', style: GoogleFonts.inter(fontSize: 11, color: Colors.green)),
+              ] else if (_saveStatus == 'error') ...[
+                InkWell(
+                  onTap: () => _saveDraft(),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline, size: 14, color: Colors.redAccent),
+                      const SizedBox(width: 4),
+                      Text('Retry save', style: GoogleFonts.inter(fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ],
         ),
         actions: [
-          TextButton.icon(
-            onPressed: _isSavingDraft ? null : () => _saveDraft(isExiting: true),
-            icon: const Icon(Icons.bookmark_outline, size: 16, color: Color(0xFF0071E3)),
-            label: Text(
-              'Save & Exit',
-              style: GoogleFonts.inter(color: const Color(0xFF0071E3), fontWeight: FontWeight.w600, fontSize: 13),
+          if (!_isLoading)
+            TextButton.icon(
+              onPressed: _isSavingDraft ? null : () => _saveDraft(isExiting: true),
+              icon: const Icon(Icons.bookmark_outline, size: 16, color: Color(0xFF0071E3)),
+              label: Text(
+                'Save & Exit',
+                style: GoogleFonts.inter(color: const Color(0xFF0071E3), fontWeight: FontWeight.w600, fontSize: 13),
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
         ],
       ),
       body: _isLoading

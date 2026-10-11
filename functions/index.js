@@ -8,6 +8,7 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
+const { getStorage } = require("firebase-admin/storage");
 const fs = require("fs");
 const path = require("path");
 const { calculateFRI, reconcileScores, getScoreBand, classifyVentureType, detectFeasibilityGates, calculateFounderEvidenceGap, calculate5DimensionFutureTrends, getValidationLadderForContext, getCommercialAdviserOpinion, getPortfolioDecision, generateContextualInvestorCommentary, getLegalRegulatoryAssessment, generateContextualInvestorVerdict, validateReportIntegrityGate, detectAndResolveCrossContamination } = require("./scoring_logic");
@@ -16,6 +17,7 @@ const VERSION_INFO = require("./version_config.json");
 console.log(`PitchLab: ${VERSION_INFO.fullVersionString} Loaded (Build: ${VERSION_INFO.buildId})`);
 initializeApp({ projectId: process.env.GCP_PROJECT || "antigravity-pitchlab" });
 const db = getFirestore();
+const storage = getStorage();
 try {
   db.settings({ ignoreUndefinedProperties: true });
 } catch (e) {
@@ -48,18 +50,25 @@ function logSubmissionError(label, error, context = {}) {
 /**
  * Submission Progress Publisher for real-time status updates
  */
-async function updateSubmissionProgress(submissionId, stageIndex, stageName, percentage, status = "in_progress") {
+async function updateSubmissionProgress(submissionId, stageIndex, stageName, percentage, status = "in_progress", evaluationId = null, result = null) {
   if (!submissionId) return;
   try {
-    await db.collection("SubmissionProgress").doc(submissionId).set({
+    const updatePayload = {
       submissionId,
       stageIndex,
       stageName,
       percentage,
       status,
       updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
-    console.log(`PitchLab Progress [${submissionId}]: Stage ${stageIndex} (${stageName}) - ${percentage}%`);
+    };
+    if (evaluationId) {
+      updatePayload.evaluationId = evaluationId;
+    }
+    if (result && typeof result === "object") {
+      updatePayload.result = result;
+    }
+    await db.collection("SubmissionProgress").doc(submissionId).set(updatePayload, { merge: true });
+    console.log(`PitchLab Progress [${submissionId}]: Stage ${stageIndex} (${stageName}) - ${percentage}% [status=${status}]`);
   } catch (err) {
     console.warn(`PitchLab Progress update warning for ${submissionId}:`, err.message);
   }
@@ -1492,6 +1501,28 @@ exports.pitchLabEvaluation = onCall({
 
   const reqData = request.data || {};
   const submissionId = reqData.submissionId || null;
+
+  // 0. IDEMPOTENCY GUARD: Return existing completed evaluation for duplicate/retried submissionId
+  if (submissionId) {
+    try {
+      const existingScores = await db.collection("EvaluationScore")
+        .where("submissionId", "==", submissionId)
+        .limit(1)
+        .get();
+      if (!existingScores.empty) {
+        const existingDoc = existingScores.docs[0];
+        const existingData = existingDoc.data();
+        existingData.id = existingDoc.id;
+        existingData.evaluationId = existingDoc.id;
+        console.log(`PitchLab IDEMPOTENT REPLAY: Found existing completed report ${existingDoc.id} for submissionId ${submissionId}. Returning immediately.`);
+        await updateSubmissionProgress(submissionId, 5, "Assessment complete!", 100, "completed", existingDoc.id, existingData);
+        return existingData;
+      }
+    } catch (idemErr) {
+      console.warn("PitchLab: Idempotency check warning (non-fatal):", idemErr.message);
+    }
+  }
+
   const idea = reqData.idea || "";
   const problem = reqData.problem || "";
   const targetMarket = reqData.targetMarket || reqData.market || "";
@@ -1510,14 +1541,28 @@ exports.pitchLabEvaluation = onCall({
     .filter(part => part && typeof part === 'string' && part.trim().length > 0)
     .join(", ");
 
+  // Target jurisdiction defined once at top-level scope (no TDZ / ReferenceError)
+  const targetJurisdiction = getJurisdictionName(reqData);
+
   let cvText = "";
   let cvFileName = reqData.cvFileName || "";
+  const cvStoragePath = reqData.cvStoragePath || "";
+  const cvBase64 = reqData.cvBase64 || reqData.cvAttachment || "";
+
   try {
-    const cvBase64 = reqData.cvBase64 || reqData.cvAttachment || "";
-    if (cvBase64) {
-      cvText = await getExtractCvText()(cvBase64);
+    if (cvStoragePath) {
+      console.log(`PitchLab: Fetching CV from Firebase Storage: ${cvStoragePath}`);
+      const [fileBuffer] = await storage.bucket().file(cvStoragePath).download();
+      cvText = await getExtractCvText()(fileBuffer, cvFileName);
       if (cvText) {
-        console.log(`PitchLab: Successfully extracted ${cvText.length} characters of CV text from ${cvFileName}`);
+        console.log(`PitchLab: Successfully extracted ${cvText.length} characters from Storage CV (${cvFileName})`);
+        experience = `CV Attachment (${cvFileName}): ${cvText}\nQuestionnaire Experience: ${experience}`;
+        reqData.experience = experience;
+      }
+    } else if (cvBase64) {
+      cvText = await getExtractCvText()(cvBase64, cvFileName);
+      if (cvText) {
+        console.log(`PitchLab: Successfully extracted ${cvText.length} characters of CV text from Base64 (${cvFileName})`);
         experience = `CV Attachment (${cvFileName}): ${cvText}\nQuestionnaire Experience: ${experience}`;
         reqData.experience = experience;
       }
@@ -1539,6 +1584,7 @@ exports.pitchLabEvaluation = onCall({
   reqData.locationRegion = locationRegion;
   reqData.locationCity = locationCity;
   reqData.locationSummary = locationSummary;
+  reqData.targetJurisdiction = targetJurisdiction;
   let userId = request.auth?.uid || reqData.userId || 'anonymous-user';
 
   // 0. SERVER-SIDE MVP 3-SUBMISSION LIMIT GUARD (Admin Unlimited, Standard Max 3)
@@ -1547,8 +1593,9 @@ exports.pitchLabEvaluation = onCall({
 
   if (userId && userId !== 'anonymous-user') {
     try {
-      const userDoc = await db.collection("users").doc(userId).get();
-      if (userDoc.exists && userDoc.data()?.role === "admin") {
+      const userDoc = await db.collection("Users").doc(userId).get();
+      const legacyUserDoc = !userDoc.exists ? await db.collection("users").doc(userId).get() : null;
+      if ((userDoc.exists && userDoc.data()?.role === "admin") || (legacyUserDoc?.exists && legacyUserDoc.data()?.role === "admin")) {
         isAdmin = true;
       }
       
@@ -1596,6 +1643,7 @@ exports.pitchLabEvaluation = onCall({
     let inputRef = null;
     try {
       inputRef = await db.collection("IdeaInputs").add({
+        submissionId: submissionId || "",
         userId: userId || "",
         idea: (idea || "").slice(0, 4000),
         problem: (problem || "").slice(0, 4000),
@@ -1604,7 +1652,8 @@ exports.pitchLabEvaluation = onCall({
         founderBackgroundNarrative: (founderBackgroundNarrative || "").slice(0, 4000),
         founderBackgroundWordCount: founderBackgroundWordCount,
         founderBackgroundLastUpdated: FieldValue.serverTimestamp(),
-        founderCvUploaded: Boolean(cvFileName),
+        founderCvUploaded: Boolean(cvText && cvText.trim().length > 0),
+        cvFileName: cvFileName || "",
         capacity: capacity || "",
         network: network || "",
         targetMarket: (targetMarket || "").slice(0, 4000),
@@ -2180,7 +2229,6 @@ exports.pitchLabEvaluation = onCall({
 
     // Section 8 & 9: If Critical Feasibility Gates exist, synchronize recommendations & roadmap to Pre-Feasibility focus
     if (reconciled.gatesInfo?.hasCriticalGate) {
-      const targetJurisdiction = getJurisdictionName(reqData);
       const calibratedBiggestRisk = `Unresolved statutory and regulatory feasibility in ${targetJurisdiction}, combined with the absence of directly experienced specialist project capability.`;
 
       evaluationData.summaryBlock = evaluationData.summaryBlock || {};
@@ -2361,7 +2409,6 @@ exports.pitchLabEvaluation = onCall({
 
     // Ensure businessTheme is fully populated with contextual strategic positioning
     ventureType = classifyVentureType(reqData);
-    const targetJurisdiction = getJurisdictionName(reqData);
     const isNuclear = (idea + " " + category).toLowerCase().includes("nuclear");
 
     evaluationData.businessTheme = evaluationData.businessTheme || {};
@@ -2649,6 +2696,7 @@ exports.pitchLabEvaluation = onCall({
     await updateSubmissionProgress(submissionId, 5, "Finalising your report", 98);
     try {
       const evalDocRef = await db.collection("EvaluationScore").add({
+        submissionId: submissionId || "",
         userId,
         inputId: inputRef?.id || `local-${Date.now()}`,
         category: category || "General",
@@ -2683,7 +2731,8 @@ exports.pitchLabEvaluation = onCall({
       console.warn("PitchLab: Firestore EvaluationScore write warning (non-fatal):", dbErr.message);
     }
 
-    await updateSubmissionProgress(submissionId, 5, "Assessment complete!", 100, "completed");
+    // Mark complete ONLY after report is saved to Firestore
+    await updateSubmissionProgress(submissionId, 5, "Assessment complete!", 100, "completed", evaluationData.id || null, evaluationData);
     return evaluationData;
 
   } catch (error) {
@@ -2702,6 +2751,14 @@ exports.pitchLabEvaluation = onCall({
 
     const rawScores = evaluationData.scorecard || evaluationData.scores || {};
     const reconciled = reconcileScores(rawScores, reqData);
+
+    evaluationData.appVersion = VERSION_INFO.appVersion;
+    evaluationData.fullVersionString = VERSION_INFO.fullVersionString;
+    evaluationData.buildId = VERSION_INFO.buildId;
+    evaluationData.deployedAt = VERSION_INFO.deployedAt;
+    evaluationData.deployedAtFormatted = VERSION_INFO.deployedAtFormatted;
+    evaluationData.assessmentGeneratedAt = new Date().toISOString();
+    evaluationData.assessmentGeneratedAtFormatted = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) + ' NZST';
 
     evaluationData.overallScore = reconciled.overallScore;
     evaluationData.scoreBand = reconciled.scoreBand;
@@ -2722,7 +2779,43 @@ exports.pitchLabEvaluation = onCall({
     evaluationData.targetMarket = targetMarket;
     evaluationData.category = category;
     evaluationData.founderBackgroundNarrative = founderBackgroundNarrative;
-    await updateSubmissionProgress(submissionId, 5, "Assessment complete!", 100, "completed");
+
+    // Securely persist the fallback evaluation to Firestore
+    try {
+      const evalDocRef = await db.collection("EvaluationScore").add({
+        submissionId: submissionId || "",
+        userId,
+        inputId: inputRef?.id || `local-${Date.now()}`,
+        category: category || "General",
+        idea,
+        problem,
+        budget,
+        experience,
+        capacity,
+        network,
+        targetMarket,
+        ...evaluationData,
+        isPublic: false,
+        privacyStatus: "PRIVATE",
+        isFallback: true,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      evaluationData.id = evalDocRef.id;
+      evaluationData.evaluationId = evalDocRef.id;
+      evaluationData.userId = userId;
+
+      // Clean up draft after successful fallback save
+      if (request.data && request.data.draftId) {
+        try {
+          await db.collection("EvaluationDrafts").doc(String(request.data.draftId).trim()).delete();
+        } catch (_) {}
+      }
+    } catch (saveErr) {
+      console.warn("PitchLab: Fallback Firestore EvaluationScore save warning:", saveErr.message);
+    }
+
+    // Mark complete ONLY after report is saved to Firestore
+    await updateSubmissionProgress(submissionId, 5, "Assessment complete!", 100, "completed", evaluationData.id || null, evaluationData);
     return evaluationData;
   }
 });
