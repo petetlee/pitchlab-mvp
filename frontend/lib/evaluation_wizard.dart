@@ -415,8 +415,19 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-        final isAdmin = userDoc.exists && userDoc.data()?['role'] == 'admin';
+        final email = user.email?.toLowerCase() ?? '';
+        final userDoc = await FirebaseFirestore.instance.collection('Users').doc(user.uid).get();
+        final legacyUserDoc = !userDoc.exists
+            ? await FirebaseFirestore.instance.collection('users').doc(user.uid).get()
+            : null;
+        bool isAdmin = false;
+        if (userDoc.exists && userDoc.data()?['role'] == 'admin') {
+          isAdmin = true;
+        } else if (legacyUserDoc != null && legacyUserDoc.exists && legacyUserDoc.data()?['role'] == 'admin') {
+          isAdmin = true;
+        } else if (email == 'peter@pnc.co.nz' || user.uid == 'nge6qZrtfAeoOIV2zJECyM0CdxL2') {
+          isAdmin = true;
+        }
 
         final existingScores = await FirebaseFirestore.instance
             .collection('EvaluationScore')

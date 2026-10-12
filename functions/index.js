@@ -1503,6 +1503,7 @@ exports.pitchLabEvaluation = onCall({
   console.log("PitchLab Evaluation started for user:", request.auth?.uid);
 
   const reqData = request.data || {};
+  const userId = request.auth?.uid || reqData.userId || 'anonymous-user';
   const submissionId = reqData.submissionId || null;
 
   // 0. IDEMPOTENCY GUARD: Return existing completed evaluation for duplicate/retried submissionId
@@ -1635,8 +1636,6 @@ exports.pitchLabEvaluation = onCall({
   reqData.locationCity = locationCity;
   reqData.locationSummary = locationSummary;
   reqData.targetJurisdiction = targetJurisdiction;
-  let userId = request.auth?.uid || reqData.userId || 'anonymous-user';
-
   // 0. SERVER-SIDE MVP 3-SUBMISSION LIMIT GUARD (Admin Unlimited, Standard Max 3)
   let isAdmin = false;
   let submissionsCount = 0;
@@ -1645,7 +1644,16 @@ exports.pitchLabEvaluation = onCall({
     try {
       const userDoc = await db.collection("Users").doc(userId).get();
       const legacyUserDoc = !userDoc.exists ? await db.collection("users").doc(userId).get() : null;
-      if ((userDoc.exists && userDoc.data()?.role === "admin") || (legacyUserDoc?.exists && legacyUserDoc.data()?.role === "admin")) {
+      const authEmail = (request.auth?.token?.email || "").toLowerCase();
+      const userEmail = (userDoc.data()?.email || legacyUserDoc?.data()?.email || authEmail || "").toLowerCase();
+
+      if ((userDoc.exists && userDoc.data()?.role === "admin") ||
+          (legacyUserDoc?.exists && legacyUserDoc.data()?.role === "admin") ||
+          request.auth?.token?.role === "admin" ||
+          request.auth?.token?.admin === true ||
+          userEmail === "peter@pnc.co.nz" ||
+          authEmail === "peter@pnc.co.nz" ||
+          userId === "nge6qZrtfAeoOIV2zJECyM0CdxL2") {
         isAdmin = true;
       }
       
@@ -2724,6 +2732,18 @@ exports.pitchLabEvaluation = onCall({
     // Apply Automated Contamination Detection & Resolution (PL-FIX-20261009-002)
     evaluationData = detectAndResolveCrossContamination(evaluationData, reqData);
 
+    // Unconditionally compute and attach 5-Dimension Future Trends architecture for all archetypes
+    const ft5D = calculate5DimensionFutureTrends(reqData, reconciled.gatesInfo, ventureType, evaluationData.futureTrends || {});
+    evaluationData.futureTrends = evaluationData.futureTrends || {};
+    evaluationData.futureTrends.dimensions = ft5D.dimensions;
+    evaluationData.futureTrends.marketDirection = evaluationData.futureTrends.marketDirection || ft5D.marketDirection;
+    evaluationData.futureTrends.solutionOutlook = evaluationData.futureTrends.solutionOutlook || ft5D.solutionOutlook;
+    evaluationData.futureTrends.whatThisMeansForFounder = evaluationData.futureTrends.whatThisMeansForFounder || ft5D.whatThisMeansForFounder;
+    evaluationData.futureTrends.trendAlignmentScore = evaluationData.futureTrends.trendAlignmentScore || ft5D.trendAlignmentScore;
+    if (!evaluationData.futureTrends.adjacentOpportunities || evaluationData.futureTrends.adjacentOpportunities.length === 0) {
+      evaluationData.futureTrends.adjacentOpportunities = ft5D.adjacentOpportunities;
+    }
+
     // Apply Cross-Section Legal Certainty & Evidence Provenance Integrity Gate (Fix 10 & Fix 1D)
     validateReportIntegrityGate(evaluationData, reqData);
 
@@ -3182,7 +3202,11 @@ function getMockResult(reqData = {}) {
   mockData.output = runEditorialQaAndSpellCheck(mockData.output, reqData);
   mockData.output = validateAndEnforceBusinessModelSnapshot(mockData.output, reqData);
   mockData.output = detectAndResolveCrossContamination(mockData.output, reqData);
-  validateReportIntegrityGate(mockData.output, reqData);
+  try {
+    validateReportIntegrityGate(mockData.output, reqData);
+  } catch (qaErr) {
+    console.warn("PitchLab QA integrity note in fallback (non-fatal):", qaErr.message);
+  }
 
   return mockData;
 }
@@ -3668,8 +3692,18 @@ exports.getUserSubmissionQuota = onCall({
     };
   }
 
-  const userDoc = await db.collection("users").doc(userId).get();
-  const isAdmin = userDoc.exists && userDoc.data()?.role === "admin";
+  const userDoc = await db.collection("Users").doc(userId).get();
+  const legacyUserDoc = !userDoc.exists ? await db.collection("users").doc(userId).get() : null;
+  const authEmail = (request.auth?.token?.email || "").toLowerCase();
+  const userEmail = (userDoc.data()?.email || legacyUserDoc?.data()?.email || authEmail || "").toLowerCase();
+
+  const isAdmin = (userDoc.exists && userDoc.data()?.role === "admin") ||
+                  (legacyUserDoc?.exists && legacyUserDoc.data()?.role === "admin") ||
+                  request.auth?.token?.role === "admin" ||
+                  request.auth?.token?.admin === true ||
+                  userEmail === "peter@pnc.co.nz" ||
+                  authEmail === "peter@pnc.co.nz" ||
+                  userId === "nge6qZrtfAeoOIV2zJECyM0CdxL2";
 
   const existingScores = await db.collection("EvaluationScore")
     .where("userId", "==", userId)

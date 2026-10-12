@@ -1,9 +1,9 @@
 {
-  "appVersion": "v0.12.2",
-  "fullVersionString": "PitchLab MVP v0.12.2",
-  "changeId": "PL-FIX-20261012-03-CV-BASE64",
-  "parentChangeId": "PL-FIX-20261012-02-CV-UPLOAD-PERMANENT",
-  "buildId": "sr20261012c",
-  "deployedAt": "2026-10-12T23:00:00+13:00",
-  "deployedAtFormatted": "12 Oct 2026 23:00 NZDT"
+  "appVersion": "v0.12.3",
+  "fullVersionString": "PitchLab MVP v0.12.3",
+  "changeId": "PL-FIX-20261013-03",
+  "parentChangeId": "PL-FIX-20261012-03-CV-BASE64",
+  "buildId": "sr20261013a",
+  "deployedAt": "2026-10-12T21:20:00Z",
+  "deployedAtFormatted": "12 Oct 2026, 21:20 GMT"
 }
