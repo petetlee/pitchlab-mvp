@@ -35,13 +35,18 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
   Uint8List? _selectedCvBytes;
   String? _selectedCvName;
 
-  // CV Upload State (PL-FIX-20261012-01-SAFARI-SUBMISSION-UPLOAD)
+  // CV Upload State (PL-20261012-CVUPLOAD-02)
   bool _isUploadingCv = false;
   double _cvUploadProgress = 0.0;
+  String _cvUploadStage = 'Uploading CV...';
+  int _cvBytesTransferred = 0;
+  int _cvTotalBytes = 0;
   String? _cvUploadError;
   String? _cvStoragePath;
   String? _uploadedCvFileName;
   int? _uploadedCvFileSize;
+  UploadTask? _activeCvUploadTask;
+  StreamSubscription<TaskSnapshot>? _cvUploadSubscription;
 
   // Save & Resume State (PL-20261010-SAVE-RESUME-02)
   String? _draftId;
@@ -498,6 +503,10 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
     _autoSaveTimer?.cancel();
     _elapsedTimer?.cancel();
     _progressSubscription?.cancel();
+    _cvUploadSubscription?.cancel();
+    try {
+      _activeCvUploadTask?.cancel();
+    } catch (_) {}
     for (var controller in _controllers.values) {
       controller.dispose();
     }
@@ -1346,7 +1355,38 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
     return user;
   }
 
+  void _cancelCvUpload() {
+    try {
+      _cvUploadSubscription?.cancel();
+      _cvUploadSubscription = null;
+      _activeCvUploadTask?.cancel();
+      _activeCvUploadTask = null;
+    } catch (_) {}
+    if (mounted) {
+      setState(() {
+        _isUploadingCv = false;
+        _cvUploadProgress = 0.0;
+        _cvUploadStage = 'Upload cancelled';
+        _cvUploadError = 'CV upload was cancelled. You can retry or continue without a CV.';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('CV upload cancelled.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   Future<void> _pickCV() async {
+    // Cancel any prior active upload before initiating a new one
+    try {
+      _cvUploadSubscription?.cancel();
+      _cvUploadSubscription = null;
+      _activeCvUploadTask?.cancel();
+      _activeCvUploadTask = null;
+    } catch (_) {}
+
     try {
       final cvResult = await pickCvFile();
 
@@ -1396,7 +1436,10 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
 
       setState(() {
         _isUploadingCv = true;
-        _cvUploadProgress = 0.1;
+        _cvUploadProgress = 0.0;
+        _cvUploadStage = 'Preparing secure upload...';
+        _cvBytesTransferred = 0;
+        _cvTotalBytes = cvResult.bytes.lengthInBytes;
         _cvUploadError = null;
       });
 
@@ -1415,38 +1458,68 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
       );
 
       final uploadTask = storageRef.putData(cvResult.bytes, metadata);
+      _activeCvUploadTask = uploadTask;
 
-      uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
-        if (snapshot.totalBytes > 0 && mounted) {
-          setState(() {
-            _cvUploadProgress = (snapshot.bytesTransferred / snapshot.totalBytes).clamp(0.0, 1.0);
-          });
-        }
-      });
+      _cvUploadSubscription = uploadTask.snapshotEvents.listen(
+        (TaskSnapshot snapshot) {
+          if (mounted) {
+            final transferred = snapshot.bytesTransferred;
+            final total = snapshot.totalBytes > 0 ? snapshot.totalBytes : cvResult.bytes.lengthInBytes;
+            final progress = total > 0 ? (transferred / total).clamp(0.0, 1.0) : 0.0;
+            setState(() {
+              _cvBytesTransferred = transferred;
+              _cvTotalBytes = total;
+              _cvUploadProgress = progress;
+              if (progress >= 1.0) {
+                _cvUploadStage = 'Processing and verifying CV...';
+              } else {
+                _cvUploadStage = 'Uploading CV... ${(progress * 100).toInt()}%';
+              }
+            });
+          }
+        },
+        onError: (err) {
+          debugPrint('PitchLab CV upload stream error: $err');
+        },
+      );
 
-      await uploadTask;
+      // Bounded 45-second timeout for upload completion
+      await uploadTask.timeout(
+        const Duration(seconds: 45),
+        onTimeout: () {
+          try {
+            uploadTask.cancel();
+          } catch (_) {}
+          throw TimeoutException('The CV upload timed out. Please check your connection and retry.');
+        },
+      );
+
+      _cvUploadSubscription?.cancel();
+      _cvUploadSubscription = null;
+      _activeCvUploadTask = null;
 
       _selectedCvBytes = cvResult.bytes;
       _selectedCvName = cvResult.name;
       final base64String = base64Encode(cvResult.bytes);
 
-      setState(() {
-        _isUploadingCv = false;
-        _cvUploadProgress = 1.0;
-        _cvUploadError = null;
-        _cvStoragePath = storagePath;
-        _uploadedCvFileName = cvResult.name;
-        _uploadedCvFileSize = cvResult.size;
-
-        _formData['cvStoragePath'] = storagePath;
-        _formData['cvFileName'] = cvResult.name;
-        _formData['cvFileSize'] = cvResult.size;
-        _formData['cvBase64'] = base64String;
-      });
-
-      _markDirty();
-
       if (mounted) {
+        setState(() {
+          _isUploadingCv = false;
+          _cvUploadProgress = 1.0;
+          _cvUploadStage = 'Upload complete';
+          _cvUploadError = null;
+          _cvStoragePath = storagePath;
+          _uploadedCvFileName = cvResult.name;
+          _uploadedCvFileSize = cvResult.size;
+
+          _formData['cvStoragePath'] = storagePath;
+          _formData['cvFileName'] = cvResult.name;
+          _formData['cvFileSize'] = cvResult.size;
+          _formData['cvBase64'] = base64String;
+        });
+
+        _markDirty();
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('CV uploaded: ${cvResult.name}'),
@@ -1455,16 +1528,28 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
         );
       }
     } catch (e) {
-      print('PitchLab: Error uploading CV: $e');
+      debugPrint('PitchLab: Error uploading CV: $e');
+      _cvUploadSubscription?.cancel();
+      _cvUploadSubscription = null;
+      _activeCvUploadTask = null;
+
       if (mounted) {
+        final isTimeout = e is TimeoutException;
+        final errorMsg = isTimeout
+            ? 'The upload timed out. Please tap Retry or continue without a CV.'
+            : 'Unable to upload CV. Tap Retry, or continue without a CV.';
+
         setState(() {
           _isUploadingCv = false;
-          _cvUploadError = 'Upload failed: $e';
+          _cvUploadError = errorMsg;
+          _cvUploadStage = 'Upload failed';
         });
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Unable to upload CV. Tap to retry, or continue without CV.'),
+            content: Text(errorMsg),
             backgroundColor: Colors.redAccent,
+            duration: const Duration(seconds: 4),
             action: SnackBarAction(
               label: 'Retry',
               textColor: Colors.white,
@@ -1477,6 +1562,13 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
   }
 
   void _removeCV() {
+    try {
+      _cvUploadSubscription?.cancel();
+      _cvUploadSubscription = null;
+      _activeCvUploadTask?.cancel();
+      _activeCvUploadTask = null;
+    } catch (_) {}
+
     if (_cvStoragePath != null && _cvStoragePath!.isNotEmpty) {
       try {
         FirebaseStorage.instance.ref().child(_cvStoragePath!).delete().catchError((_) {});
@@ -1490,6 +1582,9 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
       _uploadedCvFileSize = null;
       _isUploadingCv = false;
       _cvUploadProgress = 0.0;
+      _cvUploadStage = 'Uploading CV...';
+      _cvBytesTransferred = 0;
+      _cvTotalBytes = 0;
       _cvUploadError = null;
       _formData.remove('cvStoragePath');
       _formData.remove('cvFileName');
@@ -1871,11 +1966,55 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
                     color: const Color(0xFF0071E3),
                   ),
                   const SizedBox(height: 6),
-                  Text(
-                    'Uploading CV... ${(_cvUploadProgress * 100).toInt()}%',
-                    style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF0071E3), fontWeight: FontWeight.w500),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _cvTotalBytes > 0 && _cvUploadProgress < 1.0
+                              ? '$_cvUploadStage (${(_cvBytesTransferred / (1024 * 1024)).toStringAsFixed(1)} / ${(_cvTotalBytes / (1024 * 1024)).toStringAsFixed(1)} MB)'
+                              : _cvUploadStage,
+                          style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF0071E3), fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: _cancelCvUpload,
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: Text(
+                          'Cancel',
+                          style: GoogleFonts.inter(fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
                   ),
                 ] else ...[
+                  if (_cvUploadError != null) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.warning_amber_rounded, size: 16, color: Colors.red.shade700),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _cvUploadError!,
+                              style: GoogleFonts.inter(fontSize: 11, color: Colors.red.shade900),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   Wrap(
                     spacing: 12,
@@ -1885,7 +2024,7 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
                       ElevatedButton.icon(
                         onPressed: _pickCV,
                         icon: Icon(hasCv ? Icons.swap_horiz : Icons.upload_file, size: 16),
-                        label: Text(hasCv ? 'Change CV' : 'Select CV (PDF, DOC, DOCX)'),
+                        label: Text(hasCv ? 'Change CV' : (_cvUploadError != null ? 'Retry Upload' : 'Select CV (PDF, DOC, DOCX)')),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: hasCv ? Colors.green.shade700 : const Color(0xFF0071E3),
                           foregroundColor: Colors.white,
@@ -1897,6 +2036,15 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
                           onPressed: _removeCV,
                           icon: const Icon(Icons.delete_outline, size: 14, color: Colors.redAccent),
                           label: const Text('Remove CV', style: TextStyle(color: Colors.redAccent, fontSize: 12)),
+                        ),
+                      ] else if (_cvUploadError != null) ...[
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              _cvUploadError = null;
+                            });
+                          },
+                          child: const Text('Dismiss', style: TextStyle(color: Color(0xFF86868B), fontSize: 12)),
                         ),
                       ],
                     ],
@@ -1983,16 +2131,55 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
                     color: const Color(0xFF0071E3),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    'Uploading CV... ${(_cvUploadProgress * 100).toInt()}%',
-                    style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF0071E3), fontWeight: FontWeight.w500),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _cvTotalBytes > 0 && _cvUploadProgress < 1.0
+                              ? '$_cvUploadStage (${(_cvBytesTransferred / (1024 * 1024)).toStringAsFixed(1)} / ${(_cvTotalBytes / (1024 * 1024)).toStringAsFixed(1)} MB)'
+                              : _cvUploadStage,
+                          style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF0071E3), fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: _cancelCvUpload,
+                        child: Text(
+                          'Cancel',
+                          style: GoogleFonts.inter(fontSize: 12, color: Colors.redAccent, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
                   ),
                 ] else ...[
+                  if (_cvUploadError != null) ...[
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.warning_amber_rounded, size: 18, color: Colors.red.shade700),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _cvUploadError!,
+                              style: GoogleFonts.inter(fontSize: 12, color: Colors.red.shade900),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 24),
                   ElevatedButton.icon(
                     onPressed: _pickCV,
                     icon: Icon(hasFile ? Icons.swap_horiz : Icons.upload_file, size: 20),
-                    label: Text(hasFile ? 'Change CV File' : 'Select CV File (PDF / DOCX)'),
+                    label: Text(hasFile ? 'Change CV File' : (_cvUploadError != null ? 'Retry Upload' : 'Select CV File (PDF / DOCX)')),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: hasFile ? const Color(0xFF34C759) : const Color(0xFF0071E3),
                       foregroundColor: Colors.white,
@@ -2008,6 +2195,16 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
                       onPressed: _removeCV,
                       icon: const Icon(Icons.delete_outline, size: 16, color: Colors.redAccent),
                       label: const Text('Remove File', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
+                    ),
+                  ] else if (_cvUploadError != null) ...[
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _cvUploadError = null;
+                        });
+                      },
+                      child: const Text('Dismiss Error', style: TextStyle(color: Color(0xFF86868B), fontSize: 12)),
                     ),
                   ],
                 ],
