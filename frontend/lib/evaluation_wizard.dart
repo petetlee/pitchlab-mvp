@@ -1378,6 +1378,14 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
     }
   }
 
+  Future<void> _retryUploadCV() async {
+    if (_selectedCvBytes != null && _selectedCvName != null) {
+      await _uploadCVData(_selectedCvBytes!, _selectedCvName!, _selectedCvBytes!.lengthInBytes);
+    } else {
+      await _pickCV();
+    }
+  }
+
   Future<void> _pickCV() async {
     // Cancel any prior active upload before initiating a new one
     try {
@@ -1421,57 +1429,78 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
         return;
       }
 
-      final user = await _ensureUser();
-      if (user == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Authentication required to upload files. Please try again.'),
-              backgroundColor: Colors.redAccent,
-            ),
-          );
-        }
-        return;
+      // Immediate in-memory capture so bytes are NEVER lost
+      _selectedCvBytes = cvResult.bytes;
+      _selectedCvName = cvResult.name;
+      final base64String = base64Encode(cvResult.bytes);
+      _formData['cvFileName'] = cvResult.name;
+      _formData['cvFileSize'] = cvResult.size;
+      _formData['cvBase64'] = base64String;
+
+      await _uploadCVData(cvResult.bytes, cvResult.name, cvResult.size);
+    } catch (e) {
+      debugPrint('PitchLab: Error in _pickCV: $e');
+    }
+  }
+
+  Future<void> _uploadCVData(Uint8List bytes, String fileName, int fileSize) async {
+    final user = await _ensureUser();
+    if (user == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Authentication required to upload files. Please try again.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
       }
+      return;
+    }
 
-      setState(() {
-        _isUploadingCv = true;
-        _cvUploadProgress = 0.0;
-        _cvUploadStage = 'Preparing secure upload...';
-        _cvBytesTransferred = 0;
-        _cvTotalBytes = cvResult.bytes.lengthInBytes;
-        _cvUploadError = null;
-      });
+    setState(() {
+      _isUploadingCv = true;
+      _cvUploadProgress = 0.05;
+      _cvUploadStage = 'Preparing secure upload...';
+      _cvBytesTransferred = 0;
+      _cvTotalBytes = bytes.lengthInBytes;
+      _cvUploadError = null;
+    });
 
-      final safeName = cvResult.name.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
-      final draftSuffix = _draftId != null ? _draftId! : 'eval_${DateTime.now().millisecondsSinceEpoch}';
-      final storagePath = 'cvs/${user.uid}/${draftSuffix}_$safeName';
+    final safeName = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+    final draftSuffix = _draftId != null ? _draftId! : 'eval_${DateTime.now().millisecondsSinceEpoch}';
+    final storagePath = 'cvs/${user.uid}/${draftSuffix}_$safeName';
+    final base64String = _formData['cvBase64'] ?? base64Encode(bytes);
 
+    bool uploadSucceeded = false;
+    String finalStoragePath = storagePath;
+
+    // --- TIER 1: Direct Client-to-Storage Upload ---
+    try {
       final storageRef = FirebaseStorage.instance.ref().child(storagePath);
       final metadata = SettableMetadata(
-        contentType: _detectMimeType(cvResult.name),
+        contentType: _detectMimeType(fileName),
         customMetadata: {
-          'originalName': cvResult.name,
+          'originalName': fileName,
           'uploadedAt': DateTime.now().toIso8601String(),
           'draftId': _draftId ?? '',
         },
       );
 
-      final uploadTask = storageRef.putData(cvResult.bytes, metadata);
+      final uploadTask = storageRef.putData(bytes, metadata);
       _activeCvUploadTask = uploadTask;
 
       _cvUploadSubscription = uploadTask.snapshotEvents.listen(
         (TaskSnapshot snapshot) {
           if (mounted) {
             final transferred = snapshot.bytesTransferred;
-            final total = snapshot.totalBytes > 0 ? snapshot.totalBytes : cvResult.bytes.lengthInBytes;
+            final total = snapshot.totalBytes > 0 ? snapshot.totalBytes : bytes.lengthInBytes;
             final progress = total > 0 ? (transferred / total).clamp(0.0, 1.0) : 0.0;
             setState(() {
               _cvBytesTransferred = transferred;
               _cvTotalBytes = total;
-              _cvUploadProgress = progress;
+              _cvUploadProgress = progress * 0.85; // 0-85% for direct socket
               if (progress >= 1.0) {
-                _cvUploadStage = 'Processing and verifying CV...';
+                _cvUploadStage = 'Verifying storage integrity...';
               } else {
                 _cvUploadStage = 'Uploading CV... ${(progress * 100).toInt()}%';
               }
@@ -1479,42 +1508,76 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
           }
         },
         onError: (err) {
-          debugPrint('PitchLab CV upload stream error: $err');
+          debugPrint('PitchLab CV direct upload stream error: $err');
         },
       );
 
-      // Bounded 45-second timeout for upload completion
+      // Bounded 20-second timeout for Tier 1 direct upload
       await uploadTask.timeout(
-        const Duration(seconds: 45),
+        const Duration(seconds: 20),
         onTimeout: () {
           try {
             uploadTask.cancel();
           } catch (_) {}
-          throw TimeoutException('The CV upload timed out. Please check your connection and retry.');
+          throw TimeoutException('Tier 1 direct socket timed out; engaging resilient fallback.');
         },
       );
+      uploadSucceeded = true;
+    } catch (directErr) {
+      debugPrint('PitchLab: Direct Storage upload did not complete ($directErr). Engaging Tier 2 Resilient Upload...');
+    } finally {
+      try {
+        _cvUploadSubscription?.cancel();
+        _cvUploadSubscription = null;
+        _activeCvUploadTask = null;
+      } catch (_) {}
+    }
 
-      _cvUploadSubscription?.cancel();
-      _cvUploadSubscription = null;
-      _activeCvUploadTask = null;
+    // --- TIER 2: Resilient Backend Callable Upload (100% bypasses CORS & client socket stalls) ---
+    if (!uploadSucceeded) {
+      if (mounted) {
+        setState(() {
+          _cvUploadStage = 'Syncing CV via secure cloud channel...';
+          _cvUploadProgress = 0.90;
+        });
+      }
 
-      _selectedCvBytes = cvResult.bytes;
-      _selectedCvName = cvResult.name;
-      final base64String = base64Encode(cvResult.bytes);
+      try {
+        final callable = FirebaseFunctions.instanceFor(region: "us-central1")
+            .httpsCallable('uploadFounderCvDirect', options: HttpsCallableOptions(timeout: const Duration(seconds: 45)));
+        final result = await callable.call({
+          'fileName': fileName,
+          'fileBase64': base64String,
+          'draftId': _draftId ?? '',
+          'userId': user.uid,
+        });
 
+        final resData = result.data as Map<dynamic, dynamic>?;
+        if (resData != null && resData['storagePath'] != null) {
+          finalStoragePath = resData['storagePath'].toString();
+          uploadSucceeded = true;
+          debugPrint('PitchLab: Tier 2 Resilient Upload succeeded: $finalStoragePath');
+        }
+      } catch (tier2Err) {
+        debugPrint('PitchLab: Tier 2 Resilient Upload error: $tier2Err');
+      }
+    }
+
+    // --- COMPLETION OR GRACEFUL PRESERVATION ---
+    if (uploadSucceeded) {
       if (mounted) {
         setState(() {
           _isUploadingCv = false;
           _cvUploadProgress = 1.0;
           _cvUploadStage = 'Upload complete';
           _cvUploadError = null;
-          _cvStoragePath = storagePath;
-          _uploadedCvFileName = cvResult.name;
-          _uploadedCvFileSize = cvResult.size;
+          _cvStoragePath = finalStoragePath;
+          _uploadedCvFileName = fileName;
+          _uploadedCvFileSize = fileSize;
 
-          _formData['cvStoragePath'] = storagePath;
-          _formData['cvFileName'] = cvResult.name;
-          _formData['cvFileSize'] = cvResult.size;
+          _formData['cvStoragePath'] = finalStoragePath;
+          _formData['cvFileName'] = fileName;
+          _formData['cvFileSize'] = fileSize;
           _formData['cvBase64'] = base64String;
         });
 
@@ -1522,38 +1585,33 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('CV uploaded: ${cvResult.name}'),
+            content: Text('CV uploaded: $fileName'),
             backgroundColor: Colors.green,
           ),
         );
       }
-    } catch (e) {
-      debugPrint('PitchLab: Error uploading CV: $e');
-      _cvUploadSubscription?.cancel();
-      _cvUploadSubscription = null;
-      _activeCvUploadTask = null;
-
+    } else {
+      // Both Tier 1 and Tier 2 encountered connection issues.
+      // Crucial: The file is preserved in memory and ready for assessment submission.
       if (mounted) {
-        final isTimeout = e is TimeoutException;
-        final errorMsg = isTimeout
-            ? 'The upload timed out. Please tap Retry or continue without a CV.'
-            : 'Unable to upload CV. Tap Retry, or continue without a CV.';
-
+        const errorMsg = 'Cloud sync delayed. Your CV is preserved in memory and will be submitted with your assessment. You may tap Retry Upload.';
         setState(() {
           _isUploadingCv = false;
           _cvUploadError = errorMsg;
           _cvUploadStage = 'Upload failed';
+          _uploadedCvFileName = fileName;
+          _uploadedCvFileSize = fileSize;
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(errorMsg),
-            backgroundColor: Colors.redAccent,
-            duration: const Duration(seconds: 4),
+            content: const Text('Cloud sync delayed. CV preserved in memory for assessment.'),
+            backgroundColor: Colors.orangeAccent.shade700,
+            duration: const Duration(seconds: 5),
             action: SnackBarAction(
               label: 'Retry',
               textColor: Colors.white,
-              onPressed: _pickCV,
+              onPressed: _retryUploadCV,
             ),
           ),
         );
@@ -2022,7 +2080,7 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       ElevatedButton.icon(
-                        onPressed: _pickCV,
+                        onPressed: _cvUploadError != null ? _retryUploadCV : _pickCV,
                         icon: Icon(hasCv ? Icons.swap_horiz : Icons.upload_file, size: 16),
                         label: Text(hasCv ? 'Change CV' : (_cvUploadError != null ? 'Retry Upload' : 'Select CV (PDF, DOC, DOCX)')),
                         style: ElevatedButton.styleFrom(
@@ -2177,7 +2235,7 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
                   ],
                   const SizedBox(height: 24),
                   ElevatedButton.icon(
-                    onPressed: _pickCV,
+                    onPressed: _cvUploadError != null ? _retryUploadCV : _pickCV,
                     icon: Icon(hasFile ? Icons.swap_horiz : Icons.upload_file, size: 20),
                     label: Text(hasFile ? 'Change CV File' : (_cvUploadError != null ? 'Retry Upload' : 'Select CV File (PDF / DOCX)')),
                     style: ElevatedButton.styleFrom(

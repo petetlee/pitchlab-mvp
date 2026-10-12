@@ -14,8 +14,11 @@ const path = require("path");
 const { calculateFRI, reconcileScores, getScoreBand, classifyVentureType, detectFeasibilityGates, calculateFounderEvidenceGap, calculate5DimensionFutureTrends, getValidationLadderForContext, getCommercialAdviserOpinion, getPortfolioDecision, generateContextualInvestorCommentary, getLegalRegulatoryAssessment, generateContextualInvestorVerdict, validateReportIntegrityGate, detectAndResolveCrossContamination } = require("./scoring_logic");
 
 const VERSION_INFO = require("./version_config.json");
-console.log(`PitchLab: ${VERSION_INFO.fullVersionString} Loaded (Build: ${VERSION_INFO.buildId})`);
-initializeApp({ projectId: process.env.GCP_PROJECT || "antigravity-pitchlab" });
+const STORAGE_BUCKET_NAME = process.env.GCS_BUCKET || "antigravity-pitchlab.firebasestorage.app";
+initializeApp({
+  projectId: process.env.GCP_PROJECT || "antigravity-pitchlab",
+  storageBucket: STORAGE_BUCKET_NAME
+});
 const db = getFirestore();
 const storage = getStorage();
 try {
@@ -1552,7 +1555,7 @@ exports.pitchLabEvaluation = onCall({
   try {
     if (cvStoragePath) {
       console.log(`PitchLab: Fetching CV from Firebase Storage: ${cvStoragePath}`);
-      const [fileBuffer] = await storage.bucket().file(cvStoragePath).download();
+      const [fileBuffer] = await storage.bucket(STORAGE_BUCKET_NAME).file(cvStoragePath).download();
       cvText = await getExtractCvText()(fileBuffer, cvFileName);
       if (cvText) {
         console.log(`PitchLab: Successfully extracted ${cvText.length} characters from Storage CV (${cvFileName})`);
@@ -1565,6 +1568,21 @@ exports.pitchLabEvaluation = onCall({
         console.log(`PitchLab: Successfully extracted ${cvText.length} characters of CV text from Base64 (${cvFileName})`);
         experience = `CV Attachment (${cvFileName}): ${cvText}\nQuestionnaire Experience: ${experience}`;
         reqData.experience = experience;
+        // Persist base64 CV to isolated Cloud Storage so a permanent record is safely stored
+        try {
+          const safeName = (cvFileName || "founder_cv.pdf").replace(/[^a-zA-Z0-9._-]/g, "_");
+          const serverStoragePath = `cvs/${userId}/${submissionId || Date.now()}_${safeName}`;
+          const cleanB64 = cvBase64.replace(/^data:.*?;base64,/, '').trim();
+          const buf = Buffer.from(cleanB64, 'base64');
+          await storage.bucket(STORAGE_BUCKET_NAME).file(serverStoragePath).save(buf, {
+            contentType: safeName.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream',
+            metadata: { originalName: cvFileName, uploadedAt: new Date().toISOString() }
+          });
+          reqData.cvStoragePath = serverStoragePath;
+          console.log(`PitchLab: Persisted base64 CV to Storage: ${serverStoragePath}`);
+        } catch (saveStorageErr) {
+          console.warn("PitchLab: Could not save base64 CV to Storage (non-fatal):", saveStorageErr.message);
+        }
       }
     }
   } catch (cvErr) {
@@ -4303,6 +4321,63 @@ exports.cleanupExpiredDrafts = onCall({
 
   console.log(`PitchLab Draft Cleanup: Purged ${cleaned} expired drafts.`);
   return { success: true, cleanedCount: cleaned };
+});
+
+/**
+ * Resilient Cloud Function for direct founder CV upload
+ * Bypasses browser CORS, direct socket timeouts, and mobile WebKit limitations.
+ */
+exports.uploadFounderCvDirect = onCall({
+  cors: true,
+  maxInstances: 20,
+  timeoutSeconds: 60,
+  memory: "512MiB"
+}, async (request) => {
+  const userId = request.auth?.uid || request.data?.userId || "anonymous-user";
+  const { fileName, fileBase64, draftId } = request.data || {};
+
+  if (!fileBase64 || typeof fileBase64 !== "string") {
+    throw new HttpsError("invalid-argument", "Missing file data.");
+  }
+
+  const cleanB64 = fileBase64.replace(/^data:.*?;base64,/, '').trim();
+  const fileBuffer = Buffer.from(cleanB64, 'base64');
+
+  if (fileBuffer.length > 15 * 1024 * 1024) {
+    throw new HttpsError("invalid-argument", "File exceeds the 15MB limit.");
+  }
+
+  const safeName = (fileName || "cv.pdf").replace(/[^a-zA-Z0-9._-]/g, "_");
+  const draftSuffix = draftId ? String(draftId).trim() : `draft_${Date.now()}`;
+  const storagePath = `cvs/${userId}/${draftSuffix}_${safeName}`;
+
+  try {
+    const bucket = storage.bucket(STORAGE_BUCKET_NAME);
+    const file = bucket.file(storagePath);
+    await file.save(fileBuffer, {
+      resumable: false,
+      metadata: {
+        contentType: safeName.toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream",
+        metadata: {
+          originalName: fileName || "cv.pdf",
+          uploadedAt: new Date().toISOString(),
+          draftId: draftId || ""
+        }
+      }
+    });
+
+    console.log(`PitchLab: Saved CV via uploadFounderCvDirect to ${storagePath} (${fileBuffer.length} bytes)`);
+
+    return {
+      success: true,
+      storagePath,
+      fileName: fileName || "cv.pdf",
+      fileSize: fileBuffer.length
+    };
+  } catch (err) {
+    console.error("PitchLab uploadFounderCvDirect error:", err);
+    throw new HttpsError("internal", "Failed to store CV in cloud storage: " + err.message);
+  }
 });
 
 exports.syncUserAdminSummary = syncUserAdminSummary;
