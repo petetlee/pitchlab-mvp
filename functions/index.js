@@ -1550,38 +1550,70 @@ exports.pitchLabEvaluation = onCall({
   let cvText = "";
   let cvFileName = reqData.cvFileName || "";
   const cvStoragePath = reqData.cvStoragePath || "";
-  const cvBase64 = reqData.cvBase64 || reqData.cvAttachment || "";
+  const legacyCvBase64 = reqData.cvBase64 || reqData.cvAttachment || "";
+
+  // Strictly strip inline binary from reqData so it never enters IdeaInputs, logs, or evaluation documents
+  delete reqData.cvBase64;
+  delete reqData.cvAttachment;
 
   try {
     if (cvStoragePath) {
-      console.log(`PitchLab: Fetching CV from Firebase Storage: ${cvStoragePath}`);
-      const [fileBuffer] = await storage.bucket(STORAGE_BUCKET_NAME).file(cvStoragePath).download();
-      cvText = await getExtractCvText()(fileBuffer, cvFileName);
-      if (cvText) {
-        console.log(`PitchLab: Successfully extracted ${cvText.length} characters from Storage CV (${cvFileName})`);
-        experience = `CV Attachment (${cvFileName}): ${cvText}\nQuestionnaire Experience: ${experience}`;
-        reqData.experience = experience;
+      // Server-side security & validation: verify path ownership
+      if (!cvStoragePath.startsWith(`cvs/${userId}/`) && !cvStoragePath.startsWith("cvs/anonymous-user/")) {
+        console.warn(`PitchLab: CV storage path ownership check warning: ${cvStoragePath} for user ${userId}`);
       }
-    } else if (cvBase64) {
-      cvText = await getExtractCvText()(cvBase64, cvFileName);
-      if (cvText) {
-        console.log(`PitchLab: Successfully extracted ${cvText.length} characters of CV text from Base64 (${cvFileName})`);
+
+      console.log(`PitchLab: Retrieving CV from Firebase Storage: ${cvStoragePath}`);
+      const file = storage.bucket(STORAGE_BUCKET_NAME).file(cvStoragePath);
+      const [exists] = await file.exists();
+
+      if (!exists) {
+        console.warn(`PitchLab: CV file does not exist in Storage: ${cvStoragePath}`);
+      } else {
+        const [meta] = await file.getMetadata();
+        const sizeBytes = parseInt(meta.size, 10) || 0;
+        if (sizeBytes > 15 * 1024 * 1024) {
+          throw new Error("CV file exceeds the 15MB limit.");
+        }
+
+        const [fileBuffer] = await file.download();
+        cvText = await getExtractCvText()(fileBuffer, cvFileName);
+
+        if (cvText && cvText.trim().length > 0) {
+          console.log(`PitchLab: Successfully extracted ${cvText.length} characters from Storage CV (${cvFileName})`);
+          experience = `CV Attachment (${cvFileName}): ${cvText}\nQuestionnaire Experience: ${experience}`;
+          reqData.experience = experience;
+          reqData.founderCvUploaded = true;
+        } else {
+          console.warn(`PitchLab: CV text extraction returned empty content from ${cvFileName}.`);
+          reqData.founderCvUploaded = false;
+        }
+      }
+    } else if (legacyCvBase64) {
+      // Backward-compatible transition for legacy drafts containing cvBase64
+      console.log(`PitchLab: Processing legacy inline base64 CV (${cvFileName})`);
+      cvText = await getExtractCvText()(legacyCvBase64, cvFileName);
+
+      if (cvText && cvText.trim().length > 0) {
+        console.log(`PitchLab: Extracted ${cvText.length} characters from legacy base64 CV (${cvFileName})`);
         experience = `CV Attachment (${cvFileName}): ${cvText}\nQuestionnaire Experience: ${experience}`;
         reqData.experience = experience;
-        // Persist base64 CV to isolated Cloud Storage so a permanent record is safely stored
+        reqData.founderCvUploaded = true;
+
+        // Migrate to isolated Cloud Storage immediately
         try {
           const safeName = (cvFileName || "founder_cv.pdf").replace(/[^a-zA-Z0-9._-]/g, "_");
           const serverStoragePath = `cvs/${userId}/${submissionId || Date.now()}_${safeName}`;
-          const cleanB64 = cvBase64.replace(/^data:.*?;base64,/, '').trim();
+          const cleanB64 = legacyCvBase64.replace(/^data:.*?;base64,/, '').trim();
           const buf = Buffer.from(cleanB64, 'base64');
           await storage.bucket(STORAGE_BUCKET_NAME).file(serverStoragePath).save(buf, {
             contentType: safeName.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream',
             metadata: { originalName: cvFileName, uploadedAt: new Date().toISOString() }
           });
           reqData.cvStoragePath = serverStoragePath;
-          console.log(`PitchLab: Persisted base64 CV to Storage: ${serverStoragePath}`);
+          console.log(`PitchLab: Migrated legacy base64 CV to Storage: ${serverStoragePath}`);
         } catch (saveStorageErr) {
-          console.warn("PitchLab: Could not save base64 CV to Storage (non-fatal):", saveStorageErr.message);
+          console.warn("PitchLab: Could not migrate legacy base64 CV to Storage (non-fatal):", saveStorageErr.message);
         }
       }
     }
@@ -4094,16 +4126,23 @@ exports.saveEvaluationDraft = onCall({
     throw new HttpsError("invalid-argument", "Missing or invalid form data.");
   }
 
-  // 1. Validate max answer length (no silent truncation!)
-  for (const [key, val] of Object.entries(formData)) {
-    if (typeof val === "string" && val.length > MAX_FIELD_LENGTH) {
+  // 1. Strip obsolete/heavy binary data (e.g. cvBase64) FIRST to protect draft storage
+  const sanitizedFormData = { ...formData };
+  delete sanitizedFormData.cvBase64; // Heavy binary stripped! cvFileName and cvStoragePath retained.
+
+  // System and metadata fields that are not founder questionnaire text answers
+  const NON_QUESTION_FIELDS = new Set([
+    'cvBase64', 'cvStoragePath', 'cvFileName', 'cvFileSize', 'cvUploadedAt',
+    'founderPredictions', 'submissionId', 'draftId', 'userId',
+    'locationSummary', 'experience', 'budget', 'capacity', 'category'
+  ]);
+
+  // 2. Validate max answer length for actual founder questionnaire text inputs (maximum 2,500 characters)
+  for (const [key, val] of Object.entries(sanitizedFormData)) {
+    if (!NON_QUESTION_FIELDS.has(key) && typeof val === "string" && val.length > MAX_FIELD_LENGTH) {
       throw new HttpsError("invalid-argument", `Answer length limit exceeded for field '${key}' (maximum ${MAX_FIELD_LENGTH} characters). Please shorten your response.`);
     }
   }
-
-  // 2. Strip heavy binary data (e.g. cvBase64) to keep draft storage small
-  const sanitizedFormData = { ...formData };
-  delete sanitizedFormData.cvBase64; // Heavy binary stripped! cvFileName retained.
 
   // 3. Document payload size check (must be <= 15KB)
   const payloadSize = Buffer.byteLength(JSON.stringify(sanitizedFormData), "utf8");
@@ -4265,12 +4304,15 @@ exports.getUserDrafts = onCall({
     const expiresMs = effectiveUpdatedMs + ninetyDaysMs;
     const daysRemaining = Math.max(0, Math.ceil((expiresMs - nowMs) / (1000 * 60 * 60 * 24)));
 
+    const sanitizedDraftData = { ...(data.formData || {}) };
+    delete sanitizedDraftData.cvBase64; // Strip any legacy inline base64
+
     return {
       draftId: doc.id,
       ideaName: data.ideaName || "Untitled Draft",
       currentStep: data.currentStep || 0,
       formVersion: data.formVersion || "v0.11.0",
-      formData: data.formData || {},
+      formData: sanitizedDraftData,
       updatedAt: new Date(updatedMs).toISOString(),
       expiresAt: new Date(expiresMs).toISOString(),
       daysRemaining,

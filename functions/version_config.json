@@ -1,9 +1,9 @@
 {
-  "appVersion": "v0.12.1",
-  "fullVersionString": "PitchLab MVP v0.12.1",
-  "changeId": "PL-FIX-20261012-02-CV-UPLOAD-PERMANENT",
-  "parentChangeId": "PL-FIX-20261012-01-SAFARI-SUBMISSION-UPLOAD",
-  "buildId": "sr20261012b",
-  "deployedAt": "2026-10-12T22:00:00+13:00",
-  "deployedAtFormatted": "12 Oct 2026 22:00 NZDT"
+  "appVersion": "v0.12.2",
+  "fullVersionString": "PitchLab MVP v0.12.2",
+  "changeId": "PL-FIX-20261012-03-CV-BASE64",
+  "parentChangeId": "PL-FIX-20261012-02-CV-UPLOAD-PERMANENT",
+  "buildId": "sr20261012c",
+  "deployedAt": "2026-10-12T23:00:00+13:00",
+  "deployedAtFormatted": "12 Oct 2026 23:00 NZDT"
 }

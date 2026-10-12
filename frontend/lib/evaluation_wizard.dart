@@ -186,8 +186,8 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
     // Founder Background Narrative & CV
     'founderBackgroundNarrative': '',
     'founderBackgroundWordCount': 0,
-    'cvBase64': '',
     'cvFileName': '',
+    'cvStoragePath': '',
   };
 
   // Quota & Submission Limit Management (MVP_IDEA_SUBMISSION_LIMIT = 3)
@@ -207,10 +207,12 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
     // Initialize form data with initialData if provided
     if (widget.initialData != null) {
       widget.initialData!.forEach((key, value) {
+        if (key == 'cvBase64') return; // Strip legacy base64 from draft
         if (_formData.containsKey(key) || key.startsWith('cv')) {
           _formData[key] = value;
         }
       });
+      _formData.remove('cvBase64');
       if (_formData['cvStoragePath'] != null && _formData['cvStoragePath'].toString().isNotEmpty) {
         _cvStoragePath = _formData['cvStoragePath'].toString();
         _uploadedCvFileName = _formData['cvFileName']?.toString();
@@ -279,8 +281,22 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
     _formData['predCompetitionDifficulty'] = _predCompetitionDifficulty;
     _formData['predCustomerDemand'] = _predCustomerDemand;
 
-    // Validate max answer length (2,500 chars per text field)
+    // Strip legacy cvBase64 if present
+    _formData.remove('cvBase64');
+
+    // Validate max answer length (2,500 chars per questionnaire text field)
+    const nonQuestionnaireFields = {
+      'cvStoragePath',
+      'cvFileName',
+      'cvFileSize',
+      'submissionId',
+      'draftId',
+      'userId',
+    };
     for (var entry in _formData.entries) {
+      if (nonQuestionnaireFields.contains(entry.key) || entry.key == 'cvBase64') {
+        continue;
+      }
       if (entry.value is String && (entry.value as String).length > 2500) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -811,12 +827,20 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
       return;
     }
 
-    // 2. Sanitize CV references: if no verified upload, remove any dangling CV keys
+    // 2. Sanitize CV references: ensure cvBase64 is NEVER in submission payload
+    _formData.remove('cvBase64');
     if (_cvStoragePath == null || _cvStoragePath!.isEmpty) {
       _formData.remove('cvStoragePath');
-      _formData.remove('cvBase64');
       _formData.remove('cvFileName');
       _formData.remove('cvFileSize');
+      _formData['founderCvUploaded'] = false;
+    } else {
+      _formData['cvStoragePath'] = _cvStoragePath;
+      _formData['cvFileName'] = _uploadedCvFileName ?? _formData['cvFileName'];
+      if (_uploadedCvFileSize != null) {
+        _formData['cvFileSize'] = _uploadedCvFileSize;
+      }
+      _formData['founderCvUploaded'] = true;
     }
 
     // 3. Reuse or generate idempotent submission ID
@@ -943,10 +967,30 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
       }
 
       String friendlyError = 'A temporary network interruption occurred while finalizing your assessment. Your answers are safely preserved. Tap "Try Again" to resume.';
-      if (errStr.contains('unauthenticated')) {
+      if (e is FirebaseFunctionsException) {
+        if (e.code == 'unauthenticated' || e.code == 'permission-denied') {
+          friendlyError = 'Session verification paused. Please sign in or tap "Try Again" to reconnect.';
+        } else if (e.code == 'deadline-exceeded') {
+          friendlyError = 'Assessment processing took longer than expected due to server load. Tap "Try Again" to retrieve your report.';
+        } else if (e.code == 'invalid-argument') {
+          friendlyError = 'Submission validation error: ${e.message ?? "Please review your answers before submitting."}';
+        } else if (e.code == 'resource-exhausted') {
+          _resetSubmissionState();
+          _showLimitReachedDialog();
+          return;
+        } else if (e.message != null && e.message!.isNotEmpty) {
+          friendlyError = e.message!;
+        }
+      } else if (errStr.contains('unauthenticated') || errStr.contains('permission-denied')) {
         friendlyError = 'Session verification paused. Please tap "Try Again" to reconnect.';
       } else if (errStr.contains('deadline-exceeded') || errStr.contains('timeout')) {
         friendlyError = 'Assessment processing took longer than expected due to network delay. Tap "Try Again" to retrieve your report.';
+      } else if (errStr.contains('invalid-argument') || errStr.contains('exceeds') || errStr.contains('limit') || errStr.contains('validation')) {
+        String cleanMsg = errStr;
+        if (cleanMsg.contains('] ')) {
+          cleanMsg = cleanMsg.split('] ').last;
+        }
+        friendlyError = 'Submission validation error: $cleanMsg. Please review your answers before retrying.';
       }
       
       _handleSubmissionError(friendlyError);
@@ -1432,10 +1476,9 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
       // Immediate in-memory capture so bytes are NEVER lost
       _selectedCvBytes = cvResult.bytes;
       _selectedCvName = cvResult.name;
-      final base64String = base64Encode(cvResult.bytes);
       _formData['cvFileName'] = cvResult.name;
       _formData['cvFileSize'] = cvResult.size;
-      _formData['cvBase64'] = base64String;
+      _formData.remove('cvBase64');
 
       await _uploadCVData(cvResult.bytes, cvResult.name, cvResult.size);
     } catch (e) {
@@ -1469,7 +1512,7 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
     final safeName = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
     final draftSuffix = _draftId != null ? _draftId! : 'eval_${DateTime.now().millisecondsSinceEpoch}';
     final storagePath = 'cvs/${user.uid}/${draftSuffix}_$safeName';
-    final base64String = _formData['cvBase64'] ?? base64Encode(bytes);
+    final base64String = base64Encode(bytes);
 
     bool uploadSucceeded = false;
     String finalStoragePath = storagePath;
@@ -1578,7 +1621,7 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
           _formData['cvStoragePath'] = finalStoragePath;
           _formData['cvFileName'] = fileName;
           _formData['cvFileSize'] = fileSize;
-          _formData['cvBase64'] = base64String;
+          _formData.remove('cvBase64');
         });
 
         _markDirty();
@@ -1591,21 +1634,27 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
         );
       }
     } else {
-      // Both Tier 1 and Tier 2 encountered connection issues.
-      // Crucial: The file is preserved in memory and ready for assessment submission.
+      // Both Tier 1 and Tier 2 encountered issues.
+      // Clear storage references so unuploaded file is not treated as verified
       if (mounted) {
-        const errorMsg = 'Cloud sync delayed. Your CV is preserved in memory and will be submitted with your assessment. You may tap Retry Upload.';
+        const errorMsg = 'CV upload could not complete. You can tap Retry, or continue submitting without a CV.';
         setState(() {
           _isUploadingCv = false;
           _cvUploadError = errorMsg;
           _cvUploadStage = 'Upload failed';
-          _uploadedCvFileName = fileName;
-          _uploadedCvFileSize = fileSize;
+          _cvStoragePath = null;
+          _uploadedCvFileName = null;
+          _uploadedCvFileSize = null;
+
+          _formData.remove('cvStoragePath');
+          _formData.remove('cvFileName');
+          _formData.remove('cvFileSize');
+          _formData.remove('cvBase64');
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Cloud sync delayed. CV preserved in memory for assessment.'),
+            content: const Text('CV upload could not complete. You can tap Retry or continue.'),
             backgroundColor: Colors.orangeAccent.shade700,
             duration: const Duration(seconds: 5),
             action: SnackBarAction(
