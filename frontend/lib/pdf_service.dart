@@ -38,7 +38,7 @@ class PdfService {
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
                 pw.Text(_cleanPdfText('Confidential  |  ${res.founderName}'), style: const pw.TextStyle(fontSize: 6.5, color: PdfColors.grey600)),
-                pw.Text(_cleanPdfText('PitchLab MVP ${res.appVersion} • Build ${res.buildId} • Generated ${res.assessmentGeneratedAtFormatted}'), style: const pw.TextStyle(fontSize: 6.5, color: PdfColors.grey600)),
+                pw.Text(_cleanPdfText('PitchLab MVP ${res.appVersion} • Build ${res.buildId} • ${res.changeId} • Generated ${res.assessmentGeneratedAtFormatted}'), style: const pw.TextStyle(fontSize: 6.5, color: PdfColors.grey600)),
                 pw.Text(_cleanPdfText('Page ${context.pageNumber} of ${context.pagesCount}'), style: const pw.TextStyle(fontSize: 6.5, color: PdfColors.grey600)),
               ],
             ),
@@ -171,7 +171,7 @@ class PdfService {
 
 
             // ================= PAGE 2: SCORECARD =================
-            _buildSectionHeaderPDF('PitchLab Reconciled Scorecard (7 Categories)'),
+            _buildSectionHeaderPDF('PitchLab Reconciled Scorecard (${res.scorecardCategories.length} Categories)'),
             pw.Table(
               border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
               columnWidths: const {
@@ -1391,6 +1391,55 @@ class PdfService {
           throw Exception('PITCHLAB PRE-PDF INTEGRITY FAILURE: Cross-assessment data contamination detected ("$term" found in AI / Decision Support assessment). Export blocked.');
         }
       }
+    }
+
+    // 9. PL-FIX-20261030-01: BOOKKEEPING & CROSS-BUSINESS-MODEL INTEGRITY GATE
+    final lowerAllPdf = [
+      allPdfText,
+      ...res.ninetyDayPhases.map((p) => '${p['title']} ${p['objective']} ${(p['activities'] as List?)?.join(' ') ?? ''} ${p['deliverables']} ${p['decisionMilestone']}'),
+      ...res.ninetyDayRoadmapSteps.map((s) => '${s['objective']} ${s['tasks']} ${s['hours']} ${s['evidence']}'),
+    ].join(' ').toLowerCase();
+
+    if (!res.isTradesServices) {
+      final constructionContamination = [
+        'residential property owners',
+        'renovation quotes',
+        'subcontractor trade vetting',
+        'pilot construction contract',
+        'building supply merchants',
+        'vet 3 core subcontractor trades',
+        'pilot renovation contract'
+      ];
+      for (final term in constructionContamination) {
+        if (lowerAllPdf.contains(term)) {
+          throw Exception('PITCHLAB PRE-PDF INTEGRITY FAILURE: Construction/trade contamination ("$term") detected in non-trade assessment. Export blocked.');
+        }
+      }
+    }
+
+    if (res.isBookkeepingService) {
+      final softwareContamination = [
+        'open banking api',
+        'validating bank-feed connectivity before custom software development',
+        'committing capital to full custom software development',
+        'automated tax set-asides'
+      ];
+      for (final term in softwareContamination) {
+        if (lowerAllPdf.contains(term)) {
+          throw Exception('PITCHLAB PRE-PDF INTEGRITY FAILURE: Software-product contamination ("$term") detected in Bookkeeping Service assessment. Export blocked.');
+        }
+      }
+    }
+
+    if (lowerAllPdf.contains('verified background in no') ||
+        lowerAllPdf.contains('food and ho.') ||
+        lowerAllPdf.contains('cleaning a.')) {
+      throw Exception('PITCHLAB PRE-PDF INTEGRITY FAILURE: Broken template interpolation or mid-word truncation detected in report text. Export blocked.');
+    }
+
+    final catSum = res.scorecardCategories.fold<int>(0, (prev, c) => prev + c.scoreAchieved);
+    if (catSum != res.overallScore) {
+      throw Exception('PITCHLAB PRE-PDF INTEGRITY FAILURE: Category score sum ($catSum) does not equal overallScore (${res.overallScore}). Export blocked.');
     }
   }
 }

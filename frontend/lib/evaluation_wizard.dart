@@ -863,6 +863,11 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
     setState(() => _isLoading = true);
     _startSubmissionProgress(submissionId);
     
+    // Synchronize all text controllers into _formData before submission so no field is dropped
+    _controllers.forEach((key, controller) {
+      _formData[key] = controller.text;
+    });
+
     // Map the new fields to backwards compatible fields for database/backend legacy support
     final narrative = _formData['founderBackgroundNarrative']?.toString() ?? '';
     final wordCount = narrative.trim().isEmpty ? 0 : narrative.trim().split(RegExp(r'\s+')).length;
@@ -872,19 +877,23 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
     final indExp = _formData['industryExperience'] ?? '';
     _formData['experience'] = 'Founder Background Narrative: $narrative. Experience: $founderExp. Industry expertise: $indExp';
 
-    final timeComm = _formData['timeCommitment'] ?? '';
+    final timeComm = _formData['timeCommitment']?.toString() ?? '';
     if (timeComm.contains('30+')) {
       _formData['capacity'] = '35';
-    } else if (timeComm.contains('15-30')) {
+    } else if (timeComm.contains('15-30') || timeComm.contains('15–30')) {
       _formData['capacity'] = '20';
-    } else if (timeComm.contains('5-15')) {
+    } else if (timeComm.contains('5-15') || timeComm.contains('5–15')) {
       _formData['capacity'] = '10';
-    } else {
+    } else if (timeComm.isNotEmpty) {
       _formData['capacity'] = '3';
+    } else {
+      _formData['capacity'] = '';
     }
 
-    final investComm = _formData['investmentCommitment'] ?? '';
-    _formData['budget'] = '$investComm NZD';
+    final investComm = _formData['investmentCommitment']?.toString() ?? '';
+    _formData['budget'] = investComm.isNotEmpty
+        ? (investComm.toUpperCase().contains('NZD') ? investComm : '$investComm NZD')
+        : '';
 
     _formData['founderPredictions'] = {
       'overallConfidence': _predOverallConfidence.round(),
@@ -918,6 +927,9 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
       }
 
       _formData['userId'] = user?.uid ?? 'anonymous-user';
+      if (user?.displayName != null && user!.displayName!.trim().isNotEmpty) {
+        _formData['founderName'] = user.displayName!.trim();
+      }
 
       print('🚀 PitchLab: Calling pitchLabEvaluation (us-central1)...');
       final callable = FirebaseFunctions.instanceFor(region: "us-central1")

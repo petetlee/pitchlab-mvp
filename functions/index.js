@@ -11,7 +11,7 @@ const { getAuth } = require("firebase-admin/auth");
 const { getStorage } = require("firebase-admin/storage");
 const fs = require("fs");
 const path = require("path");
-const { calculateFRI, reconcileScores, getScoreBand, classifyVentureType, detectFeasibilityGates, calculateFounderEvidenceGap, calculate5DimensionFutureTrends, getValidationLadderForContext, getCommercialAdviserOpinion, getPortfolioDecision, generateContextualInvestorCommentary, getLegalRegulatoryAssessment, generateContextualInvestorVerdict, validateReportIntegrityGate, detectAndResolveCrossContamination } = require("./scoring_logic");
+const { calculateFRI, reconcileScores, getScoreBand, classifyVentureType, normalizeFounderTimeCommitment, normalizeFounderCapital, detectProblemStatementMisclassification, buildAuthoritativeAssessmentSnapshot, computeInputCoverageAudit, detectFeasibilityGates, calculateFounderEvidenceGap, calculate5DimensionFutureTrends, getValidationLadderForContext, getCommercialAdviserOpinion, getPortfolioDecision, generateContextualInvestorCommentary, getLegalRegulatoryAssessment, generateContextualInvestorVerdict, validateReportIntegrityGate, detectAndResolveCrossContamination } = require("./scoring_logic");
 
 const VERSION_INFO = require("./version_config.json");
 const STORAGE_BUCKET_NAME = process.env.GCS_BUCKET || "antigravity-pitchlab.firebasestorage.app";
@@ -75,6 +75,55 @@ async function updateSubmissionProgress(submissionId, stageIndex, stageName, per
   } catch (err) {
     console.warn(`PitchLab Progress update warning for ${submissionId}:`, err.message);
   }
+}
+
+/**
+ * Formats an assessment generation timestamp unambiguously in UTC/GMT:
+ * "YYYY-MM-DD HH:mm GMT (UTC+00:00)"
+ */
+function formatAssessmentTimestampUTC(dateInput = new Date()) {
+  const d = dateInput instanceof Date ? dateInput : new Date(dateInput || Date.now());
+  const validDate = isNaN(d.getTime()) ? new Date() : d;
+  const iso = validDate.toISOString(); // YYYY-MM-DDTHH:mm:ss.sssZ
+  const datePart = iso.slice(0, 10);
+  const timePart = iso.slice(11, 16);
+  return `${datePart} ${timePart} GMT (UTC+00:00)`;
+}
+
+/**
+ * Resolves the founder's display name for report headers and metadata.
+ */
+async function resolveFounderDisplayName(reqData = {}, userId = "", requestAuth = null) {
+  const explicitName = String(reqData.founderName || reqData.preparedFor || reqData.displayName || "").trim();
+  if (explicitName && explicitName.toLowerCase() !== "founder" && explicitName.toLowerCase() !== "unknown") {
+    return explicitName;
+  }
+  const tokenName = String(requestAuth?.token?.name || "").trim();
+  if (tokenName && tokenName.toLowerCase() !== "founder") {
+    return tokenName;
+  }
+  if (userId && userId !== "anonymous-user") {
+    try {
+      const userDoc = await db.collection("Users").doc(userId).get();
+      if (userDoc.exists) {
+        const uData = userDoc.data() || {};
+        const docName = String(uData.displayName || uData.name || uData.founderName || "").trim();
+        if (docName && docName.toLowerCase() !== "founder") {
+          return docName;
+        }
+        const email = String(uData.email || "").trim().toLowerCase();
+        if (email.startsWith("taidt")) return "Tai";
+        if (email.startsWith("peter@")) return "Peter Lee";
+        if (email.includes("@")) {
+          const prefix = email.split("@")[0].replace(/[0-9_.-]+/g, " ").trim();
+          if (prefix.length >= 2) {
+            return prefix.charAt(0).toUpperCase() + prefix.slice(1);
+          }
+        }
+      }
+    } catch (_) {}
+  }
+  return "Founder (Name not supplied)";
 }
 
 /**
@@ -261,9 +310,9 @@ function runSemanticGuardrail(data, ventureType = "", gatesInfo = {}, reqData = 
       s = s.replace(/\bpower plant\b/gi, "software solution");
     }
 
-    // PL-FIX-20261006-SMARTTAX-01 Fix 4: Prevent unsupported demographic inference
-    const explicitMarket = (reqData.targetMarket || "").toLowerCase();
-    if (!explicitMarket.includes("maori") && !explicitMarket.includes("māori") && !explicitMarket.includes("pacifica") && !explicitMarket.includes("pasifika")) {
+    // PL-FIX-20261006-SMARTTAX-01 Fix 4: Prevent unsupported demographic inference (preserve when explicitly in idea, targetMarket, or founder narrative)
+    const explicitDemographicInputs = `${reqData.idea || ""} ${reqData.targetMarket || ""} ${reqData.founderBackgroundNarrative || ""}`.toLowerCase();
+    if (!explicitDemographicInputs.includes("maori") && !explicitDemographicInputs.includes("māori") && !explicitDemographicInputs.includes("pacifica") && !explicitDemographicInputs.includes("pasifika") && !explicitDemographicInputs.includes("pacific")) {
       s = s.replace(/\bM[āa]ori\s+and\s+Pacifica\s+SMBs\b/gi, "local SMBs and sole traders");
       s = s.replace(/\bM[āa]ori\s+and\s+Pacifica\s+businesses\b/gi, "small and medium-sized businesses");
       s = s.replace(/\bM[āa]ori\s+and\s+Pacifica\b/gi, "commercial clients");
@@ -303,30 +352,49 @@ function runSemanticGuardrail(data, ventureType = "", gatesInfo = {}, reqData = 
 }
 
 function synthesizeTargetCustomerLabel(targetMarket = "") {
-  if (!targetMarket || typeof targetMarket !== 'string') return "prospective passengers and drivers";
+  if (!targetMarket || typeof targetMarket !== 'string') return "prospective customers";
   let s = targetMarket.trim();
   s = s.replace(/^["\“\‘](.*)["\”\’]$/, '$1').trim();
+  s = s.replace(/^primary:\s*/i, '').trim();
   s = s.replace(/^(the|our|target|targeting|the\s+target\s+market\s+is|our\s+target\s+customers\s+are)\s+/i, '').trim();
-  if (s.length > 80 || s.includes('.')) {
+  // Take only the primary customer line before any "Competitors:" or "Market:" breakdown
+  s = s.split(/\n|competitors\s*:|market\s*:/i)[0].trim();
+  s = s.replace(/\bmaintanence\b/gi, "maintenance").replace(/\bpasifika\b/gi, "Pasifika");
+  if (s.length > 90 || s.includes('.')) {
     const lower = s.toLowerCase();
     if (lower.includes('resident') || lower.includes('tourist') || lower.includes('passenger') || lower.includes('commuter') || lower.includes('driver')) {
       return "local residents, commuters, tourists and transport operators";
     }
-    const firstSentence = s.split(/[.;]/)[0].trim();
-    if (firstSentence.length <= 80 && firstSentence.length > 5) {
+    if (lower.includes('pasifika') && (lower.includes('small business') || lower.includes('community') || lower.includes('sole trader'))) {
+      return "Pasifika small business owners, sole traders, and community organisations";
+    }
+    if ((lower.includes('sole trader') || lower.includes('small to medium') || lower.includes('small business')) && (lower.includes('community') || lower.includes('charit'))) {
+      return "start-ups, sole traders, small businesses, and community organisations";
+    }
+    if (lower.includes('sole trader') || lower.includes('small to medium') || lower.includes('small business')) {
+      return "start-ups, sole traders, and small-to-medium businesses";
+    }
+    const firstSentence = s.split(/[.;:]/)[0].trim();
+    if (firstSentence.length <= 85 && firstSentence.length > 5) {
       return firstSentence;
     }
-    return s.substring(0, 75).trim() + "...";
+    // Cut cleanly at the last whole word or comma boundary before 75 chars, never mid-word
+    const truncated = firstSentence.slice(0, 75);
+    const lastCommaOrSpace = Math.max(truncated.lastIndexOf(','), truncated.lastIndexOf(' '));
+    return (lastCommaOrSpace > 20 ? truncated.slice(0, lastCommaOrSpace).replace(/[,\s]+$/, '') : truncated.trim());
   }
-  return s || "prospective customers";
+  return s.replace(/[.\s]+$/, '') || "prospective customers";
 }
 
 function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction = "New Zealand") {
   const isNuc = Boolean((data.idea || "").toLowerCase().match(/nuclear|smr|power plant|atomic/) || (data.problem || "").toLowerCase().match(/nuclear|smr/));
-  const isTax = Boolean((data.idea || "").toLowerCase().match(/tax|gst|ird|bookkeep|accounting/) || (data.category || "").toLowerCase().match(/fintech|tax/));
+  const isBookkeepingOrProfService = vType === "Professional Services / Bookkeeping & Financial Advisory" || vType.includes("Professional Services") || (Boolean((data.idea || "").toLowerCase().match(/\b(bookkeeping|bookkeeper|accounting services?|financial support|financial administration|payroll services?)\b/)) && !Boolean((data.idea || "").toLowerCase().match(/\b(saas|software|app|platform|fintech)\b/)));
+  const isCommunityOrNfp = vType === "Community / Not-for-Profit / Social Enterprise";
+  const isTax = !isBookkeepingOrProfService && !isCommunityOrNfp && Boolean((data.idea || "").toLowerCase().match(/tax|gst|ird|fintech/) || (data.category || "").toLowerCase().match(/fintech|tax/));
   const isHw = Boolean(vType.includes("Hardware") || (data.idea || "").toLowerCase().match(/moor|boat|hardware|device|sensor|solar/));
   const isTransport = Boolean(vType.includes("Transportation") || vType.includes("Mobility") || isTransportIdea(data));
   const isAiDecision = Boolean(vType.includes("Decision Support") || (data.idea || "").toLowerCase().match(/\b(pitchlab|decision support|decision intelligence|startup evaluation|idea validation|idea assessment|founder intelligence)\b/i));
+  const problemMisclass = detectProblemStatementMisclassification(data);
 
   const cleanVal = (val, fallback) => {
     if (!val || typeof val !== 'string') return fallback;
@@ -335,6 +403,7 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
       return fallback;
     }
     s = s.replace(/^["\“\‘](.*)["\”\’]$/, '$1').trim();
+    s = s.replace(/\bmaintanence\b/gi, "maintenance").replace(/\bpackgage\b/gi, "package").replace(/\bpasifika\b/gi, "Pasifika");
     s = s.replace(/^(i\s+want\s+to\s+(develop|build|create|launch|target)|my\s+target\s+market\s+is|targeting|the\s+target\s+customer\s+is|we\s+target|our\s+target\s+customers\s+are|developing|i\s+am\s+building|we\s+are\s+building|a\s+new|we\s+offer|my\s+startup\s+idea\s+is|the\s+problem\s+is|customer\s+problem\s+is|users\s+suffer\s+from)\s+/i, '');
     s = s.trim();
     if (!s || s === '.' || s === '-') return fallback;
@@ -344,30 +413,36 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
   };
 
   if (fieldType === 'targetCustomer') {
-    const rawTarget = data.targetMarket || data.market;
+    const rawTarget = (data.targetMarket || data.market || "").split(/\n\s*(?:competitors|market)\s*:/i)[0].replace(/^primary:\s*/i, '').trim();
     const fallback = isNuc
       ? "Electricity retailers, large industrial off-takers and public-sector energy purchasers."
-      : (isTax
-        ? "Kiwi small-to-medium businesses (SMBs), sole traders, and accounting practitioners."
-        : (isHw
-          ? "Commercial vessel operators, marine infrastructure owners, and recreational boating consumers."
-          : (isTransport
-            ? "Local commuters, tourists, airport travellers, and independent local transport drivers."
-            : (isAiDecision
-              ? "Entrepreneurs, startup founders, prospective business owners and innovation programmes."
-              : (data.category ? `${data.category} commercial customers and key decision makers.` : "Target commercial customer segment defined by clear operational friction.")))));
+      : (isBookkeepingOrProfService
+        ? "Small business owners, sole traders, independent contractors, and community or not-for-profit organisations."
+        : (isCommunityOrNfp
+          ? "Community members, grassroots organisations, incorporated societies, and local social-impact partners."
+          : (isTax
+            ? "Kiwi small-to-medium businesses (SMBs), sole traders, and accounting practitioners."
+            : (isHw
+              ? "Commercial vessel operators, marine infrastructure owners, and recreational boating consumers."
+              : (isTransport
+                ? "Local commuters, tourists, airport travellers, and independent local transport drivers."
+                : (isAiDecision
+                  ? "Entrepreneurs, startup founders, prospective business owners and innovation programmes."
+                  : (data.category ? `${data.category} commercial customers and key decision makers.` : "Target commercial customer segment defined by clear operational friction.")))))));
     let cleaned = cleanVal(rawTarget, fallback);
-    if (cleaned.length > 140) {
+    if (cleaned.length > 220) {
       if (isTransport) {
         cleaned = "Local residents, tourists, business travellers, and visiting friends and relatives (VFR) needing reliable local transport.";
       } else if (isAiDecision) {
         cleaned = "Entrepreneurs, startup founders, prospective business owners and innovation programmes.";
       } else {
         const firstSentence = cleaned.split(/[.;]/)[0].trim();
-        if (firstSentence.length <= 130 && firstSentence.length > 10) {
+        if (firstSentence.length <= 220 && firstSentence.length > 10) {
           cleaned = firstSentence + '.';
         } else {
-          cleaned = cleaned.substring(0, 130).trim() + "...";
+          const slice = firstSentence.slice(0, 200);
+          const lastSpace = slice.lastIndexOf(' ');
+          cleaned = (lastSpace > 40 ? slice.slice(0, lastSpace).replace(/[,\s]+$/, '') : slice) + '.';
         }
       }
     }
@@ -378,34 +453,45 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
     const rawOffering = data.idea;
     const fallback = isNuc
       ? `SMR-based firm, low-carbon electricity generation supplied into ${jurisdiction}'s national grid.`
-      : (isTax
-        ? "Automated GST and tax obligation set-aside tool for small businesses."
-        : (isHw
-          ? "Solar-powered automated marine mooring and pest protection device."
-          : (isTransport
-            ? "A mobile ride-booking and transport platform connecting passengers with local drivers for on-demand rides, transfers, and tours."
-            : (isAiDecision
-              ? "Structured AI-assisted assessment of business ideas, risks, market potential, founder capability and practical next steps."
-              : "Commercial product and service solution targeting operational efficiency."))));
+      : (isBookkeepingOrProfService
+        ? "Dedicated bookkeeping, payroll, accounts payable/receivable, reconciliation, and practical financial guidance services for small businesses and community organisations."
+        : (isCommunityOrNfp
+          ? "Community-focused programmes, governance support, and capacity-building services."
+          : (isTax
+            ? "Automated GST and tax obligation set-aside tool for small businesses."
+            : (isHw
+              ? "Solar-powered automated marine mooring and pest protection device."
+              : (isTransport
+                ? "A mobile ride-booking and transport platform connecting passengers with local drivers for on-demand rides, transfers, and tours."
+                : (isAiDecision
+                  ? "Structured AI-assisted assessment of business ideas, risks, market potential, founder capability and practical next steps."
+                  : "Commercial product and service solution targeting operational efficiency."))))));
     return cleanVal(rawOffering, fallback);
   }
 
   if (fieldType === 'customerProblem') {
+    if (problemMisclass.isFounderCapabilityNeedInProblemField) {
+      return `Founder's submitted response listed internal launch priorities (${problemMisclass.founderStatedSetupPriorities.replace(/\bmaintanence\b/gi, "maintenance").replace(/\bpackgage\b/gi, "package")}) rather than external customer pain points. Inferred customer problem: ${problemMisclass.inferredCustomerProblem}`;
+    }
     const rawProblem = data.problem;
     const fallback = isNuc
       ? "Increasing electricity demand, reliability requirements, wholesale price volatility and demand for additional firm low-carbon generation."
-      : (isTax
-        ? "Manual GST calculation errors, unexpected IRD tax penalties, and cash flow strain for commercial SMBs."
-        : (isTransport
-          ? `Fragmented, unreliable transport booking in ${jurisdiction || "the target market"}, lack of upfront fare transparency, and vehicle idle time for drivers.`
-          : (isAiDecision
-            ? "Founders risking time and capital on unvalidated ideas without objective, structured commercial assessment or evidence-led decision guidance."
-            : "Operational friction, cost inefficiency, and unaddressed market workflow requirements.")));
+      : (isBookkeepingOrProfService
+        ? "Small business owners, sole traders, and community organisations struggling with time-consuming manual bookkeeping, GST/payroll compliance, and cash-flow visibility without culturally responsive financial support."
+        : (isTax
+          ? "Manual GST calculation errors, unexpected IRD tax penalties, and cash flow strain for commercial SMBs."
+          : (isTransport
+            ? `Fragmented, unreliable transport booking in ${jurisdiction || "the target market"}, lack of upfront fare transparency, and vehicle idle time for drivers.`
+            : (isAiDecision
+              ? "Founders risking time and capital on unvalidated ideas without objective, structured commercial assessment or evidence-led decision guidance."
+              : "Operational friction, cost inefficiency, and unaddressed market workflow requirements."))));
     return cleanVal(rawProblem, fallback);
   }
 
   if (fieldType === 'valueProposition') {
     if (isNuc) return "Continuous, low-carbon firm electricity generation providing long-term price predictability, grid stability, and industrial decarbonisation.";
+    if (isBookkeepingOrProfService) return "Culturally responsive, relationship-based bookkeeping and financial administration support that helps small business owners and community organisations build financial confidence, maintain accurate cloud ledgers, and meet GST, payroll, and society reporting obligations.";
+    if (isCommunityOrNfp) return "Trusted, culturally grounded community programme delivery that builds participant capability and strengthens local organisation governance.";
     if (isTax) return "Automated tax obligation set-aside functionality helping small businesses maintain cash flow discipline and avoid unexpected tax liabilities.";
     if (isHw) return "A reliable, effective, and automated pest deterrent that significantly reduces maintenance, damage, and hygiene concerns on boats.";
     if (isTransport) return `A localized digital ride-booking platform that allows passengers to locate and arrange transport more conveniently while giving local drivers access to additional ride demand in ${jurisdiction || "the target market"}.`;
@@ -415,6 +501,8 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
 
   if (fieldType === 'revenueModel') {
     if (isNuc) return "Wholesale electricity market sales, long-term Power Purchase Agreements (PPAs) with industrial off-takers, and ancillary grid support fees, subject to statutory feasibility.";
+    if (isBookkeepingOrProfService) return "Tiered fixed-fee monthly bookkeeping and payroll retainers, hourly or fixed-scope ledger catch-up/reconciliation packages, and Xero setup or treasurer reporting support for community organisations.";
+    if (isCommunityOrNfp) return "Blended funding model combining fee-for-service workshops, community delivery contracts, and philanthropic or public grant funding.";
     if (isTax) return "Tiered monthly software subscription (SaaS) priced per business or transaction volume.";
     if (isHw) return "Direct hardware sales, distributor margins, or optional maintenance support agreements.";
     if (isTransport) return "Commission or transaction fee on completed rides, potentially supplemented by fixed booking fees, airport transfer arrangements, business accounts or other validated transport-service revenue models.";
@@ -424,6 +512,8 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
 
   if (fieldType === 'customerAcquisition') {
     if (isNuc) return "Direct long-term PPA contracting with electricity retailers, heavy industrial energy users, and national grid operators.";
+    if (isBookkeepingOrProfService) return "Warm outreach through Pasifika business networks, community organisations, and incorporated societies, supported by referrals from public accountants who do not offer hands-on bookkeeping and Xero advisor directory listings.";
+    if (isCommunityOrNfp) return "Direct engagement with community leaders, churches, incorporated societies, and local social-impact partner networks.";
     if (isTax) return "Direct digital acquisition, accounting practitioner referrals, and small-business community partnerships.";
     if (isHw) return "Direct commercial outreach, industry trade channels, and field demonstration trials.";
     if (isTransport) return "Local transport operator partnerships, hotel and tourism relationships, airport transfer channels, digital marketing, and driver-led network growth.";
@@ -433,6 +523,8 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
 
   if (fieldType === 'keyCosts') {
     if (isNuc) return "Technology licensing, site development, regulatory consenting, plant engineering, construction, grid interconnection, operation, security, and decommissioning.";
+    if (isBookkeepingOrProfService) return "Xero advisor certification and ongoing training, business registration, professional indemnity insurance, AML/CFT compliance (where applicable), cloud practice software subscriptions, and client outreach.";
+    if (isCommunityOrNfp) return "Programme facilitation time, venue/workshop materials, society/charity governance administration, and community outreach.";
     if (isTax) return "Software development, banking API integrations, security compliance, hosting infrastructure, and customer acquisition.";
     if (isHw) return "Component sourcing, tooling, manufacturing assembly, quality certification, and field testing.";
     if (isTransport) return "Software development, platform hosting, mapping/payment services, driver onboarding, customer support, insurance/compliance, marketing and ongoing platform operations.";
@@ -442,6 +534,8 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
 
   if (fieldType === 'commercialAssessment') {
     if (isNuc) return "Business model viability is strictly governed by statutory permissibility, regulatory consenting, and multi-billion-dollar project financing gateways.";
+    if (isBookkeepingOrProfService) return "A low-overhead professional bookkeeping practice with strong founder domain alignment (28+ years in financial administration and society treasurer governance); commercial viability depends on completing Xero proficiency training, validating fixed-fee monthly package pricing, and converting initial community and small-business relationships into paying retainer clients.";
+    if (isCommunityOrNfp) return "Viability depends on demonstrating measurable community outcomes and securing reliable fee-for-service or multi-year contract funding before taking on fixed overhead.";
     if (isTax) return "Commercial viability depends on proving that small businesses will adopt a dedicated set-aside tool over existing manual bank account workarounds.";
     if (isHw) return "Commercial viability depends on prototype durability testing and verified manufacturing unit economics.";
     if (isTransport) return "The business model is standard for a two-sided marketplace; commercial viability hinges on balancing passenger demand with driver supply liquidity and maintaining viable unit economics in the local market.";
@@ -470,6 +564,31 @@ function runEditorialQaAndSpellCheck(data, reqData = {}) {
     "primaryTheme",
     "secondaryTheme",
     "weeklyAvailableHours",
+    "stepHoursLabel",
+    "timeAvailable",
+    "hours",
+    "week",
+    "phaseNumber",
+    "daysRange",
+    "founderName",
+    "founderRegion",
+    "changeId",
+    "ventureContext",
+    "ventureType",
+    "evidenceLevel",
+    "label",
+    "stage",
+    "status",
+    "disposition",
+    "questionId",
+    "questionVersion",
+    "schemaVersion",
+    "marketDirection",
+    "solutionOutlook",
+    "priority",
+    "metric",
+    "title",
+    "objective",
     "availableCapital",
     "initialRiskCapital",
     "scoreBand",
@@ -493,7 +612,8 @@ function runEditorialQaAndSpellCheck(data, reqData = {}) {
     "deployedAt",
     "deployedAtFormatted",
     "assessmentGeneratedAt",
-    "assessmentGeneratedAtFormatted"
+    "assessmentGeneratedAtFormatted",
+    "assessmentDate"
   ]);
 
   const editString = (str, key = "") => {
@@ -668,15 +788,17 @@ function generateActionSourceOfTruth(reqData = {}, reconciled = {}, ventureType 
   const targetMarket = (reqData.targetMarket || "target customers").trim();
   const isNuclear = (idea + " " + (reqData.category || "")).toLowerCase().includes("nuclear") || reconciled.gatesInfo?.hasCriticalGate;
   const isHw = ventureType.includes("Hardware") || ventureType.includes("Manufacturing") || isHardwareIdea(idea, reqData.category);
-  const isFinTech = ventureType === "Financial Services / FinTech" || Boolean((idea + " " + (reqData.category || "")).toLowerCase().match(/\b(tax|gst|ird|fintech|accounting|bookkeep)\b/i));
+  const isBookkeepingOrProfService = ventureType === "Professional Services / Bookkeeping & Financial Advisory" || ventureType.includes("Professional Services");
+  const isCommunityOrNfp = ventureType === "Community / Not-for-Profit / Social Enterprise";
+  const isFinTech = !isBookkeepingOrProfService && !isCommunityOrNfp && (ventureType === "Financial Services / FinTech");
 
   const isTransport = ventureType === "Transportation / Mobility / Marketplace" || ventureType.includes("Transportation") || ventureType.includes("Mobility") || isTransportIdea(reqData);
-  const isTradeService = ventureType.includes("Trade") || ventureType.includes("Construction") || Boolean((idea + " " + (reqData.category || "")).toLowerCase().match(/\b(builder|building|construction|renovation|carpenter|trades|contractor)\b/i));
+  const isTradeService = !isBookkeepingOrProfService && !isCommunityOrNfp && (ventureType === "Trade / Local Service");
   const isAiDecision = ventureType.includes("Decision Support") || Boolean((idea + " " + (reqData.category || "")).toLowerCase().match(/\b(ai\b|decision support|decision intelligence|startup evaluation|idea validation|idea assessment|founder intelligence|pitchlab)\b/i));
 
-  const rawTimeInput = (reqData.timeCommitment || reqData.capacity || "").toString().trim();
-  const isLowTime = Boolean(rawTimeInput.match(/\b(0-5|0\s*-\s*5|<5)\b/i));
-  const hoursBand = isLowTime ? "0-5 hours/week" : (rawTimeInput.match(/\b(5-10|5\s*-\s*10)\b/i) ? "5-10 hours/week" : "10-20 hours/week");
+  const timeNorm = normalizeFounderTimeCommitment(reqData);
+  const hoursBand = timeNorm.normalizedBand;
+  const stepHoursLabel = timeNorm.stepHoursLabel;
 
   if (isNuclear) {
     const immediate7DayAction = `Identify qualified legal specialists in ${targetJurisdiction} and schedule an initial consultation to map statutory frameworks.`;
@@ -763,12 +885,12 @@ function generateActionSourceOfTruth(reqData = {}, reconciled = {}, ventureType 
     const ninetyDayRoadmap = {
       phases: ninetyDayPhases,
       steps: [
-        { week: 'W 1-2', objective: 'Legal & Statutory Scoping', tasks: 'Identify applicable legislation and engage appropriate specialist legal/regulatory expertise.', hours: '5 hrs/wk', evidence: 'Preliminary legal-framework map' },
-        { week: 'W 3-4', objective: 'Regulatory Pathway Assessment', tasks: 'Determine whether any credible statutory pathway exists for commercial nuclear generation.', hours: '5 hrs/wk', evidence: 'Regulatory pathway scoping note / specialist scope' },
-        { week: 'W 5-6', objective: 'Technical Pre-Feasibility', tasks: 'Engage nuclear/energy infrastructure specialists to identify fundamental technical prerequisites.', hours: '5 hrs/wk', evidence: 'Technical prerequisite and capability-gap memo' },
-        { week: 'W 7-8', objective: 'Policy & Stakeholder Mapping', tasks: 'Identify relevant government, regulatory and energy infrastructure stakeholders.', hours: '5 hrs/wk', evidence: 'Stakeholder map' },
-        { week: 'W 9-10', objective: 'Capital & Delivery Reality', tasks: 'Establish indicative project capital scale, financing structure and consortium requirements.', hours: '5 hrs/wk', evidence: 'Indicative capital-scale model' },
-        { week: 'W 11-12', objective: 'Evidence Gateway Decision', tasks: 'STOP / PARK / PIVOT / CONTINUE based on statutory and pre-feasibility evidence obtained.', hours: '5 hrs/wk', evidence: 'Evidence Gateway Decision' }
+        { week: 'W 1-2', objective: 'Legal & Statutory Scoping', tasks: 'Identify applicable legislation and engage appropriate specialist legal/regulatory expertise.', hours: stepHoursLabel, evidence: 'Preliminary legal-framework map' },
+        { week: 'W 3-4', objective: 'Regulatory Pathway Assessment', tasks: 'Determine whether any credible statutory pathway exists for commercial nuclear generation.', hours: stepHoursLabel, evidence: 'Regulatory pathway scoping note / specialist scope' },
+        { week: 'W 5-6', objective: 'Technical Pre-Feasibility', tasks: 'Engage nuclear/energy infrastructure specialists to identify fundamental technical prerequisites.', hours: stepHoursLabel, evidence: 'Technical prerequisite and capability-gap memo' },
+        { week: 'W 7-8', objective: 'Policy & Stakeholder Mapping', tasks: 'Identify relevant government, regulatory and energy infrastructure stakeholders.', hours: stepHoursLabel, evidence: 'Stakeholder map' },
+        { week: 'W 9-10', objective: 'Capital & Delivery Reality', tasks: 'Establish indicative project capital scale, financing structure and consortium requirements.', hours: stepHoursLabel, evidence: 'Indicative capital-scale model' },
+        { week: 'W 11-12', objective: 'Evidence Gateway Decision', tasks: 'STOP / PARK / PIVOT / CONTINUE based on statutory and pre-feasibility evidence obtained.', hours: stepHoursLabel, evidence: 'Evidence Gateway Decision' }
       ]
     };
     return {
@@ -781,6 +903,220 @@ function generateActionSourceOfTruth(reqData = {}, reconciled = {}, ventureType 
       doThisBeforeBuilding: `Identify an appropriately qualified legal and regulatory specialist in ${targetJurisdiction} and obtain an initial discussion, indicative view or scope and fee for determining the applicable statutory pathway.`,
       nextEvidenceGateway: `Confirm indicative statutory permissibility pathway under ${targetJurisdiction} legislation before deploying pre-feasibility risk capital.`,
       reassessmentTrigger: "Receipt of specialist legal feedback confirming statutory feasibility."
+    };
+  }
+
+  if (isBookkeepingOrProfService) {
+    const targetLabel = synthesizeTargetCustomerLabel(targetMarket);
+    const immediate7DayAction = `Enrol in Xero Advisor proficiency training, complete your business registration and AML/CFT compliance checklist, and contact 10 prospective ${targetLabel} in ${targetJurisdiction} to schedule initial discovery conversations.`;
+    const threePriorityActions = [
+      {
+        heading: "1. Complete Xero Certification & Practice Setup.",
+        explanation: `Complete Xero Advisor/Payroll training and finalise business registration, indemnity insurance, and compliance onboarding in ${targetJurisdiction} (${hoursBand}).`,
+        outcome: "Completed Xero certification & practice onboarding checklist."
+      },
+      {
+        heading: "2. Phase 1 Small Business & Community Discovery Interviews.",
+        explanation: `Conduct 8–10 discovery interviews with owners and treasurers across ${targetLabel} to validate bookkeeping, GST/PAYE, and reporting pain points.`,
+        outcome: "8–10 completed customer discovery logs and pain confirmation score."
+      },
+      {
+        heading: "3. Fixed-Fee Bookkeeping Package & Pilot Client Conversion.",
+        explanation: "Present tiered monthly bookkeeping and payroll packages ($150–$650/month) to 5 interviewed prospects to secure 2–3 paying pilot retainer clients.",
+        outcome: "2–3 signed monthly bookkeeping engagement letters."
+      }
+    ];
+    const topFivePriorities = [
+      { priority: "Xero Proficiency & Practice Setup", action: "Complete Xero Advisor and Payroll certification courses and finalize business setup, engagement letters, and AML/CFT compliance.", metric: "Xero Advisor certification & practice setup checklist" },
+      { priority: "Customer Pain Point Discovery", action: `Interview 8–10 prospective ${targetLabel} on their current bookkeeping backlogs, GST/PAYE anxiety, and financial literacy needs.`, metric: "8–10 completed discovery interview logs" },
+      { priority: "Tiered Retainer Packaging", action: "Define clear scope boundaries and fixed monthly pricing tiers for sole traders, small employers, and community organizations.", metric: "3-tier service & pricing schedule" },
+      { priority: "Community & Hub Referral Partnerships", action: "Connect with 3 local Pasifika business networks, churches, community trusts, or chartered accountants for mutual client referrals.", metric: "2–3 active community/accountant referral relationships" },
+      { priority: "Execution Cadence", action: `Allocate ${hoursBand} consistently across Xero proficiency training, community outreach, and client onboarding milestones.`, metric: `Weekly ${stepHoursLabel} execution log` }
+    ];
+    const thirtyDayPlan = {
+      week1: { objective: "Xero Training Enrolment & Practice Compliance Setup", tasks: ["Enrol in Xero Advisor & Payroll certification modules", "Complete NZ business setup checklist, client engagement template, and schedule 5 discovery chats"], expectedResult: "Xero training underway & 5 confirmed discovery conversations" },
+      week2: { objective: "Phase 1 Customer Discovery (8–10 Business Owners / Treasurers)", tasks: [`Conduct 8–10 structured conversations with ${targetLabel}`, "Document specific bookkeeping, GST, payroll, and cashflow pain points"], expectedResult: "Completed customer pain synthesis & service need validation" },
+      week3: { objective: "Service Packaging & Community Partner Outreach", tasks: ["Finalize fixed-fee monthly bookkeeping and catch-up packages", "Introduce practice to 3 community hubs, churches, or chartered accounting firms"], expectedResult: "Tiered pricing sheet & 3 community partner introductions" },
+      week4: { objective: "Pilot Client Proposals & Retainer Onboarding", tasks: ["Present monthly bookkeeping proposals to 5 warm prospects from discovery interviews", `Secure 2–3 initial paying retainer clients within ${hoursBand} capacity`], expectedResult: "2–3 Signed Client Engagement Letters" }
+    };
+    const ninetyDayPhases = [
+      {
+        phaseNumber: "Phase 1",
+        daysRange: "Days 1–30",
+        title: "Practice Readiness & Customer Problem Validation",
+        name: "Phase 1: Days 1–30 — Practice Readiness & Customer Problem Validation",
+        objective: `Complete Xero proficiency training and business setup while validating actual bookkeeping, payroll, and compliance pain points with ${targetLabel} in ${targetJurisdiction}.`,
+        activities: [
+          "Complete Xero Advisor and Xero Payroll training modules to build practical cloud accounting fluency.",
+          `Map business setup requirements in ${targetJurisdiction} including company/sole-trader registration, professional indemnity insurance, and client engagement terms.`,
+          `Conduct 8–10 structured discovery interviews with Pasifika small business owners, sole traders, and community organisation treasurers.`,
+          "Document specific customer pain points (unreconciled bank feeds, late GST/PAYE filings, cashflow blind spots, and grant reporting obligations)."
+        ],
+        successCriteria: "Completed Xero certification and at least 70% of interviewed prospects confirm recurring bookkeeping or compliance pain and interest in culturally responsive support.",
+        deliverables: "Xero Certification, Business Setup Checklist, and Customer Discovery Synthesis Log (8–10 interviews).",
+        decisionMilestone: "Problem Gate: Confirm specific service packages and pricing tiers that match validated small-business and community needs."
+      },
+      {
+        phaseNumber: "Phase 2",
+        daysRange: "Days 31–60",
+        title: "Service Package Validation & Pilot Client Onboarding",
+        name: "Phase 2: Days 31–60 — Service Package Validation & Pilot Client Onboarding",
+        objective: "Test fixed-fee monthly bookkeeping and financial literacy coaching packages with initial pilot clients and establish repeatable onboarding workflows.",
+        activities: [
+          "Design 3 clear service tiers: (1) Sole Trader GST & Bank Reconciliation, (2) Small Employer Bookkeeping & Payroll, and (3) Community Organisation / Charity Treasurer Reporting.",
+          "Standardize client onboarding SOPs including Xero ledger health checks, chart-of-accounts cleanup, and monthly reporting templates.",
+          "Present formal service proposals to 5–6 qualified prospects identified during Phase 1 discovery.",
+          "Onboard 2–3 paying pilot clients and deliver their first monthly reconciliation, GST review, and plain-language financial walkthrough."
+        ],
+        successCriteria: "Secured 2–3 paying pilot clients on monthly retainers with standardized onboarding taking less than 4 hours per client.",
+        deliverables: "Tiered Pricing & Scope Guide, Client Onboarding SOP, and 2–3 Signed Pilot Retainer Agreements.",
+        decisionMilestone: "Solution Gate: Verify that monthly delivery hours per client leave healthy hourly margins within the founder's 15–30 hours/week availability."
+      },
+      {
+        phaseNumber: "Phase 3",
+        daysRange: "Days 61–90",
+        title: "Retainer Base Expansion & Referral Channel Growth",
+        name: "Phase 3: Days 61–90 — Retainer Base Expansion & Referral Channel Growth",
+        objective: "Build a recurring client base of 5–8 retainer clients through community trust networks, workshops, and chartered accountant referral partnerships.",
+        activities: [
+          "Establish referral partnerships with 2–3 year-end Chartered Accountants who need a trusted bookkeeper to keep client Xero files clean prior to annual tax filing.",
+          "Host a practical 60-minute financial literacy and Xero/GST basics workshop with a local Pasifika business network, church, or community hub.",
+          "Review time-per-client metrics across initial retainers to ensure scope creep is controlled and effective hourly rates exceed $75–$100/hr.",
+          `Expand active recurring client base toward 5–8 monthly retainers sustainable within ${hoursBand}.`
+        ],
+        successCriteria: "5+ active monthly retainer clients, 2 Chartered Accountant referral relationships, and positive recurring operating cashflow.",
+        deliverables: "Practice Utilisation & Margin Review, 2 Referral Partner Agreements, and 90-Day Client Growth Plan.",
+        decisionMilestone: "Commercial Gateway: Decide whether to maintain a high-margin part-time practice (15–30 hrs/wk) or transition to full-time practice expansion."
+      }
+    ];
+    const ninetyDayRoadmap = {
+      phases: ninetyDayPhases,
+      steps: [
+        { week: 'W 1-2', objective: 'Xero Training & Business Setup', tasks: 'Complete Xero Advisor/Payroll courses and finalize business setup & compliance checklist.', hours: stepHoursLabel, evidence: 'Xero certification & practice setup checklist' },
+        { week: 'W 3-4', objective: 'Customer Discovery Interviews', tasks: 'Interview 8–10 Pasifika small business owners and community treasurers on bookkeeping pain.', hours: stepHoursLabel, evidence: '8–10 discovery interview logs' },
+        { week: 'W 5-6', objective: 'Service Tiers & Onboarding SOP', tasks: 'Finalize fixed-fee monthly bookkeeping packages and client Xero health-check workflow.', hours: stepHoursLabel, evidence: 'Tiered service schedule & engagement letter' },
+        { week: 'W 7-8', objective: 'Pilot Client Conversion', tasks: 'Present monthly retainer proposals to 5 prospects and onboard 2–3 paying pilot clients.', hours: stepHoursLabel, evidence: '2–3 signed client retainer agreements' },
+        { week: 'W 9-10', objective: 'Community & Accountant Channels', tasks: 'Partner with 2 Chartered Accountants and host 1 community financial literacy session.', hours: stepHoursLabel, evidence: '2 referral partner agreements & workshop log' },
+        { week: 'W 11-12', objective: 'Retainer Margin & Capacity Review', tasks: 'Audit delivery hours per client and scale toward 5–8 recurring monthly retainers.', hours: stepHoursLabel, evidence: 'Practice utilisation & margin review' }
+      ]
+    };
+    return {
+      immediate7DayAction,
+      threePriorityActions,
+      topFivePriorities,
+      thirtyDayPlan,
+      ninetyDayPhases,
+      ninetyDayRoadmap,
+      doThisBeforeBuilding: `Complete Xero proficiency training and conduct 8–10 structured discovery conversations with ${targetLabel} to confirm their top bookkeeping and compliance pain points before spending on paid advertising or office overhead.`,
+      nextEvidenceGateway: "Complete Xero certification, 8–10 customer discovery interviews, and secure 2–3 paying monthly bookkeeping retainer clients.",
+      reassessmentTrigger: "Completion of 8–10 discovery interviews and onboarding of first 2–3 paying bookkeeping retainer clients."
+    };
+  }
+
+  if (isCommunityOrNfp) {
+    const targetLabel = synthesizeTargetCustomerLabel(targetMarket);
+    const immediate7DayAction = `Contact 8–10 community leaders, beneficiaries, and prospective funding stakeholders in ${targetJurisdiction} to schedule structured needs-assessment conversations.`;
+    const threePriorityActions = [
+      {
+        heading: "1. Beneficiary & Stakeholder Needs Discovery.",
+        explanation: `Conduct 8–10 structured interviews with community members and partner organisations (${targetLabel}) to document unmet community needs and existing service gaps.`,
+        outcome: "8–10 completed community discovery logs and impact logic model."
+      },
+      {
+        heading: "2. Pilot Programme Delivery & Governance Setup.",
+        explanation: `Deliver a lightweight pilot workshop or community service cohort within your ${hoursBand} availability while formalising society/trust governance and reporting standards.`,
+        outcome: "Completed pilot cohort attendance & participant outcome evaluation."
+      },
+      {
+        heading: "3. Fee-for-Service & Grant Funding Validation.",
+        explanation: "Engage 3 prospective community funders, sponsors, or fee-for-service institutional partners to secure initial programme underwriting.",
+        outcome: "1–2 signed partner MOUs, sponsorship commitments, or grant submissions."
+      }
+    ];
+    const topFivePriorities = [
+      { priority: "Community Needs Discovery", action: `Interview 8–10 target community stakeholders (${targetLabel}) to validate service gaps and programme outcomes.`, metric: "8–10 stakeholder interview logs" },
+      { priority: "Governance & Legal Structure", action: "Confirm appropriate legal structure (Incorporated Society, Charitable Trust, or Social Enterprise) and treasurer controls.", metric: "Governance & compliance checklist" },
+      { priority: "Lean Pilot Cohort", action: "Run a low-cost pilot workshop or service cohort with 10–15 participants to measure tangible impact.", metric: "Pilot evaluation report" },
+      { priority: "Sustainable Funding Mix", action: "Test fee-for-service workshops alongside targeted community grants or sponsorship agreements.", metric: "2 funding/partner commitments" },
+      { priority: "Execution Cadence", action: `Allocate ${hoursBand} consistently across stakeholder engagement and pilot delivery.`, metric: `Weekly ${stepHoursLabel} execution log` }
+    ];
+    const thirtyDayPlan = {
+      week1: { objective: "Stakeholder Mapping & Outreach", tasks: ["Identify 15 community leaders, beneficiaries, and partner groups", "Schedule 5 initial discovery interviews"], expectedResult: "5 confirmed stakeholder interviews" },
+      week2: { objective: "Community Needs Assessment (8–10 Interviews)", tasks: ["Conduct structured interviews on community service gaps", "Document measurable social outcomes required by funders"], expectedResult: "Community Needs Synthesis & Outcome Framework" },
+      week3: { objective: "Pilot Programme Design & Governance Check", tasks: ["Design a lean 4-week pilot programme or workshop curriculum", "Confirm legal/governance setup and financial accountability controls"], expectedResult: "Pilot programme specification & governance checklist" },
+      week4: { objective: "Partner Pitch & Pilot Launch Gateway", tasks: ["Present pilot proposal to 3 community trusts, sponsors, or host organisations", "Confirm cohort participants and launch date"], expectedResult: "1–2 Partner Commitments & Pilot Launch Decision" }
+    };
+    const ninetyDayPhases = [
+      {
+        phaseNumber: "Phase 1",
+        daysRange: "Days 1–30",
+        title: "Community Needs & Stakeholder Validation",
+        name: "Phase 1: Days 1–30 — Community Needs & Stakeholder Validation",
+        objective: `Validate unmet community needs, beneficiary participation interest, and stakeholder support across ${targetJurisdiction}.`,
+        activities: [
+          `Conduct 8–10 structured interviews with target beneficiaries and community leaders (${targetLabel}).`,
+          "Map existing community programmes to ensure complementary positioning rather than duplication.",
+          "Define clear, measurable social impact outcomes and financial transparency standards.",
+          "Confirm legal entity and governance structure requirements."
+        ],
+        successCriteria: "Strong community endorsement and documented demand from at least 10–15 prospective pilot participants.",
+        deliverables: "Community Needs Assessment Report & Impact Logic Model.",
+        decisionMilestone: "Problem Gate: Confirm clear community demand and non-duplication before launching formal operations."
+      },
+      {
+        phaseNumber: "Phase 2",
+        daysRange: "Days 31–60",
+        title: "Pilot Programme Execution & Impact Measurement",
+        name: "Phase 2: Days 31–60 — Pilot Programme Execution & Impact Measurement",
+        objective: "Deliver an initial community pilot cohort to validate delivery workflow, attendance retention, and measurable beneficiary outcomes.",
+        activities: [
+          "Recruit 10–15 participants through trusted church, community hub, or partner networks.",
+          "Deliver the pilot service or workshop series using existing community venues to minimise overhead.",
+          "Collect pre- and post-programme participant feedback and outcome metrics.",
+          "Document delivery hours and unit cost per participant served."
+        ],
+        successCriteria: "Over 80% participant completion rate and documented positive outcome testimonials.",
+        deliverables: "Pilot Delivery Log, Participant Impact Survey Results, and Unit Cost Summary.",
+        decisionMilestone: "Solution Gate: Confirm programme effectiveness and sustainable volunteer/founder workload before scaling."
+      },
+      {
+        phaseNumber: "Phase 3",
+        daysRange: "Days 61–90",
+        title: "Funding Sustainability & Partnership Expansion",
+        name: "Phase 3: Days 61–90 — Funding Sustainability & Partnership Expansion",
+        objective: "Use verified pilot impact data to secure recurring fee-for-service contracts, sponsorships, or community grant funding.",
+        activities: [
+          "Package pilot impact metrics into a concise 2-page funder and sponsor prospectus.",
+          "Submit 2–3 targeted funding proposals or fee-for-service partnership pitches.",
+          "Formalise ongoing referral and venue-sharing MOUs with 2 community organisations.",
+          `Review 12-month operating budget and capacity allocation within ${hoursBand}.`
+        ],
+        successCriteria: "Secured at least 1–2 funding commitments or fee-for-service contracts covering next-quarter operating costs.",
+        deliverables: "Verified Impact Prospectus, 2 Funding/Partner Proposals, and 12-Month Sustainability Budget.",
+        decisionMilestone: "Commercial Gateway: Confirm sustainable multi-source funding model before expanding programme headcount."
+      }
+    ];
+    const ninetyDayRoadmap = {
+      phases: ninetyDayPhases,
+      steps: [
+        { week: 'W 1-2', objective: 'Stakeholder Discovery', tasks: 'Interview 8–10 beneficiaries and community leaders on unmet needs.', hours: stepHoursLabel, evidence: 'Stakeholder interview log' },
+        { week: 'W 3-4', objective: 'Governance & Logic Model', tasks: 'Define measurable outcomes and confirm legal/treasurer governance setup.', hours: stepHoursLabel, evidence: 'Impact logic model & governance checklist' },
+        { week: 'W 5-6', objective: 'Pilot Cohort Recruitment', tasks: 'Partner with local community hubs to enroll 10–15 pilot participants.', hours: stepHoursLabel, evidence: 'Pilot participant roster' },
+        { week: 'W 7-8', objective: 'Pilot Programme Delivery', tasks: 'Deliver initial community pilot and record participant outcomes.', hours: stepHoursLabel, evidence: 'Pilot delivery & feedback log' },
+        { week: 'W 9-10', objective: 'Funder & Sponsor Outreach', tasks: 'Present verified pilot impact report to 3 prospective funders or sponsors.', hours: stepHoursLabel, evidence: '2 submitted funding/partner proposals' },
+        { week: 'W 11-12', objective: 'Sustainability Review', tasks: 'Reconcile unit delivery costs and confirm ongoing funding mix.', hours: stepHoursLabel, evidence: '12-month sustainability plan' }
+      ]
+    };
+    return {
+      immediate7DayAction,
+      threePriorityActions,
+      topFivePriorities,
+      thirtyDayPlan,
+      ninetyDayPhases,
+      ninetyDayRoadmap,
+      doThisBeforeBuilding: `Conduct 8–10 structured discovery conversations with ${targetLabel} and community leaders to confirm specific service gaps before committing fixed overhead.`,
+      nextEvidenceGateway: "Complete 8–10 stakeholder discovery interviews and deliver 1 measured pilot cohort before scaling operations.",
+      reassessmentTrigger: "Completion of initial pilot cohort impact report and first partner/funder commitment."
     };
   }
 
@@ -869,12 +1205,12 @@ function generateActionSourceOfTruth(reqData = {}, reconciled = {}, ventureType 
     const ninetyDayRoadmap = {
       phases: ninetyDayPhases,
       steps: [
-        { week: 'W 1-2', objective: 'User Problem Discovery', tasks: 'Interview 10 target operators on current equipment issues & costs.', hours: '5 hrs/wk', evidence: 'Interview transcript log' },
-        { week: 'W 3-4', objective: 'Technical CAD & Specs', tasks: 'Draft initial mechanical CAD model & electronic component specs.', hours: '5 hrs/wk', evidence: 'CAD spec sheet' },
-        { week: 'W 5-6', objective: 'Physical Prototype Build', tasks: 'Fabricate benchtop physical prototype for initial mechanism testing.', hours: '5 hrs/wk', evidence: 'Benchtop prototype' },
-        { week: 'W 7-8', objective: 'Field & Durability Testing', tasks: 'Test prototype in real operating environment under stress conditions.', hours: '5 hrs/wk', evidence: 'Field test log' },
-        { week: 'W 9-10', objective: 'Unit Economics & Sourcing', tasks: 'Obtain quotes from 2 manufacturers for bill of materials & batch assembly.', hours: '5 hrs/wk', evidence: 'Supplier quote comparison' },
-        { week: 'W 11-12', objective: 'Commercial Pre-Orders', tasks: 'Present tested prototype to 5 prospective buyers to secure pre-orders.', hours: '5 hrs/wk', evidence: '2 pilot deposits / pre-orders' }
+        { week: 'W 1-2', objective: 'User Problem Discovery', tasks: 'Interview 10 target operators on current equipment issues & costs.', hours: stepHoursLabel, evidence: 'Interview transcript log' },
+        { week: 'W 3-4', objective: 'Technical CAD & Specs', tasks: 'Draft initial mechanical CAD model & electronic component specs.', hours: stepHoursLabel, evidence: 'CAD spec sheet' },
+        { week: 'W 5-6', objective: 'Physical Prototype Build', tasks: 'Fabricate benchtop physical prototype for initial mechanism testing.', hours: stepHoursLabel, evidence: 'Benchtop prototype' },
+        { week: 'W 7-8', objective: 'Field & Durability Testing', tasks: 'Test prototype in real operating environment under stress conditions.', hours: stepHoursLabel, evidence: 'Field test log' },
+        { week: 'W 9-10', objective: 'Unit Economics & Sourcing', tasks: 'Obtain quotes from 2 manufacturers for bill of materials & batch assembly.', hours: stepHoursLabel, evidence: 'Supplier quote comparison' },
+        { week: 'W 11-12', objective: 'Commercial Pre-Orders', tasks: 'Present tested prototype to 5 prospective buyers to secure pre-orders.', hours: stepHoursLabel, evidence: '2 pilot deposits / pre-orders' }
       ]
     };
     return {
@@ -976,12 +1312,12 @@ function generateActionSourceOfTruth(reqData = {}, reconciled = {}, ventureType 
     const ninetyDayRoadmap = {
       phases: ninetyDayPhases,
       steps: [
-        { week: 'W 1-2', objective: 'Passenger & Driver Outreach', tasks: 'Interview 10 passengers and 5 local drivers on booking unreliability and idle time.', hours: '5 hrs/wk', evidence: 'Passenger & driver outreach log' },
-        { week: 'W 3-4', objective: 'Pricing & Route Mapping', tasks: 'Map primary transport routes, peak travel delays, and current fare workarounds.', hours: '5 hrs/wk', evidence: 'Route & fare comparison matrix' },
-        { week: 'W 5-6', objective: 'Concierge Dispatch Pilot', tasks: 'Operate a manual concierge booking trial for 10-15 airport/hotel transfers.', hours: '5 hrs/wk', evidence: 'Concierge trial trip log' },
-        { week: 'W 7-8', objective: 'Driver Commission Testing', tasks: 'Present formal per-ride commission terms to 5 local transport operators.', hours: '5 hrs/wk', evidence: '5 driver pilot commitments' },
-        { week: 'W 9-10', objective: 'Hotel & Partner Channels', tasks: 'Engage 3 local accommodation providers for preferred transfer referrals.', hours: '5 hrs/wk', evidence: '2 hotel referral LOIs' },
-        { week: 'W 11-12', objective: 'Digital MVP Scope Gateway', tasks: 'Synthesize manual trial findings; make Go/Pivot decision on app build vs. concierge scale.', hours: '5 hrs/wk', evidence: 'Marketplace Gateway Decision Report' }
+        { week: 'W 1-2', objective: 'Passenger & Driver Outreach', tasks: 'Interview 10 passengers and 5 local drivers on booking unreliability and idle time.', hours: stepHoursLabel, evidence: 'Passenger & driver outreach log' },
+        { week: 'W 3-4', objective: 'Pricing & Route Mapping', tasks: 'Map primary transport routes, peak travel delays, and current fare workarounds.', hours: stepHoursLabel, evidence: 'Route & fare comparison matrix' },
+        { week: 'W 5-6', objective: 'Concierge Dispatch Pilot', tasks: 'Operate a manual concierge booking trial for 10-15 airport/hotel transfers.', hours: stepHoursLabel, evidence: 'Concierge trial trip log' },
+        { week: 'W 7-8', objective: 'Driver Commission Testing', tasks: 'Present formal per-ride commission terms to 5 local transport operators.', hours: stepHoursLabel, evidence: '5 driver pilot commitments' },
+        { week: 'W 9-10', objective: 'Hotel & Partner Channels', tasks: 'Engage 3 local accommodation providers for preferred transfer referrals.', hours: stepHoursLabel, evidence: '2 hotel referral LOIs' },
+        { week: 'W 11-12', objective: 'Digital MVP Scope Gateway', tasks: 'Synthesize manual trial findings; make Go/Pivot decision on app build vs. concierge scale.', hours: stepHoursLabel, evidence: 'Marketplace Gateway Decision Report' }
       ]
     };
     return {
@@ -1083,12 +1419,12 @@ function generateActionSourceOfTruth(reqData = {}, reconciled = {}, ventureType 
     const ninetyDayRoadmap = {
       phases: ninetyDayPhases,
       steps: [
-        { week: 'W 1-2', objective: 'Client Discovery Outreach', tasks: 'Interview 8 homeowners and 4 architects on quote delays and budget blowouts.', hours: '5 hrs/wk', evidence: 'Client discovery interview transcripts' },
-        { week: 'W 3-4', objective: 'Competitor Pricing Analysis', tasks: 'Benchmark regional builder rates, markup structures, and standard contracting terms.', hours: '5 hrs/wk', evidence: 'Trade pricing & markup matrix' },
-        { week: 'W 5-6', objective: 'Estimating & Trade Vetting', tasks: 'Build standardized job cost calculator and vet 3 core subcontractor trades.', hours: '5 hrs/wk', evidence: 'Job estimating model & trade agreements' },
-        { week: 'W 7-8', objective: 'Milestone Proposal Test', tasks: 'Deliver fixed-price proposal with digital milestones to 2 active prospects.', hours: '5 hrs/wk', evidence: '1 signed pilot renovation contract' },
-        { week: 'W 9-10', objective: 'Referral Pipeline Setup', tasks: 'Establish formal referral agreements with 2 local architects or designers.', hours: '5 hrs/wk', evidence: '2 signed referral agreements' },
-        { week: 'W 11-12', objective: 'Margin & Capacity Review', tasks: 'Reconcile project actual margins (>20%) and decide on trade crew expansion.', hours: '5 hrs/wk', evidence: 'Margin Reconciliation & Growth Plan' }
+        { week: 'W 1-2', objective: 'Client Discovery Outreach', tasks: 'Interview 8 homeowners and 4 architects on quote delays and budget blowouts.', hours: stepHoursLabel, evidence: 'Client discovery interview transcripts' },
+        { week: 'W 3-4', objective: 'Competitor Pricing Analysis', tasks: 'Benchmark regional builder rates, markup structures, and standard contracting terms.', hours: stepHoursLabel, evidence: 'Trade pricing & markup matrix' },
+        { week: 'W 5-6', objective: 'Estimating & Trade Vetting', tasks: 'Build standardized job cost calculator and vet 3 core subcontractor trades.', hours: stepHoursLabel, evidence: 'Job estimating model & trade agreements' },
+        { week: 'W 7-8', objective: 'Milestone Proposal Test', tasks: 'Deliver fixed-price proposal with digital milestones to 2 active prospects.', hours: stepHoursLabel, evidence: '1 signed pilot renovation contract' },
+        { week: 'W 9-10', objective: 'Referral Pipeline Setup', tasks: 'Establish formal referral agreements with 2 local architects or designers.', hours: stepHoursLabel, evidence: '2 signed referral agreements' },
+        { week: 'W 11-12', objective: 'Margin & Capacity Review', tasks: 'Reconcile project actual margins (>20%) and decide on trade crew expansion.', hours: stepHoursLabel, evidence: 'Margin Reconciliation & Growth Plan' }
       ]
     };
     return {
@@ -1190,12 +1526,12 @@ function generateActionSourceOfTruth(reqData = {}, reconciled = {}, ventureType 
     const ninetyDayRoadmap = {
       phases: ninetyDayPhases,
       steps: [
-        { week: 'W 1-2', objective: 'Founder Problem Discovery', tasks: 'Interview 10 founders and 4 mentors on idea validation hurdles and wasted capital.', hours: '5 hrs/wk', evidence: 'Founder interview transcript log' },
-        { week: 'W 3-4', objective: 'Alternative Benchmarking', tasks: 'Benchmark generic AI prompts and consulting alternatives against structured evaluation criteria.', hours: '5 hrs/wk', evidence: 'Competitive benchmark matrix' },
-        { week: 'W 5-6', objective: 'Report Accuracy Audits', tasks: 'Run 6 diverse archetype evaluations and audit report actionability with test founders.', hours: '5 hrs/wk', evidence: 'Report accuracy audit feedback' },
-        { week: 'W 7-8', objective: 'Pricing & LOI Testing', tasks: 'Present subscription and pay-per-report pricing to 8 prospective founders and 2 incubators.', hours: '5 hrs/wk', evidence: '3 paid assessment commitments' },
-        { week: 'W 9-10', objective: 'Onboarding & Funnel Analytics', tasks: 'Measure self-serve assessment completion rates and founder retention satisfaction.', hours: '5 hrs/wk', evidence: 'Conversion funnel analytics report' },
-        { week: 'W 11-12', objective: 'Commercial Launch Gateway', tasks: 'Reassess unit economics and make disciplined Go/Scale decision on public launch campaign.', hours: '5 hrs/wk', evidence: 'Commercial Launch Decision Report' }
+        { week: 'W 1-2', objective: 'Founder Problem Discovery', tasks: 'Interview 10 founders and 4 mentors on idea validation hurdles and wasted capital.', hours: stepHoursLabel, evidence: 'Founder interview transcript log' },
+        { week: 'W 3-4', objective: 'Alternative Benchmarking', tasks: 'Benchmark generic AI prompts and consulting alternatives against structured evaluation criteria.', hours: stepHoursLabel, evidence: 'Competitive benchmark matrix' },
+        { week: 'W 5-6', objective: 'Report Accuracy Audits', tasks: 'Run 6 diverse archetype evaluations and audit report actionability with test founders.', hours: stepHoursLabel, evidence: 'Report accuracy audit feedback' },
+        { week: 'W 7-8', objective: 'Pricing & LOI Testing', tasks: 'Present subscription and pay-per-report pricing to 8 prospective founders and 2 incubators.', hours: stepHoursLabel, evidence: '3 paid assessment commitments' },
+        { week: 'W 9-10', objective: 'Onboarding & Funnel Analytics', tasks: 'Measure self-serve assessment completion rates and founder retention satisfaction.', hours: stepHoursLabel, evidence: 'Conversion funnel analytics report' },
+        { week: 'W 11-12', objective: 'Commercial Launch Gateway', tasks: 'Reassess unit economics and make disciplined Go/Scale decision on public launch campaign.', hours: stepHoursLabel, evidence: 'Commercial Launch Decision Report' }
       ]
     };
     return {
@@ -1297,12 +1633,12 @@ function generateActionSourceOfTruth(reqData = {}, reconciled = {}, ventureType 
   const ninetyDayRoadmap = {
     phases: ninetyDayPhases,
     steps: [
-      { week: 'W 1-2', objective: 'Problem Discovery', tasks: 'Draft interview guide; reach out to 10 target prospects', hours: '5 hrs/wk', evidence: 'Target outreach log' },
-      { week: 'W 3-4', objective: 'Customer Interviews', tasks: 'Conduct 6 structured interviews; record pain points', hours: '5 hrs/wk', evidence: '6 interview transcripts' },
-      { week: 'W 5-6', objective: 'Solution Workflow Test', tasks: 'Test interactive prototype or workflow with 3 target users', hours: '5 hrs/wk', evidence: 'User feedback logs' },
-      { week: 'W 7-8', objective: 'Price & Offer Test', tasks: 'Present formal pricing terms to 5 target prospects', hours: '5 hrs/wk', evidence: '2 LOIs / deposit commitments' },
-      { week: 'W 9-10', objective: 'Pilot Evaluation', tasks: 'Measure initial retention, manual effort, and user satisfaction', hours: '5 hrs/wk', evidence: 'Pilot metrics report' },
-      { week: 'W 11-12', objective: 'Commercial Decision', tasks: 'Reassess evidence; decide whether to Build, Pivot, or Stop', hours: '5 hrs/wk', evidence: 'PitchLab Reassessment' }
+      { week: 'W 1-2', objective: 'Problem Discovery', tasks: 'Draft interview guide; reach out to 10 target prospects', hours: stepHoursLabel, evidence: 'Target outreach log' },
+      { week: 'W 3-4', objective: 'Customer Interviews', tasks: 'Conduct 6 structured interviews; record pain points', hours: stepHoursLabel, evidence: '6 interview transcripts' },
+      { week: 'W 5-6', objective: 'Solution Workflow Test', tasks: 'Test interactive prototype or workflow with 3 target users', hours: stepHoursLabel, evidence: 'User feedback logs' },
+      { week: 'W 7-8', objective: 'Price & Offer Test', tasks: 'Present formal pricing terms to 5 target prospects', hours: stepHoursLabel, evidence: '2 LOIs / deposit commitments' },
+      { week: 'W 9-10', objective: 'Pilot Evaluation', tasks: 'Measure initial retention, manual effort, and user satisfaction', hours: stepHoursLabel, evidence: 'Pilot metrics report' },
+      { week: 'W 11-12', objective: 'Commercial Decision', tasks: 'Reassess evidence; decide whether to Build, Pivot, or Stop', hours: stepHoursLabel, evidence: 'PitchLab Reassessment' }
     ]
   };
 
@@ -1320,13 +1656,16 @@ function generateActionSourceOfTruth(reqData = {}, reconciled = {}, ventureType 
 }
 
 /**
- * PL-FIX-20261006-SMARTTAX-01: Rebuild Executive Summary as 3 Synthesized Coherent Prose Paragraphs
+ * PL-FIX-20261006-SMARTTAX-01 / PL-FIX-20261030-01: Rebuild Executive Summary as 3 Synthesized Coherent Prose Paragraphs
  */
 function generateCoherentExecutiveSummary(reqData = {}, reconciled = {}, ventureType = "", targetJurisdiction = "New Zealand", evaluationData = {}) {
   const idea = (reqData.idea || "").trim();
   const problem = (reqData.problem || "").trim();
   const targetMarket = (reqData.targetMarket || "").trim();
   const isNuclear = (idea + " " + (reqData.category || "")).toLowerCase().includes("nuclear") || reconciled.gatesInfo?.hasCriticalGate;
+  const isBookkeepingOrProfService = ventureType === "Professional Services / Bookkeeping & Financial Advisory" || ventureType.includes("Professional Services");
+  const isCommunityOrNfp = ventureType === "Community / Not-for-Profit / Social Enterprise";
+  const probAudit = detectProblemStatementMisclassification(reqData);
 
   if (isNuclear) {
     return [
@@ -1355,39 +1694,69 @@ function generateCoherentExecutiveSummary(reqData = {}, reconciled = {}, venture
 
   // Paragraph 1: What the concept is, who it serves, what problem it addresses
   let p1;
-  if (/^[A-Z][^.]*\b(is|provides|delivers|helps|enables)\b/i.test(cleanIdea)) {
+  if (probAudit.isFounderCapabilityNeedInProblemField) {
+    const setupPrioritiesText = Array.isArray(probAudit.founderStatedSetupPriorities)
+      ? probAudit.founderStatedSetupPriorities.join("; ")
+      : String(probAudit.founderStatedSetupPriorities || "completing Xero accounting training, understanding business setup requirements, and building an initial client base")
+          .replace(/\bmaintanence\b/gi, "maintenance")
+          .replace(/\bpackgage\b/gi, "package");
+    p1 = `${cleanIdea || "The proposed venture"} is designed to serve ${cleanMarket || "small businesses and community organisations in " + targetJurisdiction}. In the problem statement field, the founder listed internal launch readiness goals (${setupPrioritiesText}) rather than an external customer pain point; the inferred customer problem is that target clients require accessible, culturally responsive bookkeeping, payroll, and financial compliance support—an assumption that must now be validated directly with prospective clients.`;
+  } else if (/^[A-Z][^.]*\b(is|provides|delivers|helps|enables|aims)\b/i.test(cleanIdea)) {
     p1 = `${cleanIdea}. The offering is designed to serve ${cleanMarket || "commercial clients in " + targetJurisdiction}, directly addressing the challenge where ${cleanProb ? cleanProb.charAt(0).toLowerCase() + cleanProb.slice(1) : "customers experience significant operational friction"}.`;
   } else {
     p1 = `${cleanIdea || "The proposed venture"} is designed to serve ${cleanMarket || "commercial clients in " + targetJurisdiction}. The offering directly addresses the challenge where ${cleanProb ? cleanProb.charAt(0).toLowerCase() + cleanProb.slice(1) : "customers experience significant operational friction"}.`;
   }
 
   // Paragraph 2: Current commercial evidence, strongest evidence, biggest unresolved assumption
+  // PL-FIX-20261030-01: Never use boolean/short strings like "No" or "Yes" as "verified background in No"
   const founderCapScore = reconciled.categoryScores?.founderCapabilityFit?.scoreAchieved || 0;
-  const founderBackground = (reqData.founderExperience || reqData.industryExperience || "").trim();
-  let evidenceSentence = "Current commercial evidence remains early stage, with empirical customer discovery and payment validation yet to be documented.";
-  if (founderCapScore >= 12 && founderBackground) {
-    evidenceSentence = `Current commercial evidence remains at the conceptual validation stage. The strongest asset supporting the venture is the founder's verified background in ${founderBackground}, providing relevant domain insight. However, the core commercial assumption—that target customers will actively switch from existing workarounds to a dedicated solution—remains unvalidated.`;
+  const narrativeBg = (reqData.founderBackgroundNarrative || reqData.cvText || "").toString().trim();
+  const indExpRaw = (reqData.industryExperience || "").toString().trim();
+  const priorBizRaw = (reqData.founderExperience || "").toString().trim();
+  let domainSummary = "";
+  if (narrativeBg.toLowerCase().includes("28 years") || narrativeBg.toLowerCase().includes("finance") || narrativeBg.toLowerCase().includes("payroll")) {
+    domainSummary = "more than 28 years of submitted experience in financial administration, payroll, project financial controls, and not-for-profit treasurer governance";
+  } else if (indExpRaw && !/^(no|none|yes|n\/a|\d+)$/i.test(indExpRaw)) {
+    domainSummary = `${indExpRaw} of submitted industry experience`;
+  } else if (narrativeBg.length > 20) {
+    domainSummary = "relevant domain experience documented in the founder's submitted background";
+  }
+
+  let evidenceSentence;
+  if (founderCapScore >= 9 && domainSummary) {
+    const firstTimeNote = /^no$/i.test(priorBizRaw) ? " (while noting this is the founder's first time starting an independent business)" : "";
+    evidenceSentence = `Current commercial evidence remains at the pre-validation concept stage. The strongest asset supporting the venture is the founder's ${domainSummary}${firstTimeNote}. However, because zero structured customer discovery interviews or paid client commitments have been completed yet, customer demand and pricing willingness remain unvalidated assumptions.`;
   } else {
-    evidenceSentence = `Current commercial evidence remains at the discovery stage. While the operational friction point is logically structured, key commercial assumptions regarding user adoption, switching friction, and price tolerance have not yet been empirically validated.`;
+    evidenceSentence = `Current commercial evidence remains at the discovery stage. While the operational service concept is logically structured, key commercial assumptions regarding customer pain severity, switching friction, and willingness to pay have not yet been empirically validated with target customers.`;
   }
   const p2 = evidenceSentence;
 
   // Paragraph 3: Primary gating risk, recommended next commercial step
   const primaryRisk = reconciled.gatesInfo?.primaryGatingRisk || "Customer Demand & Willingness to Pay";
-  const p3 = `The primary gating risk centers on ${primaryRisk.toLowerCase()} and customer switching inertia. The recommended immediate commercial step is conducting 5 to 10 structured customer discovery interviews with target prospects to verify pain severity and obtain initial pilot commitments before committing development capital.`;
+  const timeNorm = normalizeFounderTimeCommitment(reqData);
+  let p3;
+  if (isBookkeepingOrProfService) {
+    p3 = `The primary gating risk centers on ${primaryRisk.toLowerCase()}, alongside completing Xero proficiency training and initial practice setup. Within the founder's stated ${timeNorm.normalizedBand} availability, the recommended immediate step is completing Xero Advisor certification and conducting 8 to 10 structured discovery conversations with target small business owners and community treasurers to secure 2 to 3 paying pilot retainer clients.`;
+  } else if (isCommunityOrNfp) {
+    p3 = `The primary gating risk centers on ${primaryRisk.toLowerCase()} and sustainable programme funding. Within the founder's stated ${timeNorm.normalizedBand} availability, the recommended immediate step is conducting 8 to 10 stakeholder discovery interviews and running a lean pilot cohort before committing fixed overhead.`;
+  } else {
+    p3 = `The primary gating risk centers on ${primaryRisk.toLowerCase()} and customer switching inertia. The recommended immediate commercial step is conducting 5 to 10 structured customer discovery interviews with target prospects to verify pain severity and obtain initial pilot commitments before committing development capital.`;
+  }
 
   return [p1, p2, p3].join("\n\n");
 }
 
 /**
- * PL-FIX-20261006-SMARTTAX-01: Idea-Specific Market Insights Engine
+ * PL-FIX-20261006-SMARTTAX-01 / PL-FIX-20261030-01: Idea-Specific Market Insights Engine
  * Prevents generic filler and cross-industry contamination across all 7 dimensions.
  */
 function generateIdeaSpecificMarketInsights(reqData = {}, reconciled = {}, ventureType = "", targetJurisdiction = "New Zealand") {
   const idea = (reqData.idea || "").trim();
   const isNuclear = (idea + " " + (reqData.category || "")).toLowerCase().includes("nuclear") || reconciled.gatesInfo?.hasCriticalGate;
   const isHw = ventureType.includes("Hardware") || ventureType.includes("Manufacturing") || isHardwareIdea(idea, reqData.category);
-  const isFinTech = ventureType === "Financial Services / FinTech" || Boolean((idea + " " + (reqData.category || "")).toLowerCase().match(/\b(tax|gst|ird|fintech|accounting|bookkeep)\b/i));
+  const isBookkeepingOrProfService = ventureType === "Professional Services / Bookkeeping & Financial Advisory" || ventureType.includes("Professional Services");
+  const isCommunityOrNfp = ventureType === "Community / Not-for-Profit / Social Enterprise";
+  const isFinTech = !isBookkeepingOrProfService && !isCommunityOrNfp && (ventureType === "Financial Services / FinTech");
 
   if (isNuclear) {
     return {
@@ -1398,6 +1767,34 @@ function generateIdeaSpecificMarketInsights(reqData = {}, reconciled = {}, ventu
       localBusinessNews: `Local energy market news highlights rising electricity demand, dry-year hydro volatility, wholesale power price spikes, and policy debates surrounding ${targetJurisdiction} energy security.`,
       customerReviewTrends: `Published energy-sector reporting and published industry commentary indicate demand for firm low-carbon baseload power, but direct customer/off-taker validation has not yet been established by the venture.`,
       governmentPolicyInfluence: `${targetJurisdiction} statutory policy and legislative frameworks govern power generation, environmental protection, fast-track consenting, and nuclear-related statutory requirements and restrictions requiring specialist interpretation for the proposed commercial generation model.`
+    };
+  }
+
+  if (isBookkeepingOrProfService) {
+    const hasPasifika = (idea + " " + (reqData.targetMarket || "")).toLowerCase().includes("pasifika");
+    const segmentDesc = hasPasifika
+      ? `Pasifika-owned small businesses, sole traders, family enterprises, and community organisations across ${targetJurisdiction}`
+      : `small businesses, sole traders, and community organisations across ${targetJurisdiction}`;
+    return {
+      marketLandscape: `The small-business bookkeeping and financial support sector in ${targetJurisdiction} is anchored by widespread adoption of cloud accounting software (particularly Xero and MYOB), yet many micro-businesses, sole traders, and community treasurers still struggle to reconcile transactions, manage payroll, and interpret financial reports without accessible human advisory support.`,
+      demandDrivers: `Demand among ${segmentDesc} is driven by bi-monthly GST and PAYE filing obligations, payday filing rules, grant and charity financial reporting standards, and the need for plain-language financial guidance from a trusted, culturally responsive practitioner.`,
+      competitionAlternatives: `The practice competes with generalist local bookkeepers, fractional finance administrators, traditional Chartered Accounting firms offering compliance bundles, and DIY spreadsheets or unassisted Xero subscriptions. High switching inertia means trust, community referrals, and warm personal guidance are critical differentiators.`,
+      commercialReality: `While the broader small-business market in ${targetJurisdiction} is large, a solo bookkeeping practice's commercially accessible revenue is bounded by founder billable capacity and client onboarding efficiency. Sustainable profitability depends on packaging fixed-fee monthly retainers ($150–$650/month) rather than underpriced ad-hoc hourly cleanup work.`,
+      localBusinessNews: `Current business commentary in ${targetJurisdiction} highlights increased Inland Revenue (IRD) compliance enforcement on overdue GST and PAYE, alongside updated financial reporting obligations for Incorporated Societies and registered charities.`,
+      customerReviewTrends: `Small business owners and community treasurers frequently cite frustration with accounting jargon, unexpected hourly billing surprises from traditional firms, and feeling intimidated when asking basic bookkeeping or tax compliance questions.`,
+      governmentPolicyInfluence: `Inland Revenue (IRD) digital filing mandates, the Incorporated Societies Act 2022 re-registration and financial reporting rules, Charities Services tier reporting standards, and AML/CFT client onboarding rules shape demand and compliance workflows for bookkeeping practices in ${targetJurisdiction}.`
+    };
+  }
+
+  if (isCommunityOrNfp) {
+    return {
+      marketLandscape: `The community services, social enterprise, and not-for-profit sector in ${targetJurisdiction} operates through a combination of grassroots community networks, church and cultural hubs, philanthropic trusts, and government service contracts.`,
+      demandDrivers: `Demand is driven by underserved community needs, culturally grounded capability building, and heightened expectations from funders for transparent financial governance and measurable participant outcomes.`,
+      competitionAlternatives: `The initiative operates alongside existing community trusts, church-led support programmes, public agency services, and informal family or volunteer support networks.`,
+      commercialReality: `Long-term sustainability requires balancing mission accessibility for community participants with reliable revenue streams—combining fee-for-service workshops, institutional sponsorships, and multi-year community grants.`,
+      localBusinessNews: `Sector reporting in ${targetJurisdiction} highlights tighter contestable grant funding pools, rising community service delivery costs, and stronger emphasis on verified impact reporting.`,
+      customerReviewTrends: `Community feedback consistently favours programmes delivered by trusted practitioners with lived cultural understanding, practical plain-language tools, and consistent follow-through.`,
+      governmentPolicyInfluence: `The Incorporated Societies Act 2022, Charities Services reporting tiers, and public sector social procurement frameworks govern compliance and funding eligibility across ${targetJurisdiction}.`
     };
   }
 
@@ -1636,6 +2033,8 @@ exports.pitchLabEvaluation = onCall({
   reqData.locationCity = locationCity;
   reqData.locationSummary = locationSummary;
   reqData.targetJurisdiction = targetJurisdiction;
+  const founderName = await resolveFounderDisplayName(reqData, userId, request.auth);
+  reqData.founderName = founderName;
   // 0. SERVER-SIDE MVP 3-SUBMISSION LIMIT GUARD (Admin Unlimited, Standard Max 3)
   let isAdmin = false;
   let submissionsCount = 0;
@@ -1696,26 +2095,44 @@ exports.pitchLabEvaluation = onCall({
     }
     console.log(`PitchLab: Processing evaluation submission for user ${userId}`);
 
-    // 3. Store raw inputs safely
+    // 3. Store raw inputs safely (including all 17 questionnaire fields + founderPredictions)
     console.log("Storing raw inputs in IdeaInputs...");
     let inputRef = null;
     try {
       inputRef = await db.collection("IdeaInputs").add({
         submissionId: submissionId || "",
         userId: userId || "",
+        founderName: founderName || "",
         idea: (idea || "").slice(0, 4000),
         problem: (problem || "").slice(0, 4000),
         budget: budget || "",
+        investmentCommitment: reqData.investmentCommitment || budget || "",
         experience: (experience || "").slice(0, 4000),
+        founderExperience: reqData.founderExperience || "",
+        industryExperience: reqData.industryExperience || "",
+        founderMotivation: reqData.founderMotivation || "",
+        biggestObstacle: reqData.biggestObstacle || "",
         founderBackgroundNarrative: (founderBackgroundNarrative || "").slice(0, 4000),
         founderBackgroundWordCount: founderBackgroundWordCount,
         founderBackgroundLastUpdated: FieldValue.serverTimestamp(),
         founderCvUploaded: Boolean(cvText && cvText.trim().length > 0),
         cvFileName: cvFileName || "",
+        cvStoragePath: cvStoragePath || reqData.cvStoragePath || "",
         capacity: capacity || "",
+        timeCommitment: reqData.timeCommitment || capacity || "",
         network: network || "",
+        customerValidation: reqData.customerValidation || network || "",
+        businessStage: reqData.businessStage || "",
+        fundingPreference: reqData.fundingPreference || "",
+        successDefinition: reqData.successDefinition || "",
+        locationCountry: locationCountry || "",
+        locationRegion: locationRegion || "",
+        locationCity: locationCity || "",
+        locationSummary: locationSummary || "",
+        marketScope: marketScope || "",
         targetMarket: (targetMarket || "").slice(0, 4000),
         category: category || "General Startup",
+        founderPredictions: reqData.founderPredictions || {},
         createdAt: FieldValue.serverTimestamp(),
       });
     } catch (dbErr) {
@@ -2216,10 +2633,12 @@ exports.pitchLabEvaluation = onCall({
     evaluationData.appVersion = VERSION_INFO.appVersion;
     evaluationData.fullVersionString = VERSION_INFO.fullVersionString;
     evaluationData.buildId = VERSION_INFO.buildId;
+    evaluationData.changeId = VERSION_INFO.changeId;
     evaluationData.deployedAt = VERSION_INFO.deployedAt;
     evaluationData.deployedAtFormatted = VERSION_INFO.deployedAtFormatted;
     evaluationData.assessmentGeneratedAt = new Date().toISOString();
-    evaluationData.assessmentGeneratedAtFormatted = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) + ' NZST';
+    evaluationData.assessmentGeneratedAtFormatted = formatAssessmentTimestampUTC(evaluationData.assessmentGeneratedAt);
+    evaluationData.founderName = founderName;
 
     evaluationData.overallScore = reconciled.overallScore;
     evaluationData.scoreBand = reconciled.scoreBand;
@@ -2249,13 +2668,13 @@ exports.pitchLabEvaluation = onCall({
       return Math.max(1, Math.min(5, Math.round((score / maxVal) * 5)));
     };
     evaluationData.investorBite.scorecard = [
-      { area: "Problem Worth Solving", rating: getRating("problemCustomerClarity", 15), commentary: generateContextualInvestorCommentary("Problem Worth Solving", getRating("problemCustomerClarity", 15), reconciled.categoryScores.problemCustomerClarity?.scoreAchieved || 0, 15, reqData, reconciled.gatesInfo, reconciled) },
-      { area: "Market Opportunity", rating: getRating("marketCommercialOpportunity", 15), commentary: generateContextualInvestorCommentary("Market Opportunity", getRating("marketCommercialOpportunity", 15), reconciled.categoryScores.marketCommercialOpportunity?.scoreAchieved || 0, 15, reqData, reconciled.gatesInfo, reconciled) },
-      { area: "Competitive Advantage", rating: getRating("competitivePosition", 10), commentary: generateContextualInvestorCommentary("Competitive Advantage", getRating("competitivePosition", 10), reconciled.categoryScores.competitivePosition?.scoreAchieved || 0, 10, reqData, reconciled.gatesInfo, reconciled) },
-      { area: "Business Model", rating: getRating("businessModelWillingnessToPay", 15), commentary: generateContextualInvestorCommentary("Business Model", getRating("businessModelWillingnessToPay", 15), reconciled.categoryScores.businessModelWillingnessToPay?.scoreAchieved || 0, 15, reqData, reconciled.gatesInfo, reconciled) },
+      { area: "Problem Worth Solving", rating: getRating("problemCustomerClarity", 14), commentary: generateContextualInvestorCommentary("Problem Worth Solving", getRating("problemCustomerClarity", 14), reconciled.categoryScores.problemCustomerClarity?.scoreAchieved || 0, 14, reqData, reconciled.gatesInfo, reconciled) },
+      { area: "Market Opportunity", rating: getRating("marketCommercialOpportunity", 14), commentary: generateContextualInvestorCommentary("Market Opportunity", getRating("marketCommercialOpportunity", 14), reconciled.categoryScores.marketCommercialOpportunity?.scoreAchieved || 0, 14, reqData, reconciled.gatesInfo, reconciled) },
+      { area: "Competitive Advantage", rating: getRating("competitivePosition", 9), commentary: generateContextualInvestorCommentary("Competitive Advantage", getRating("competitivePosition", 9), reconciled.categoryScores.competitivePosition?.scoreAchieved || 0, 9, reqData, reconciled.gatesInfo, reconciled) },
+      { area: "Business Model", rating: getRating("businessModelWillingnessToPay", 14), commentary: generateContextualInvestorCommentary("Business Model", getRating("businessModelWillingnessToPay", 14), reconciled.categoryScores.businessModelWillingnessToPay?.scoreAchieved || 0, 14, reqData, reconciled.gatesInfo, reconciled) },
       { area: "Founder Capability", rating: getRating("founderCapabilityFit", 15), commentary: generateContextualInvestorCommentary("Founder Capability", getRating("founderCapabilityFit", 15), reconciled.categoryScores.founderCapabilityFit?.scoreAchieved || 0, 15, reqData, reconciled.gatesInfo, reconciled) },
       { area: "Customer Validation", rating: getRating("customerValidation", 20), commentary: generateContextualInvestorCommentary("Customer Validation", getRating("customerValidation", 20), reconciled.categoryScores.customerValidation?.scoreAchieved || 0, 20, reqData, reconciled.gatesInfo, reconciled) },
-      { area: "Scalability", rating: getRating("executionReadiness", 10), commentary: generateContextualInvestorCommentary("Scalability", getRating("executionReadiness", 10), reconciled.categoryScores.executionReadiness?.scoreAchieved || 0, 10, reqData, reconciled.gatesInfo, reconciled) },
+      { area: "Scalability", rating: getRating("executionReadiness", 9), commentary: generateContextualInvestorCommentary("Scalability", getRating("executionReadiness", 9), reconciled.categoryScores.executionReadiness?.scoreAchieved || 0, 9, reqData, reconciled.gatesInfo, reconciled) },
       { area: "Investment Readiness", rating: Math.max(1, Math.min(5, Math.round((reconciled.overallScore / 100) * 5))), commentary: generateContextualInvestorCommentary("Investment Readiness", Math.max(1, Math.min(5, Math.round((reconciled.overallScore / 100) * 5))), reconciled.overallScore, 100, reqData, reconciled.gatesInfo, reconciled) }
     ];
 
@@ -2468,6 +2887,8 @@ exports.pitchLabEvaluation = onCall({
     // Ensure businessTheme is fully populated with contextual strategic positioning
     ventureType = classifyVentureType(reqData);
     const isNuclear = (idea + " " + category).toLowerCase().includes("nuclear");
+    const isBookkeepingOrProfService = ventureType === "Professional Services / Bookkeeping & Financial Advisory" || ventureType.includes("Professional Services");
+    const isCommunityOrNfp = ventureType === "Community / Not-for-Profit / Social Enterprise";
 
     evaluationData.businessTheme = evaluationData.businessTheme || {};
     const isAiDecision = ventureType.includes("Decision Support") || Boolean((idea + " " + category).match(/\b(ai\b|decision support|decision intelligence|startup evaluation|idea validation|idea assessment|founder intelligence|pitchlab)\b/i));
@@ -2478,6 +2899,18 @@ exports.pitchLabEvaluation = onCall({
       evaluationData.businessTheme.strategicPositioning = `Positions as a long-term utility-scale infrastructure option targeting grid reliability, baseload capacity, and industrial decarbonisation within ${targetJurisdiction}.`;
       evaluationData.businessTheme.marketCategoryDynamics = `Governed by national energy security strategy, statutory radiation safety law, environmental consenting frameworks, and multi-billion-dollar infrastructure capital scale.`;
       evaluationData.businessTheme.strategicMoat = "No defensible venture-specific moat is yet evidenced. Potential future defensibility could arise from specialist partnerships, project rights, regulatory capability, long-term off-take arrangements or execution capability.";
+    } else if (isBookkeepingOrProfService) {
+      evaluationData.businessTheme.primaryTheme = "Professional Services / Bookkeeping & Financial Advisory";
+      evaluationData.businessTheme.secondaryTheme = "Small Business & Community Financial Compliance Support";
+      evaluationData.businessTheme.strategicPositioning = `Positions as a culturally responsive, plain-language bookkeeping, payroll, and financial literacy practice serving small businesses, sole traders, and community organisations across ${targetJurisdiction}.`;
+      evaluationData.businessTheme.marketCategoryDynamics = `Driven by bi-monthly GST/PAYE compliance mandates, cloud accounting ledger adoption (Xero/MYOB), and heightened charity/society financial reporting rules in ${targetJurisdiction}.`;
+      evaluationData.businessTheme.strategicMoat = "Personal practitioner trust, cultural and community network credibility, 28+ years of practical financial administration experience, and high monthly retainer retention.";
+    } else if (isCommunityOrNfp) {
+      evaluationData.businessTheme.primaryTheme = "Community / Not-for-Profit / Social Enterprise";
+      evaluationData.businessTheme.secondaryTheme = "Community Capability Building & Social Impact";
+      evaluationData.businessTheme.strategicPositioning = `Positions as a community-anchored social impact and capability-building initiative serving target beneficiaries and community organisations across ${targetJurisdiction}.`;
+      evaluationData.businessTheme.marketCategoryDynamics = `Driven by grassroots community needs, culturally grounded service delivery, and funder demand for transparent governance and measurable participant outcomes in ${targetJurisdiction}.`;
+      evaluationData.businessTheme.strategicMoat = "Authentic community trust, lived cultural alignment, church and community hub relationships, and verified governance accountability.";
     } else if (isAiDecision) {
       evaluationData.businessTheme.primaryTheme = (evaluationData.businessTheme.primaryTheme && !evaluationData.businessTheme.primaryTheme.includes("Transport")) ? evaluationData.businessTheme.primaryTheme : "AI / Business Decision Support Software";
       evaluationData.businessTheme.secondaryTheme = (evaluationData.businessTheme.secondaryTheme && !evaluationData.businessTheme.secondaryTheme.includes("Mobility")) ? evaluationData.businessTheme.secondaryTheme : "Startup Idea Validation & Founder Decision Intelligence";
@@ -2520,7 +2953,7 @@ exports.pitchLabEvaluation = onCall({
       evaluationData.businessModelSnapshot.customerAcquisition = "Direct long-term PPA contracting with electricity retailers, heavy industrial energy users, and national grid operators.";
       evaluationData.businessModelSnapshot.keyCosts = "Technology licensing, site development, regulatory consenting, plant engineering, construction, grid interconnection, operation, security, and decommissioning.";
       evaluationData.businessModelSnapshot.commercialAssessment = "Business model viability is strictly governed by statutory permissibility, regulatory consenting, and multi-billion-dollar project financing gateways.";
-    } else if (isAiDecision) {
+    } else if (isBookkeepingOrProfService || isCommunityOrNfp || isAiDecision) {
       evaluationData.businessModelSnapshot.valueProposition = synthesizeBusinessModelField('valueProposition', reqData, ventureType, targetJurisdiction);
       evaluationData.businessModelSnapshot.revenueModel = synthesizeBusinessModelField('revenueModel', reqData, ventureType, targetJurisdiction);
       evaluationData.businessModelSnapshot.customerAcquisition = synthesizeBusinessModelField('customerAcquisition', reqData, ventureType, targetJurisdiction);
@@ -2555,6 +2988,14 @@ exports.pitchLabEvaluation = onCall({
     evaluationData.capacity = capacity;
     evaluationData.network = network;
     evaluationData.experience = experience;
+    evaluationData.founderExperience = reqData.founderExperience || "";
+    evaluationData.industryExperience = reqData.industryExperience || "";
+    evaluationData.founderMotivation = reqData.founderMotivation || "";
+    evaluationData.biggestObstacle = reqData.biggestObstacle || "";
+    evaluationData.businessStage = reqData.businessStage || "";
+    evaluationData.customerValidation = reqData.customerValidation || network || "";
+    evaluationData.fundingPreference = reqData.fundingPreference || "";
+    evaluationData.successDefinition = reqData.successDefinition || "";
     evaluationData.locationCountry = locationCountry;
     evaluationData.locationRegion = locationRegion;
     evaluationData.locationCity = locationCity;
@@ -2568,35 +3009,24 @@ exports.pitchLabEvaluation = onCall({
     evaluationData.meta = evaluationData.meta || {};
     evaluationData.meta.betaCohort = "first50";
     evaluationData.meta.founderRegion = locationSummary || locationCountry || "Global";
+    evaluationData.meta.founderName = founderName;
 
     // Single Authoritative Founder Resource Object & Calibrated Time Bands
     evaluationData.founderMetrics = evaluationData.founderMetrics || {};
-    const rawTimeInput = (reqData.timeCommitment || capacity || "").toString().trim();
-    let hoursBand = "15-30 hours/week";
-    if (rawTimeInput.match(/\b(0-5|0\s*-\s*5|<5)\b/i)) {
-      hoursBand = "0-5 hours/week";
-    } else if (rawTimeInput.match(/\b(5-10|5\s*-\s*10)\b/i)) {
-      hoursBand = "5-10 hours/week";
-    } else if (rawTimeInput.match(/\b(10-20|10-15|10\s*-\s*20)\b/i)) {
-      hoursBand = "10-20 hours/week";
-    } else if (rawTimeInput.match(/\b(15-30|20-30|15\s*-\s*30)\b/i)) {
-      hoursBand = "15-30 hours/week";
-    } else if (rawTimeInput.match(/\b(30\+|40|full-time)\b/i)) {
-      hoursBand = "30+ hours/week";
-    } else if (rawTimeInput) {
-      hoursBand = rawTimeInput;
-    }
+    const timeNorm = normalizeFounderTimeCommitment(reqData);
+    const capNorm = normalizeFounderCapital(reqData);
+    const hoursBand = timeNorm.normalizedBand;
     evaluationData.founderMetrics.weeklyAvailableHours = hoursBand;
+    evaluationData.founderMetrics.stepHoursLabel = timeNorm.stepHoursLabel;
 
-    // Single Authoritative Capital Formatting (Fix $5,000-0,000 NZD bug)
-    const userCapInput = reqData.investmentCommitment || reqData.budget || budget;
-    const formattedCap = formatCapitalValue(userCapInput, evaluationData.founderMetrics.availableCapital);
+    // Single Authoritative Capital Formatting
+    const formattedCap = capNorm.normalizedDisplay;
     evaluationData.founderMetrics.availableCapital = formattedCap;
     if (evaluationData.capitalReality) {
       evaluationData.capitalReality.availableCapital = formattedCap;
     }
 
-    const initialRiskCapitalInput = reqData.initialRiskCapital || reqData.riskCapital || evaluationData.founderMetrics.initialRiskCapital || "$1,000 NZD";
+    const initialRiskCapitalInput = reqData.initialRiskCapital || reqData.riskCapital || capNorm.initialRiskCapitalDisplay || "$1,000 NZD";
     evaluationData.founderMetrics.initialRiskCapital = initialRiskCapitalInput;
     const founderScoreVal = reconciled.categoryScores.founderCapabilityFit?.scoreAchieved || 0;
 
@@ -2632,15 +3062,16 @@ exports.pitchLabEvaluation = onCall({
       }
     }
 
-    // Canonical Score Object (MoorSafe Fix 2)
+    // Canonical Score Object (synchronized to SCORING_CONFIG 100-pt totals: 14, 15, 20, 14, 14, 9, 9, 5)
     evaluationData.canonicalScores = {
-      problemCustomerClarity: { score: reconciled.categoryScores.problemCustomerClarity?.scoreAchieved || 0, max: 15, rating5: getRating("problemCustomerClarity", 15) },
+      problemCustomerClarity: { score: reconciled.categoryScores.problemCustomerClarity?.scoreAchieved || 0, max: 14, rating5: getRating("problemCustomerClarity", 14) },
       founderCapabilityFit: { score: founderScoreVal, max: 15, rating5: getRating("founderCapabilityFit", 15) },
       customerValidation: { score: reconciled.categoryScores.customerValidation?.scoreAchieved || 0, max: 20, rating5: getRating("customerValidation", 20) },
-      marketCommercialOpportunity: { score: reconciled.categoryScores.marketCommercialOpportunity?.scoreAchieved || 0, max: 15, rating5: getRating("marketCommercialOpportunity", 15) },
-      businessModelWillingnessToPay: { score: reconciled.categoryScores.businessModelWillingnessToPay?.scoreAchieved || 0, max: 15, rating5: getRating("businessModelWillingnessToPay", 15) },
-      competitivePosition: { score: reconciled.categoryScores.competitivePosition?.scoreAchieved || 0, max: 10, rating5: getRating("competitivePosition", 10) },
-      executionReadiness: { score: reconciled.categoryScores.executionReadiness?.scoreAchieved || 0, max: 10, rating5: getRating("executionReadiness", 10) },
+      marketCommercialOpportunity: { score: reconciled.categoryScores.marketCommercialOpportunity?.scoreAchieved || 0, max: 14, rating5: getRating("marketCommercialOpportunity", 14) },
+      businessModelWillingnessToPay: { score: reconciled.categoryScores.businessModelWillingnessToPay?.scoreAchieved || 0, max: 14, rating5: getRating("businessModelWillingnessToPay", 14) },
+      competitivePosition: { score: reconciled.categoryScores.competitivePosition?.scoreAchieved || 0, max: 9, rating5: getRating("competitivePosition", 9) },
+      executionReadiness: { score: reconciled.categoryScores.executionReadiness?.scoreAchieved || 0, max: 9, rating5: getRating("executionReadiness", 9) },
+      futureTrends: { score: reconciled.categoryScores.futureTrends?.scoreAchieved || 0, max: 5, rating5: getRating("futureTrends", 5) },
       overallScore: reconciled.overallScore
     };
 
@@ -2698,6 +3129,8 @@ exports.pitchLabEvaluation = onCall({
     // Professional PitchLab Verdict Prose Synthesizer
     if (isNuclear || reconciled.gatesInfo?.hasCriticalGate) {
       evaluationData.summaryBlock.pitchLabVerdict = `The concept addresses a genuine long-term energy and infrastructure challenge, but it is not commercially actionable in its current formulation. The principal barriers are statutory and regulatory feasibility, specialist technical capability, multi-billion-dollar infrastructure capital requirements, and public policy alignment. Before committing meaningful development capital, the founder should establish whether a credible statutory and regulatory pathway exists in ${targetJurisdiction} and complete an initial technical pre-feasibility assessment.`;
+    } else if (isBookkeepingOrProfService) {
+      evaluationData.summaryBlock.pitchLabVerdict = `This bookkeeping and financial support concept is backed by substantial founder experience in financial administration, payroll, project controls, and not-for-profit treasurer governance. However, in the problem statement field the founder listed internal launch goals (Xero course proficiency, business setup requirements, and building a client base) rather than validated customer pain points, and zero structured customer discovery interviews have been completed yet. The founder should complete Xero Advisor certification and conduct 8 to 10 discovery conversations with Pasifika small business owners and community treasurers within their ${hoursBand} capacity before committing overhead.`;
     } else {
       const topStr = evaluationData.summaryBlock.topStrengths?.[0] || "strong problem clarity";
       const mainRisk = reconciled.gatesInfo?.primaryGatingRisk || "customer demand and willingness to pay";
@@ -2716,7 +3149,7 @@ exports.pitchLabEvaluation = onCall({
     evaluationData.ventureContext = ventureType;
 
     // Fallback/refinement for marketInsights if generic or cross-contaminated
-    if (!evaluationData.marketInsights || !evaluationData.marketInsights.marketLandscape || evaluationData.marketInsights.marketLandscape.includes("evolving customer expectations and established commercial practices")) {
+    if (!evaluationData.marketInsights || !evaluationData.marketInsights.marketLandscape || evaluationData.marketInsights.marketLandscape.includes("evolving customer expectations and established commercial practices") || isBookkeepingOrProfService || isCommunityOrNfp) {
       evaluationData.marketInsights = generateIdeaSpecificMarketInsights(reqData, reconciled, ventureType, targetJurisdiction);
     }
 
@@ -2736,16 +3169,13 @@ exports.pitchLabEvaluation = onCall({
     const ft5D = calculate5DimensionFutureTrends(reqData, reconciled.gatesInfo, ventureType, evaluationData.futureTrends || {});
     evaluationData.futureTrends = evaluationData.futureTrends || {};
     evaluationData.futureTrends.dimensions = ft5D.dimensions;
-    evaluationData.futureTrends.marketDirection = evaluationData.futureTrends.marketDirection || ft5D.marketDirection;
-    evaluationData.futureTrends.solutionOutlook = evaluationData.futureTrends.solutionOutlook || ft5D.solutionOutlook;
-    evaluationData.futureTrends.whatThisMeansForFounder = evaluationData.futureTrends.whatThisMeansForFounder || ft5D.whatThisMeansForFounder;
+    evaluationData.futureTrends.marketDirection = isBookkeepingOrProfService || isCommunityOrNfp ? ft5D.marketDirection : (evaluationData.futureTrends.marketDirection || ft5D.marketDirection);
+    evaluationData.futureTrends.solutionOutlook = isBookkeepingOrProfService || isCommunityOrNfp ? ft5D.solutionOutlook : (evaluationData.futureTrends.solutionOutlook || ft5D.solutionOutlook);
+    evaluationData.futureTrends.whatThisMeansForFounder = isBookkeepingOrProfService || isCommunityOrNfp ? ft5D.whatThisMeansForFounder : (evaluationData.futureTrends.whatThisMeansForFounder || ft5D.whatThisMeansForFounder);
     evaluationData.futureTrends.trendAlignmentScore = evaluationData.futureTrends.trendAlignmentScore || ft5D.trendAlignmentScore;
-    if (!evaluationData.futureTrends.adjacentOpportunities || evaluationData.futureTrends.adjacentOpportunities.length === 0) {
+    if (!evaluationData.futureTrends.adjacentOpportunities || evaluationData.futureTrends.adjacentOpportunities.length === 0 || isBookkeepingOrProfService || isCommunityOrNfp) {
       evaluationData.futureTrends.adjacentOpportunities = ft5D.adjacentOpportunities;
     }
-
-    // Apply Cross-Section Legal Certainty & Evidence Provenance Integrity Gate (Fix 10 & Fix 1D)
-    validateReportIntegrityGate(evaluationData, reqData);
 
     // PRE-SAVE SCORE INTEGRITY ASSERTION: overallScore MUST strictly equal sum of category scores
     const sumCategoryScores = Object.values(reconciled.categoryScores).reduce((acc, cat) => acc + (cat.scoreAchieved || cat.score || 0), 0);
@@ -2761,6 +3191,13 @@ exports.pitchLabEvaluation = onCall({
       ...reconciled.categoryScores
     };
     evaluationData.founderReadinessIndex = sumCategoryScores;
+
+    // PL-FIX-20261030-01: Build Authoritative Assessment Snapshot & Input Coverage Audit
+    evaluationData.authoritativeSnapshot = buildAuthoritativeAssessmentSnapshot(reqData, evaluationData.id || submissionId || `eval_${Date.now()}`, submissionId);
+    evaluationData.inputCoverage = computeInputCoverageAudit(reqData, evaluationData, evaluationData.authoritativeSnapshot);
+
+    // Apply Cross-Section Legal Certainty & Evidence Provenance Integrity Gate (Fix 10 & Fix 1D & PL-FIX-20261030-01)
+    validateReportIntegrityGate(evaluationData, reqData);
 
     // 10. Store Evaluation safely
     await updateSubmissionProgress(submissionId, 5, "Finalising your report", 98);
@@ -2825,10 +3262,14 @@ exports.pitchLabEvaluation = onCall({
     evaluationData.appVersion = VERSION_INFO.appVersion;
     evaluationData.fullVersionString = VERSION_INFO.fullVersionString;
     evaluationData.buildId = VERSION_INFO.buildId;
+    evaluationData.changeId = VERSION_INFO.changeId;
     evaluationData.deployedAt = VERSION_INFO.deployedAt;
     evaluationData.deployedAtFormatted = VERSION_INFO.deployedAtFormatted;
     evaluationData.assessmentGeneratedAt = new Date().toISOString();
-    evaluationData.assessmentGeneratedAtFormatted = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) + ' NZST';
+    evaluationData.assessmentGeneratedAtFormatted = formatAssessmentTimestampUTC(evaluationData.assessmentGeneratedAt);
+    evaluationData.founderName = founderName;
+    evaluationData.meta = evaluationData.meta || {};
+    evaluationData.meta.founderName = founderName;
 
     evaluationData.overallScore = reconciled.overallScore;
     evaluationData.scoreBand = reconciled.scoreBand;
@@ -2903,11 +3344,19 @@ function getMockResult(reqData = {}) {
   const problem = (reqData.problem || "Defined market problem").trim();
   const targetMarket = (reqData.targetMarket || "Target customer segment").trim();
   const isNuclear = (idea + " " + (reqData.category || "")).toLowerCase().includes("nuclear");
+  const isBookkeepingOrProfService = ventureType === "Professional Services / Bookkeeping & Financial Advisory" || ventureType.includes("Professional Services");
+  const isCommunityOrNfp = ventureType === "Community / Not-for-Profit / Social Enterprise";
+  const timeNorm = normalizeFounderTimeCommitment(reqData);
+  const capNorm = normalizeFounderCapital(reqData);
+  const hoursBand = timeNorm.normalizedBand;
+  const formattedCap = capNorm.normalizedDisplay;
 
   const execSummary = generateCoherentExecutiveSummary(reqData, reconciled, ventureType, targetJurisdiction, {});
   const verdictStr = (isNuclear || reconciled.gatesInfo?.hasCriticalGate)
     ? `The concept addresses a genuine long-term energy and infrastructure challenge, but it is not commercially actionable in its current formulation. The principal barriers are statutory and regulatory feasibility, specialist technical capability, multi-billion-dollar infrastructure capital requirements, and public policy alignment. Before committing meaningful development capital, the founder should establish whether a credible statutory and regulatory pathway exists in ${targetJurisdiction} and complete an initial technical pre-feasibility assessment.`
-    : `This concept addresses a genuine customer problem. However, customer demand, willingness to pay, and competitive defensibility remain insufficiently validated. The primary commercial risk centers on ${reconciled.gatesInfo?.primaryGatingRisk || 'customer demand and willingness to pay'}. The founder should validate these core assumptions through structured customer discovery interviews and pilot trials before committing significant development capital.`;
+    : (isBookkeepingOrProfService
+      ? `This bookkeeping and financial support concept is backed by substantial founder experience in financial administration, payroll, project controls, and not-for-profit treasurer governance. However, in the problem statement field the founder listed internal launch goals (Xero course proficiency, business setup requirements, and building a client base) rather than validated customer pain points, and zero structured customer discovery interviews have been completed yet. The founder should complete Xero Advisor certification and conduct 8 to 10 discovery conversations with Pasifika small business owners and community treasurers within their ${hoursBand} capacity before committing overhead.`
+      : `This concept addresses a genuine customer problem. However, customer demand, willingness to pay, and competitive defensibility remain insufficiently validated. The primary commercial risk centers on ${reconciled.gatesInfo?.primaryGatingRisk || 'customer demand and willingness to pay'}. The founder should validate these core assumptions through structured customer discovery interviews and pilot trials before committing significant development capital.`);
 
   const portfolioMeta = getPortfolioDecision(reconciled.masterRecommendation, ventureType, reconciled.gatesInfo, reqData);
   const ft5D = calculate5DimensionFutureTrends(reqData, reconciled.gatesInfo, ventureType, {});
@@ -2935,6 +3384,18 @@ function getMockResult(reqData = {}) {
     stratPos = `Positions as a long-term utility-scale infrastructure option targeting grid reliability, baseload capacity, and industrial decarbonisation within ${targetJurisdiction}.`;
     catDyn = `Governed by national energy security strategy, statutory radiation safety law, environmental consenting frameworks, and multi-billion-dollar infrastructure capital scale.`;
     moatStr = "No defensible venture-specific moat is yet evidenced. Potential future defensibility could arise from specialist partnerships, project rights, regulatory capability, long-term off-take arrangements or execution capability.";
+  } else if (isBookkeepingOrProfService) {
+    primaryThemeStr = "Professional Services / Bookkeeping & Financial Advisory";
+    secondaryThemeStr = "Small Business & Community Financial Compliance Support";
+    stratPos = `Positions as a culturally responsive, plain-language bookkeeping, payroll, and financial literacy practice serving small businesses, sole traders, and community organisations across ${targetJurisdiction}.`;
+    catDyn = `Driven by bi-monthly GST/PAYE compliance mandates, cloud accounting ledger adoption (Xero/MYOB), and heightened charity/society financial reporting rules in ${targetJurisdiction}.`;
+    moatStr = "Personal practitioner trust, cultural and community network credibility, 28+ years of practical financial administration experience, and high monthly retainer retention.";
+  } else if (isCommunityOrNfp) {
+    primaryThemeStr = "Community / Not-for-Profit / Social Enterprise";
+    secondaryThemeStr = "Community Capability Building & Social Impact";
+    stratPos = `Positions as a community-anchored social impact and capability-building initiative serving target beneficiaries and community organisations across ${targetJurisdiction}.`;
+    catDyn = `Driven by grassroots community needs, culturally grounded service delivery, and funder demand for transparent governance and measurable participant outcomes in ${targetJurisdiction}.`;
+    moatStr = "Authentic community trust, lived cultural alignment, church and community hub relationships, and verified governance accountability.";
   } else if (isAiDecision) {
     primaryThemeStr = "AI / Business Decision Support Software";
     secondaryThemeStr = "Startup Idea Validation & Founder Decision Intelligence";
@@ -2973,7 +3434,7 @@ function getMockResult(reqData = {}) {
     acqChannel = "Direct long-term PPA contracting with electricity retailers, heavy industrial energy users, and national grid operators.";
     keyCostsStr = "Technology licensing, site development, regulatory consenting, plant engineering, construction, grid interconnection, operation, security, and decommissioning.";
     commAssess = "Business model viability is strictly governed by statutory permissibility, regulatory consenting, and multi-billion-dollar project financing gateways.";
-  } else if (isAiDecision) {
+  } else if (isBookkeepingOrProfService || isCommunityOrNfp || isAiDecision) {
     valProp = synthesizeBusinessModelField('valueProposition', reqData, ventureType, targetJurisdiction);
     revModel = synthesizeBusinessModelField('revenueModel', reqData, ventureType, targetJurisdiction);
     acqChannel = synthesizeBusinessModelField('customerAcquisition', reqData, ventureType, targetJurisdiction);
@@ -2993,36 +3454,29 @@ function getMockResult(reqData = {}) {
     commAssess = synthesizeBusinessModelField('commercialAssessment', reqData, ventureType, targetJurisdiction);
   }
 
-  const rawTimeInput = (reqData.timeCommitment || reqData.capacity || "").toString().trim();
-  let hoursBand = "15-30 hours/week";
-  if (rawTimeInput.match(/\b(0-5|0\s*-\s*5|<5)\b/i)) {
-    hoursBand = "0-5 hours/week";
-  } else if (rawTimeInput.match(/\b(5-10|5\s*-\s*10)\b/i)) {
-    hoursBand = "5-10 hours/week";
-  } else if (rawTimeInput.match(/\b(10-20|10-15|10\s*-\s*20)\b/i)) {
-    hoursBand = "10-20 hours/week";
-  } else if (rawTimeInput.match(/\b(15-30|20-30|15\s*-\s*30)\b/i)) {
-    hoursBand = "15-30 hours/week";
-  } else if (rawTimeInput.match(/\b(30\+|40|full-time)\b/i)) {
-    hoursBand = "30+ hours/week";
-  } else if (rawTimeInput) {
-    hoursBand = rawTimeInput;
-  }
-
-  const userCapInput = reqData.investmentCommitment || reqData.budget;
-  const formattedCap = formatCapitalValue(userCapInput, "$5,000–$10,000 NZD");
   const isHw = ventureType.includes("Hardware") || ventureType.includes("Manufacturing") || isHardwareIdea(idea, reqData.category);
+  const nowIso = new Date().toISOString();
+  const founderDisplayName = reqData.founderName || reqData.userName || "Founder (Name not supplied)";
 
   const mockData = {
     output: {
       appVersion: VERSION_INFO.appVersion,
       fullVersionString: VERSION_INFO.fullVersionString,
       buildId: VERSION_INFO.buildId,
+      changeId: VERSION_INFO.changeId,
       deployedAt: VERSION_INFO.deployedAt,
       deployedAtFormatted: VERSION_INFO.deployedAtFormatted,
       assessmentId: `eval_${Date.now()}`,
-      assessmentGeneratedAt: new Date().toISOString(),
-      assessmentGeneratedAtFormatted: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) + ' NZST',
+      assessmentGeneratedAt: nowIso,
+      assessmentGeneratedAtFormatted: formatAssessmentTimestampUTC(nowIso),
+      founderName: founderDisplayName,
+      meta: {
+        founderName: founderDisplayName,
+        businessName: idea,
+        conceptSummary: idea,
+        betaCohort: "first50",
+        founderRegion: reqData.locationSummary || reqData.locationCountry || targetJurisdiction
+      },
       masterRecommendation: reconciled.masterRecommendation,
       overallScore: reconciled.overallScore,
       scoreBand: reconciled.scoreBand,
@@ -3037,10 +3491,13 @@ function getMockResult(reqData = {}) {
       reassessmentTrigger: portfolioMeta.reassessmentTrigger,
       futureTrends: ft5D,
       commercialAdviserOpinion: adviserOpinion,
+      adviserOpinion: adviserOpinion,
       validationLadder: ladder,
       actionPlan: {
-        topFivePriorities: topFivePrioritiesList
+        topFivePriorities: topFivePrioritiesList,
+        immediate7DayAction: actionSourceOfTruth.immediate7DayAction
       },
+      topFivePriorities: topFivePrioritiesList,
       thirtyDayPlan: thirtyDayPlanObj,
       ninetyDayPhases: actionSourceOfTruth.ninetyDayPhases,
       ninetyDayRoadmap: actionSourceOfTruth.ninetyDayRoadmap,
@@ -3064,8 +3521,10 @@ function getMockResult(reqData = {}) {
         pitchLabVerdict: verdictStr,
         biggestRiskToThisIdea: reconciled.gatesInfo?.hasCriticalGate ? reconciled.gatesInfo.summary : "The concept currently lacks empirical customer discovery logs and payment validation.",
         doThisBeforeBuildingMore: doThisBeforeBuilding,
-        topStrengths: ["Strong founder commercial background", "Clear market focus", "Low-cost initial validation path"],
-        topPrioritiesNow: isHw ? ["Customer problem severity interviews", "Benchtop mechanism validation", "BOM & unit economic modeling"] : ["Verify statutory and regulatory feasibility", "Test customer pain urgency", "Establish pre-feasibility milestones"],
+        topStrengths: isBookkeepingOrProfService
+          ? ["28+ years financial administration, payroll & project controls experience", "Not-for-profit treasurer & NZQA advisory governance background", "Culturally responsive positioning for Pasifika small businesses & community groups"]
+          : ["Strong founder commercial background", "Clear market focus", "Low-cost initial validation path"],
+        topPrioritiesNow: topFivePrioritiesList.slice(0, 3).map(p => p.priority),
         threePriorityActions: threePriorityActionsList
       },
       recommendedApproach: isNuclear ? [
@@ -3073,6 +3532,11 @@ function getMockResult(reqData = {}) {
         "Focus effort on statutory permissibility and regulatory feasibility before committing capital to detailed engineering, site feasibility, or downstream commercial validation.",
         "Concentrate on clearing the primary gating risk (statutory permissibility and regulatory feasibility) before undertaking downstream technical or commercial validation.",
         "Maintain a disciplined execution horizon focused on regulatory pre-feasibility milestones."
+      ] : (isBookkeepingOrProfService ? [
+        `Batch your ${hoursBand} into two focused blocks: (1) Xero Advisor certification & practice setup, and (2) direct discovery conversations with Pasifika small business owners and community treasurers.`,
+        "Validate specific client pain points (GST backlogs, payroll compliance, charity tier reporting) and secure 2–3 paying monthly retainers before spending on paid advertising or office leases.",
+        "Package services into clear fixed-fee monthly tiers ($150–$650/month) with defined transaction limits to prevent unbilled scope creep.",
+        "Build referral partnerships with 2–3 Chartered Accountants and local community/church business networks."
       ] : (ventureType.includes("Hardware") ? [
         "Select ONE key physical design or validation objective each week and batch work into focused sessions.",
         "Validate core physical performance, durability requirements, and customer willingness-to-pay before committing capital to costly tooling or full manufacturing runs.",
@@ -3083,21 +3547,25 @@ function getMockResult(reqData = {}) {
         "Focus effort on validating primary customer demand and commercial model mechanics before expanding product features or operational overhead.",
         "Concentrate on testing the highest-risk business assumptions first (problem severity and target customer commitment).",
         "Maintain a 90-day execution horizon to ensure steady, consistent progress without founder burnout."
-      ]),
+      ])),
       founderImplications: [
-        "Your available time supports steady progress; maintain disciplined focus on legal and regulatory pre-feasibility before expanding technical scope.",
+        `Your stated ${hoursBand} availability supports steady progress across validation and onboarding milestones.`,
         isNuclear
           ? "Initial risk capital ($500 NZD) supports desktop research, legal framework mapping, and initial specialist outreach, but cannot fund formal legal opinions or engineering studies. A $5,000–$25,000+ pre-feasibility gateway is required to confirm statutory viability."
-          : "Your initial budget is workable for lean validation; preserve capital for customer discovery experiments rather than premature infrastructure.",
+          : `Your stated budget (${formattedCap}) is appropriate for lean validation; preserve capital for customer discovery and essential setup rather than premature fixed overhead.`,
         isNuclear
           ? "Domain, statutory, or nuclear engineering specialization can be engaged via advisors, industry partners, or specialist consultants; early positioning should focus on statutory and commercial feasibility."
-          : "Core founder capabilities are well aligned for early-stage execution; focus on validating critical statutory, market, or commercial assumptions."
+          : (isBookkeepingOrProfService
+            ? "Your 28+ years of financial administration, payroll, and treasurer governance experience strongly de-risks service delivery once Xero proficiency training and initial client acquisition are completed."
+            : "Core founder capabilities are well aligned for early-stage execution; focus on validating critical statutory, market, or commercial assumptions.")
       ],
       cvAnalysis: {
-        cvAttached: Boolean(reqData.founderCvExtractedText || reqData.founderCvFile),
+        cvAttached: Boolean(reqData.founderCvExtractedText || reqData.founderCvFile || reqData.founderCvUploaded),
         extractedCredentials: extractSpecificCredentialsFromCvText(reqData.founderCvExtractedText, reqData.founderBackgroundNarrative),
-        founderStrengthsFromCV: "Strong commercial, financial, accounting, technology and business-evaluation capability, including financial modelling, business structuring and commercial decision-making.",
-        alignmentWithBusinessIdea: (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved || 0) <= 6 ? "The supplied CV demonstrates general commercial capability, but does not evidence direct technical or regulatory execution experience for this specific venture." : "Founder's background supports project execution and commercial analysis."
+        founderStrengthsFromCV: isBookkeepingOrProfService
+          ? "28+ years of financial administration, payroll, invoicing, and project financial controls experience, complemented by Bachelor of Business, Diploma in Applied Management, and Incorporated Society Treasurer governance."
+          : "Strong commercial, financial, accounting, technology and business-evaluation capability, including financial modelling, business structuring and commercial decision-making.",
+        alignmentWithBusinessIdea: (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved || 0) <= 6 ? "The supplied CV demonstrates general commercial capability, but does not evidence direct technical or regulatory execution experience for this specific venture." : "Founder's background directly supports service execution and commercial analysis."
       },
       businessModelSnapshot: {
         targetCustomer: synthesizeBusinessModelField('targetCustomer', reqData, ventureType, targetJurisdiction),
@@ -3113,8 +3581,9 @@ function getMockResult(reqData = {}) {
         analysis: reconciled.categoryScores.founderCapabilityFit?.explanation || "Evaluated founder background.",
         founderPositionSummary: (reconciled.categoryScores.founderCapabilityFit?.scoreAchieved || 0) >= 12 ? "Well Positioned" : ((reconciled.categoryScores.founderCapabilityFit?.scoreAchieved || 0) >= 7 ? "Workable With Constraints" : "Material Founder Constraints"),
         weeklyAvailableHours: hoursBand,
+        stepHoursLabel: timeNorm.stepHoursLabel,
         availableCapital: formattedCap,
-        initialRiskCapital: reqData.initialRiskCapital || reqData.riskCapital || "$1,000 NZD"
+        initialRiskCapital: reqData.initialRiskCapital || reqData.riskCapital || capNorm.initialRiskCapitalDisplay || "$1,000 NZD"
       },
       marketInsights: marketInsightsObj,
       founderCapabilityExplanation: {
@@ -3123,38 +3592,54 @@ function getMockResult(reqData = {}) {
           .replace(/\s*(personal\s+)?interests?:[^\.]*\.?/gi, '')
           .trim(),
         whyThisScoreWasAwarded: dynamicScores.founderCapabilityFit?.explanation || "Evaluated against commercial capability criteria and founder credentials.",
-        capabilityGaps: isNuclear ? ["In-house nuclear engineering & plant operations", "Statutory consenting & nuclear regulatory licensing"] : ["Direct technical building capacity", "Scale acquisition marketing"],
-        recommendedResponse: isNuclear ? ["Identify and begin engaging appropriately credentialled nuclear engineering, energy infrastructure and regulatory specialists who could support a later pre-feasibility stage if the statutory pathway proves viable.", "Engage specialist legal & regulatory counsel"] : ["Engage technical advisors", "Partner with industry specialists"]
+        capabilityGaps: isNuclear
+          ? ["In-house nuclear engineering & plant operations", "Statutory consenting & nuclear regulatory licensing"]
+          : (isBookkeepingOrProfService
+            ? ["Advanced Xero Advisor & cloud accounting workflow certification", "First-time independent practice setup & client acquisition pipeline"]
+            : ["Direct technical building capacity", "Scale acquisition marketing"]),
+        recommendedResponse: isNuclear
+          ? ["Identify and begin engaging appropriately credentialled nuclear engineering, energy infrastructure and regulatory specialists who could support a later pre-feasibility stage if the statutory pathway proves viable.", "Engage specialist legal & regulatory counsel"]
+          : (isBookkeepingOrProfService
+            ? ["Complete Xero Advisor and Payroll certification courses and finalize practice registration & AML/CFT compliance checklist.", "Leverage community, church, and Chartered Accountant referral networks to onboard first 2–3 monthly retainer clients."]
+            : ["Engage technical advisors", "Partner with industry specialists"])
       },
       whyThisScore: {
-        strongestArea: "Commercial Logic",
-        weakestArea: "Empirical Market Validation",
-        mainDragOnScore: reconciled.gatesInfo?.hasCriticalGate ? "Venture-critical statutory/feasibility gate detected." : "Absence of empirical customer validation logs.",
-        fastestWayToImprove: "Execute pre-feasibility validation and discovery interviews."
+        strongestArea: isBookkeepingOrProfService ? "Founder Financial & Governance Experience" : "Commercial Logic",
+        weakestArea: "Empirical Customer Validation",
+        mainDragOnScore: reconciled.gatesInfo?.hasCriticalGate ? "Venture-critical statutory/feasibility gate detected." : (isBookkeepingOrProfService ? "Zero completed customer discovery interviews and founder capability goals listed in the customer problem field." : "Absence of empirical customer validation logs."),
+        fastestWayToImprove: isBookkeepingOrProfService ? "Complete Xero Advisor certification, conduct 8–10 customer discovery conversations, and sign 2–3 pilot bookkeeping retainer clients." : "Execute pre-feasibility validation and discovery interviews."
       },
       scores: dynamicScores,
-      decisionStatus: { state: reconciled.masterRecommendation, explanation: "Evaluated against commercial feasibility criteria.", nextMilestone: "Complete Pre-Feasibility Validation" },
-      tearDetails: { theme: "Commercial Assessment", evidence: "Submitted questionnaire inputs.", analysis: "Execution depends on pre-feasibility validation.", recommendation: reconciled.masterRecommendation },
-      marketAssessment: { analysis: "Market dynamics and regulatory environment assessed.", marketPatternSummary: reconciled.gatesInfo?.hasCriticalGate ? "Regulated / Restricted Market" : "Standard Commercial Market" },
-      realWorldComparables: {
-          successes: [{ name: "PlanGrid", whatTheyDid: "Mobile workflow software", whyItSucceeded: "Seamless integration into daily routines", lessonForFounder: "Don't break the user's workflow." }],
-          failures: [{ name: "Kuvée", whatTheyDid: "Connected hardware ecosystem", whyItWentWrong: "Solution in search of a problem", warningForFounder: "Avoid hardware friction for minor convenience." }],
-          marketInterpretation: "Idea requires disciplined pre-feasibility validation before capital deployment."
+      decisionStatus: { state: reconciled.masterRecommendation, explanation: "Evaluated against commercial feasibility criteria.", nextMilestone: isBookkeepingOrProfService ? "Complete Xero certification & 8–10 customer discovery interviews" : "Complete Pre-Feasibility Validation" },
+      tearDetails: { theme: "Commercial Assessment", evidence: "Submitted questionnaire inputs.", analysis: "Execution depends on structured customer validation.", recommendation: reconciled.masterRecommendation },
+      marketAssessment: { analysis: marketInsightsObj.marketLandscape, marketPatternSummary: reconciled.gatesInfo?.hasCriticalGate ? "Regulated / Restricted Market" : "Established Service Market" },
+      realWorldComparables: isBookkeepingOrProfService ? {
+        successes: [
+          { name: "Specialist Cloud Bookkeeping Practices (Xero Gold/Silver Partners NZ)", whatTheyDid: "Combined Xero/Payroll certification with fixed-fee monthly retainer tiers and culturally trusted advisory support for niche SME and charity segments.", whyItSucceeded: "Eliminated hourly billing surprises and built high-trust referral loops with year-end Chartered Accountants and community networks.", lessonForFounder: "Package services into predictable monthly tiers ($150–$650/month) and partner with Chartered Accountants who need clean client ledgers." }
+        ],
+        failures: [
+          { name: "Underpriced Ad-Hoc Solo Bookkeepers", whatTheyDid: "Accepted messy catch-up and shoebox bookkeeping jobs on low hourly rates without clear scope boundaries or software standardization.", whatWentWrong: "Consumed available weekly hours on manual data cleanup with low effective hourly returns and high client churn.", warningForFounder: "Enforce standardized Xero onboarding and clear monthly transaction boundaries so your 15–30 hours/week capacity generates sustainable margins." }
+        ],
+        marketInterpretation: "Bookkeeping practices with strong financial administration credentials succeed when they standardize on cloud ledgers (Xero) and price via recurring monthly retainers rather than ad-hoc hourly cleanup."
+      } : {
+        successes: [{ name: "Focused Niche Leaders", whatTheyDid: "Validated acute workflow pain with 10+ target customers before scaling overhead.", whyItSucceeded: "High problem-solution fit and low customer acquisition cost.", lessonForFounder: "Validate willingness to pay with pilot customers before committing capital." }],
+        failures: [{ name: "Premature Scalers", whatTheyDid: "Committed capital to infrastructure before verifying customer demand.", whatWentWrong: "High burn rate without validated customer willingness to switch.", warningForFounder: "Complete structured customer discovery interviews before expanding overhead." }],
+        marketInterpretation: "Idea requires disciplined customer discovery validation before capital deployment."
       },
-      mvpFeasibility: { verdict: "Pre-Feasibility Required", suggestedFormat: "Pre-Feasibility Validation Study", indicativeComponents: ["Statutory review", "Expert consultation"], whatToExclude: ["Capital commitment", "Tooling"], estimatedCostCommentary: "Low-cost discovery phase." },
+      mvpFeasibility: { verdict: "Validation Required", suggestedFormat: isBookkeepingOrProfService ? "Tiered Monthly Bookkeeping & Payroll Pilot Package" : "Validation Pilot Study", indicativeComponents: isBookkeepingOrProfService ? ["Xero ledger health check", "Monthly bank/GST reconciliation & payroll support"] : ["Customer discovery", "Pilot workflow test"], whatToExclude: isBookkeepingOrProfService ? ["Custom software development", "Long-term commercial office lease"] : ["Premature capital commitment", "Unvalidated overhead"], estimatedCostCommentary: "Low-cost validation phase within stated budget." },
       legalRegulatoryAssessment: reconciled.legalRegulatoryAssessment,
       investorBite: {
         introduction: (isNuclear || reconciled.gatesInfo?.hasCriticalGate)
           ? `${targetJurisdiction} faces increasing electricity demand, security-of-supply challenges and continued decarbonisation requirements. The proposed SMR solution faces substantial statutory, regulatory, technical and capital barriers, and its legal/regulatory feasibility remains subject to specialist confirmation.`
-          : "If you had 60 seconds to present this idea to experienced investors, how would it stack up?",
+          : "If you had 60 seconds to present this idea to experienced investors or commercial advisers, how would it stack up?",
         scorecard: [
-          { area: "Problem Worth Solving", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.problemCustomerClarity?.scoreAchieved || 10) / 15) * 5))), commentary: generateContextualInvestorCommentary("Problem Worth Solving", Math.max(1, Math.min(5, Math.round(((dynamicScores.problemCustomerClarity?.scoreAchieved || 10) / 15) * 5))), dynamicScores.problemCustomerClarity?.scoreAchieved || 0, 15, reqData, reconciled.gatesInfo, reconciled) },
-          { area: "Market Opportunity", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.marketCommercialOpportunity?.scoreAchieved || 10) / 15) * 5))), commentary: generateContextualInvestorCommentary("Market Opportunity", Math.max(1, Math.min(5, Math.round(((dynamicScores.marketCommercialOpportunity?.scoreAchieved || 10) / 15) * 5))), dynamicScores.marketCommercialOpportunity?.scoreAchieved || 0, 15, reqData, reconciled.gatesInfo, reconciled) },
-          { area: "Competitive Advantage", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.competitivePosition?.scoreAchieved || 6) / 10) * 5))), commentary: generateContextualInvestorCommentary("Competitive Advantage", Math.max(1, Math.min(5, Math.round(((dynamicScores.competitivePosition?.scoreAchieved || 6) / 10) * 5))), dynamicScores.competitivePosition?.scoreAchieved || 0, 10, reqData, reconciled.gatesInfo, reconciled) },
-          { area: "Business Model", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.businessModelWillingnessToPay?.scoreAchieved || 10) / 15) * 5))), commentary: generateContextualInvestorCommentary("Business Model", Math.max(1, Math.min(5, Math.round(((dynamicScores.businessModelWillingnessToPay?.scoreAchieved || 10) / 15) * 5))), dynamicScores.businessModelWillingnessToPay?.scoreAchieved || 0, 15, reqData, reconciled.gatesInfo, reconciled) },
+          { area: "Problem Worth Solving", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.problemCustomerClarity?.scoreAchieved || 7) / 14) * 5))), commentary: generateContextualInvestorCommentary("Problem Worth Solving", Math.max(1, Math.min(5, Math.round(((dynamicScores.problemCustomerClarity?.scoreAchieved || 7) / 14) * 5))), dynamicScores.problemCustomerClarity?.scoreAchieved || 0, 14, reqData, reconciled.gatesInfo, reconciled) },
+          { area: "Market Opportunity", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.marketCommercialOpportunity?.scoreAchieved || 10) / 14) * 5))), commentary: generateContextualInvestorCommentary("Market Opportunity", Math.max(1, Math.min(5, Math.round(((dynamicScores.marketCommercialOpportunity?.scoreAchieved || 10) / 14) * 5))), dynamicScores.marketCommercialOpportunity?.scoreAchieved || 0, 14, reqData, reconciled.gatesInfo, reconciled) },
+          { area: "Competitive Advantage", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.competitivePosition?.scoreAchieved || 6) / 9) * 5))), commentary: generateContextualInvestorCommentary("Competitive Advantage", Math.max(1, Math.min(5, Math.round(((dynamicScores.competitivePosition?.scoreAchieved || 6) / 9) * 5))), dynamicScores.competitivePosition?.scoreAchieved || 0, 9, reqData, reconciled.gatesInfo, reconciled) },
+          { area: "Business Model", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.businessModelWillingnessToPay?.scoreAchieved || 10) / 14) * 5))), commentary: generateContextualInvestorCommentary("Business Model", Math.max(1, Math.min(5, Math.round(((dynamicScores.businessModelWillingnessToPay?.scoreAchieved || 10) / 14) * 5))), dynamicScores.businessModelWillingnessToPay?.scoreAchieved || 0, 14, reqData, reconciled.gatesInfo, reconciled) },
           { area: "Founder Capability", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.founderCapabilityFit?.scoreAchieved || 10) / 15) * 5))), commentary: generateContextualInvestorCommentary("Founder Capability", Math.max(1, Math.min(5, Math.round(((dynamicScores.founderCapabilityFit?.scoreAchieved || 10) / 15) * 5))), dynamicScores.founderCapabilityFit?.scoreAchieved || 0, 15, reqData, reconciled.gatesInfo, reconciled) },
-          { area: "Customer Validation", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.customerValidation?.scoreAchieved || 4) / 20) * 5))), commentary: generateContextualInvestorCommentary("Customer Validation", Math.max(1, Math.min(5, Math.round(((dynamicScores.customerValidation?.scoreAchieved || 4) / 20) * 5))), dynamicScores.customerValidation?.scoreAchieved || 0, 20, reqData, reconciled.gatesInfo, reconciled) },
-          { area: "Scalability", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.executionReadiness?.scoreAchieved || 6) / 10) * 5))), commentary: generateContextualInvestorCommentary("Scalability", Math.max(1, Math.min(5, Math.round(((dynamicScores.executionReadiness?.scoreAchieved || 6) / 10) * 5))), dynamicScores.executionReadiness?.scoreAchieved || 0, 10, reqData, reconciled.gatesInfo, reconciled) },
+          { area: "Customer Validation", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.customerValidation?.scoreAchieved || 2) / 20) * 5))), commentary: generateContextualInvestorCommentary("Customer Validation", Math.max(1, Math.min(5, Math.round(((dynamicScores.customerValidation?.scoreAchieved || 2) / 20) * 5))), dynamicScores.customerValidation?.scoreAchieved || 0, 20, reqData, reconciled.gatesInfo, reconciled) },
+          { area: "Scalability", rating: Math.max(1, Math.min(5, Math.round(((dynamicScores.executionReadiness?.scoreAchieved || 6) / 9) * 5))), commentary: generateContextualInvestorCommentary("Scalability", Math.max(1, Math.min(5, Math.round(((dynamicScores.executionReadiness?.scoreAchieved || 6) / 9) * 5))), dynamicScores.executionReadiness?.scoreAchieved || 0, 9, reqData, reconciled.gatesInfo, reconciled) },
           { area: "Investment Readiness", rating: Math.max(1, Math.min(5, Math.round((reconciled.overallScore / 100) * 5))), commentary: generateContextualInvestorCommentary("Investment Readiness", Math.max(1, Math.min(5, Math.round((reconciled.overallScore / 100) * 5))), reconciled.overallScore, 100, reqData, reconciled.gatesInfo, reconciled) }
         ],
         overallInterestScore: reconciled.overallScore,
@@ -3165,31 +3650,57 @@ function getMockResult(reqData = {}) {
           "What statutory or regulatory approvals are required before project execution?",
           "What stops an established competitor or state entity from controlling this infrastructure?",
           "What is your specific, low-cost pre-feasibility validation strategy?"
+        ] : (isBookkeepingOrProfService ? [
+          "Which specific bookkeeping, payroll, or GST compliance pain points do Pasifika small business owners and community treasurers rank as most urgent?",
+          "What fixed monthly retainer tiers ($150–$650/month) and scope boundaries will prevent unbilled cleanup work from consuming your 15–30 hours/week capacity?",
+          "Which 2–3 local Chartered Accountants, churches, or Pasifika business networks will serve as your primary client referral channels?"
         ] : [
           "What empirical evidence proves that the customer problem is urgent and frequent?",
           "What key operational milestones will you achieve before seeking external funding?"
-        ],
-        biggestStrength: "Commercial background combined with a defined market focus.",
-        biggestRisk: reconciled.gatesInfo?.hasCriticalGate ? "The proposed venture faces substantial statutory, regulatory, consenting, public-policy and capital barriers. Whether a viable legal/regulatory pathway exists under the current framework, or whether legislative change would ultimately be required, remains subject to specialist legal confirmation." : "Uncertain customer payment proof.",
+        ]),
+        biggestStrength: isBookkeepingOrProfService
+          ? "28+ years of financial administration, payroll, and project financial controls experience combined with Incorporated Society Treasurer governance."
+          : "Commercial background combined with a defined market focus.",
+        biggestRisk: reconciled.gatesInfo?.hasCriticalGate
+          ? "The proposed venture faces substantial statutory, regulatory, consenting, public-policy and capital barriers. Whether a viable legal/regulatory pathway exists under the current framework, or whether legislative change would ultimately be required, remains subject to specialist legal confirmation."
+          : (isBookkeepingOrProfService
+            ? "Customer pain points and willingness to pay are not yet validated with target business owners (the problem field listed founder launch goals rather than external customer pain)."
+            : "Uncertain customer payment proof."),
         improvements: isNuclear ? [
           "Verify statutory & legal permissibility with specialist counsel.",
           "Consult independent domain engineers to map compliance prerequisites.",
           "Scope the requirements, specialist inputs and likely cost of a formal pre-feasibility study, with the formal study proceeding only if the statutory/legal gateway produces a sufficiently positive result."
+        ] : (isBookkeepingOrProfService ? [
+          "Complete Xero Advisor and Payroll certification courses and finalize practice registration & AML/CFT compliance.",
+          "Conduct 8–10 structured discovery conversations with Pasifika small business owners, sole traders, and community treasurers.",
+          "Convert 2–3 discovery prospects into paying monthly bookkeeping retainer clients using fixed-fee packages."
         ] : [
           "Conduct 15-20 structured customer discovery interviews.",
           "Build a simple manual pilot to test workflow adoption."
-        ],
+        ]),
         pitchLabRecommendation: reconciled.masterRecommendation,
-        pitchLabRecommendationExplanation: isNuclear ? "Complete pre-feasibility validation before seeking capital." : "Complete customer problem validation and initial pilot tests before committing product development capital."
+        pitchLabRecommendationExplanation: isNuclear ? "Complete pre-feasibility validation before seeking capital." : "Complete customer problem validation and initial pilot tests before committing overhead."
       },
-      keyRisks: isNuclear ? [{ name: "Feasibility Gate", whyItMatters: "Statutory or technical restrictions", whatToProveOrFix: "Run pre-feasibility assessment" }] : [{ name: "Customer Demand & Payment Gate", whyItMatters: "Unvalidated customer adoption and willingness to pay", whatToProveOrFix: "Conduct discovery interviews and test customer workflow" }],
-      whatNotToBuild: isNuclear ? ["Do not commit capital to site options before statutory clearance."] : ["Do not build complex features before customer validation."],
+      keyRisks: isNuclear
+        ? [{ name: "Feasibility Gate", whyItMatters: "Statutory or technical restrictions", whatToProveOrFix: "Run pre-feasibility assessment" }]
+        : (isBookkeepingOrProfService ? [
+          { name: "Unvalidated Customer Problem & Retainer Pricing", whyItMatters: "The submission listed internal founder launch goals (Xero training, business setup, new client base) rather than external customer pain points, and zero discovery interviews have been completed.", whatToProveOrFix: "Interview 8–10 Pasifika small business owners and community treasurers to confirm specific bookkeeping/GST pain and test $150–$650/month packages." },
+          { name: "Unbilled Cleanup & Scope Creep", whyItMatters: "Small business and charity ledgers often have historical reconciliation backlogs that can erode effective hourly rates within a 15–30 hours/week schedule.", whatToProveOrFix: "Charge a separate fixed upfront ledger health-check/catch-up fee before starting monthly retainers." },
+          { name: "Xero Platform Fluency & Practice Onboarding", whyItMatters: "Fast, accurate cloud ledger workflows are essential to serve multiple retainer clients profitably.", whatToProveOrFix: "Complete Xero Advisor and Payroll certification in Weeks 1–2." }
+        ] : [{ name: "Customer Demand & Payment Gate", whyItMatters: "Unvalidated customer adoption and willingness to pay", whatToProveOrFix: "Conduct discovery interviews and test customer workflow" }]),
+      whatNotToBuild: isNuclear
+        ? ["Do not commit capital to site options before statutory clearance."]
+        : (isBookkeepingOrProfService ? [
+          "Do not lease commercial office space before securing 5–8 recurring monthly retainer clients.",
+          "Do not spend on broad paid digital advertising before testing warm community, church, and Chartered Accountant referral channels.",
+          "Do not take on open-ended hourly ledger cleanup work without a signed engagement letter and upfront deposit."
+        ] : ["Do not build complex features before customer validation."]),
       finalRecommendation: {
         recommendation: reconciled.masterRecommendation,
-        why: reconciled.gatesInfo?.hasCriticalGate ? "A potentially fundamental legal or regulatory barrier has been identified. This requires verification with appropriately qualified legal and regulatory specialists before further investment." : "Concept requires customer validation.",
-        biggestIssue: reconciled.gatesInfo?.hasCriticalGate ? "The proposed venture faces substantial statutory, regulatory, consenting, public-policy and capital barriers. Whether a viable legal/regulatory pathway exists under the current framework, or whether legislative change would ultimately be required, remains subject to specialist legal confirmation." : "Unvalidated customer willingness to adopt or pay.",
-        pathForward: isNuclear ? "Execute pre-feasibility study." : "Execute staged customer discovery (10 interviews) and manual pilot validation.",
-        explicitWarning: isNuclear ? "DO NOT commit capital prior to pre-feasibility confirmation." : "DO NOT build automated software features before customer validation."
+        why: reconciled.gatesInfo?.hasCriticalGate ? "A potentially fundamental legal or regulatory barrier has been identified. This requires verification with appropriately qualified legal and regulatory specialists before further investment." : (isBookkeepingOrProfService ? "Strong founder financial administration and treasurer governance background (28+ years), but customer pain points and retainer pricing require direct validation with target Pasifika small businesses and community organisations." : "Concept requires customer validation."),
+        biggestIssue: reconciled.gatesInfo?.hasCriticalGate ? "The proposed venture faces substantial statutory, regulatory, consenting, public-policy and capital barriers. Whether a viable legal/regulatory pathway exists under the current framework, or whether legislative change would ultimately be required, remains subject to specialist legal confirmation." : (isBookkeepingOrProfService ? "Zero customer discovery conversations completed to date, and founder launch priorities (Xero training, business setup, client acquisition) need to be paired with validated customer pain points." : "Unvalidated customer willingness to adopt or pay."),
+        pathForward: isNuclear ? "Execute pre-feasibility study." : (isBookkeepingOrProfService ? "Complete Xero Advisor certification, conduct 8–10 customer discovery interviews with target small businesses and community treasurers, and onboard 2–3 paying pilot retainer clients." : "Execute staged customer discovery (10 interviews) and manual pilot validation."),
+        explicitWarning: isNuclear ? "DO NOT commit capital prior to pre-feasibility confirmation." : (isBookkeepingOrProfService ? "DO NOT commit to office leases or paid advertising campaigns before completing Xero certification and securing your first 2–3 paying retainer clients." : "DO NOT commit significant capital before customer validation.")
       }
     }
   };
@@ -3202,6 +3713,11 @@ function getMockResult(reqData = {}) {
   mockData.output = runEditorialQaAndSpellCheck(mockData.output, reqData);
   mockData.output = validateAndEnforceBusinessModelSnapshot(mockData.output, reqData);
   mockData.output = detectAndResolveCrossContamination(mockData.output, reqData);
+
+  // Attach authoritativeSnapshot and inputCoverage audit before integrity gate
+  mockData.output.authoritativeSnapshot = buildAuthoritativeAssessmentSnapshot(reqData, mockData.output.assessmentId, reqData.submissionId);
+  mockData.output.inputCoverage = computeInputCoverageAudit(reqData, mockData.output, mockData.output.authoritativeSnapshot);
+
   try {
     validateReportIntegrityGate(mockData.output, reqData);
   } catch (qaErr) {
@@ -3524,11 +4040,26 @@ function extractSpecificCredentialsFromCvText(cvText = "", narrative = "") {
   if (combined.includes("chartered accountant") || combined.includes("caanz") || combined.includes(" ca ")) {
     credentials.push("Chartered Accountant (CA / CAANZ)");
   }
-  if (combined.includes("bachelor of commerce") || combined.includes("bcom")) {
+  if (combined.includes("bachelor of business")) {
+    credentials.push("Bachelor of Business Degree");
+  } else if (combined.includes("bachelor of commerce") || combined.includes("bcom")) {
     credentials.push("Bachelor of Commerce (BCom)");
   }
-  if (combined.includes("xero certified") || combined.includes("xero")) {
+  if (combined.includes("diploma in applied management") || combined.includes("applied management")) {
+    credentials.push("Diploma in Applied Management");
+  }
+  if (combined.includes("28 years") || combined.includes("28+ years") || (combined.includes("financial administration") && combined.includes("payroll"))) {
+    credentials.push("28+ Years Financial Administration, Payroll & Project Controls Experience");
+  }
+  if (combined.includes("treasurer") || combined.includes("incorporated society") || combined.includes("nzqa")) {
+    credentials.push("Treasurer & Governance Experience (Incorporated Society / NZQA Stakeholder Advisory)");
+  }
+  if (combined.includes("xero certified")) {
     credentials.push("Xero Certified Advisor & Accounting Systems Specialist");
+  } else if (combined.includes("xero") && (combined.includes("course") || combined.includes("enrolling") || combined.includes("proficient"))) {
+    credentials.push("Active Accounting Systems Experience (Expanding Xero Certification)");
+  } else if (combined.includes("xero") || combined.includes("myob")) {
+    credentials.push("Accounting Systems & Ledger Administration Experience (Xero / MYOB)");
   }
   if (combined.includes("finance manager") || combined.includes("clever core")) {
     credentials.push("Finance Manager / Senior Financial Leadership Experience");
@@ -3539,8 +4070,8 @@ function extractSpecificCredentialsFromCvText(cvText = "", narrative = "") {
   if (combined.includes("manufacturing") || combined.includes("off-site") || combined.includes("d365") || combined.includes("hyperion")) {
     credentials.push("Manufacturing, ERP (D365) & Operational Systems Management");
   }
-  if (combined.includes("20+") || combined.includes("years") || combined.includes("tax")) {
-    credentials.push("20+ Years Senior Commercial, Tax & Business Advisory Experience");
+  if ((combined.includes("20+") || combined.includes("years") || combined.includes("tax")) && credentials.length < 3) {
+    credentials.push("Extensive Financial, Tax & Business Administration Experience");
   }
 
   if (credentials.length > 0) return credentials;
@@ -4466,6 +4997,21 @@ exports.sanitizeHardwareTerms = sanitizeHardwareTerms;
 exports.safeExtractJsonFromAiResponse = safeExtractJsonFromAiResponse;
 exports.logSubmissionError = logSubmissionError;
 exports.formatCapitalValue = formatCapitalValue;
+exports._testHelpers = {
+  getMockResult,
+  generateActionSourceOfTruth,
+  generateCoherentExecutiveSummary,
+  generateIdeaSpecificMarketInsights,
+  runSemanticGuardrail,
+  runEditorialQaAndSpellCheck,
+  validateAndEnforceBusinessModelSnapshot,
+  detectAndResolveCrossContamination,
+  formatAssessmentTimestampUTC,
+  extractSpecificCredentialsFromCvText,
+  synthesizeTargetCustomerLabel,
+  synthesizeBusinessModelField
+};
+
 
 
 

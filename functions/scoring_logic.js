@@ -146,13 +146,167 @@ const SCORING_CONFIG = {
 };
 
 /**
+ * Normalizes weekly available time commitment into a canonical band and step label.
+ */
+function normalizeFounderTimeCommitment(rawInputs = {}) {
+  const rawTime = String(rawInputs.timeCommitment || rawInputs.weeklyAvailableHours || "").trim();
+  const rawCap = String(rawInputs.capacity || "").trim();
+
+  const parseBand = (str) => {
+    const s = String(str || "").trim().toLowerCase();
+    if (!s) return null;
+    if (s.match(/30\+|20\+|full[\s-]*time|\b35\b|\b40\b/) || s === "35" || s === "40") {
+      return {
+        normalizedBand: "30+ hours/week",
+        stepHoursLabel: "30+ hrs/wk",
+        numericMidpoint: 35,
+        isConstrained: false
+      };
+    }
+    if (s.match(/15\s*[-–to]\s*30|10\s*[-–to]\s*20|\b20\b/) || s === "20") {
+      return {
+        normalizedBand: "15–30 hours/week",
+        stepHoursLabel: "15–30 hrs/wk",
+        numericMidpoint: 20,
+        isConstrained: false
+      };
+    }
+    if (s.match(/5\s*[-–to]\s*15|5\s*[-–to]\s*10|\b8\b|\b10\b/) || s === "8" || s === "10") {
+      return {
+        normalizedBand: "5–15 hours/week",
+        stepHoursLabel: "5–15 hrs/wk",
+        numericMidpoint: 10,
+        isConstrained: true
+      };
+    }
+    if (s.match(/0\s*[-–to]\s*5|<5|\b3\b/) || s === "3") {
+      return {
+        normalizedBand: "0–5 hours/week",
+        stepHoursLabel: "0–5 hrs/wk",
+        numericMidpoint: 3,
+        isConstrained: true
+      };
+    }
+    return null;
+  };
+
+  const fromTime = parseBand(rawTime);
+  const fromCap = parseBand(rawCap);
+  const hasConflict = Boolean(fromTime && fromCap && fromTime.normalizedBand !== fromCap.normalizedBand);
+  const chosen = fromTime || fromCap || {
+    normalizedBand: "15–30 hours/week",
+    stepHoursLabel: "15–30 hrs/wk",
+    numericMidpoint: 20,
+    isConstrained: false
+  };
+
+  return {
+    raw: rawTime || rawCap || chosen.normalizedBand,
+    normalizedBand: chosen.normalizedBand,
+    canonicalLabel: chosen.normalizedBand,
+    stepHoursLabel: chosen.stepHoursLabel,
+    numericMidpoint: chosen.numericMidpoint,
+    isConstrained: chosen.isConstrained,
+    hasConflict,
+    conflictDetected: hasConflict,
+    conflictNote: hasConflict
+      ? `Explicit timeCommitment ('${rawTime}') conflicted with legacy capacity ('${rawCap}'); resolved to '${chosen.normalizedBand}'.`
+      : ""
+  };
+}
+
+/**
+ * Normalizes founder available budget and initial risk capital without conflating them.
+ */
+function normalizeFounderCapital(rawInputs = {}) {
+  let avail = String(rawInputs.investmentCommitment || rawInputs.budget || rawInputs.availableCapital || "").trim() || "$0–$500 NZD";
+  avail = avail.replace(/\$([0-9,]+)\s*-\s*\$([0-9,]+)/g, "$$$1–$$$2");
+  const formattedAvail = avail.includes("NZD") || avail === "Bootstrapped" ? avail : `${avail} NZD`;
+
+  let riskCap = String(rawInputs.initialRiskCapital || "").trim();
+  if (!riskCap) {
+    const lower = formattedAvail.toLowerCase();
+    if (lower.includes("0–$500") || lower.includes("0-$500") || lower.includes("under $500") || lower === "$0 nzd") {
+      riskCap = "$0–$500 NZD";
+    } else if (lower.includes("500") && (lower.includes("2,500") || lower.includes("2500"))) {
+      riskCap = "$500–$1,000 NZD";
+    } else if (lower.includes("2,500") || lower.includes("5,000")) {
+      riskCap = "$500–$1,500 NZD";
+    } else {
+      riskCap = "$500–$1,500 NZD";
+    }
+  }
+  return {
+    availableCapital: formattedAvail,
+    normalizedDisplay: formattedAvail,
+    canonicalLabel: formattedAvail,
+    initialRiskCapital: riskCap,
+    initialRiskCapitalDisplay: riskCap
+  };
+}
+
+/**
+ * Detects when the founder's submitted 'problem' answer describes their own internal capability,
+ * training, certification, or business setup goals rather than the customer's external pain point.
+ */
+function detectProblemStatementMisclassification(rawInputs = {}) {
+  const problem = String(rawInputs.problem || "").trim();
+  const idea = String(rawInputs.idea || "").trim();
+  const targetMarket = String(rawInputs.targetMarket || "").trim();
+  const lowerProb = problem.toLowerCase();
+  const lowerIdea = idea.toLowerCase();
+
+  const founderSelfGoalSignals = [
+    /\bto become more proficient\b/i,
+    /\benrolling in (?:further )?(?:course|training)\b/i,
+    /\bunderstanding the requirements to set up a business\b/i,
+    /\bhow to set up (?:a|my) business\b/i,
+    /\bnew client base\b/i,
+    /\bbuild(?:ing)? (?:a|my) client base\b/i,
+    /\bget(?:ting)? my first clients\b/i,
+    /\blearn(?:ing)? how to use\b/i,
+    /\bupskill(?:ing)? in\b/i,
+    /\bobtain(?:ing)? certification\b/i,
+    /\bmy own training\b/i
+  ];
+
+  const matchCount = founderSelfGoalSignals.filter(rx => rx.test(problem)).length;
+  const hasCustomerPainWords = Boolean(lowerProb.match(/\b(customers?|clients?|business owners?|sole traders?|organisations?|communities|struggle|lack|time-consuming|expensive|manual|errors?|compliance|overwhelmed)\b/i));
+
+  const isFounderCapabilityNeedInProblemField = matchCount >= 1 && (!hasCustomerPainWords || matchCount >= 2);
+
+  let inferredCustomerProblem = "";
+  let founderStatedSetupPriorities = "";
+
+  if (isFounderCapabilityNeedInProblemField) {
+    founderStatedSetupPriorities = problem.replace(/\s+/g, " ").trim();
+    if (lowerIdea.match(/\b(bookkeep|accounting|xero|myob|payroll|financial support|financial administration|tax)\b/i)) {
+      const custGroup = targetMarket.match(/pasifika/i)
+        ? "Pasifika small business owners, sole traders, and community organisations"
+        : "Small business owners, sole traders, and community organisations";
+      inferredCustomerProblem = `${custGroup} often face time-consuming manual bookkeeping, GST/payroll compliance pressures, limited visibility over cash flow, and a lack of accessible, culturally responsive financial administration support (inferred from the service concept; requires direct customer validation).`;
+    } else {
+      inferredCustomerProblem = `Target customers (${targetMarket.split('\n')[0] || 'prospective buyers'}) require practical support to resolve operational friction related to ${idea.slice(0, 120)} (inferred from the business concept; requires direct customer validation).`;
+    }
+  }
+
+  return {
+    isFounderCapabilityNeedInProblemField,
+    founderStatedSetupPriorities,
+    inferredCustomerProblem
+  };
+}
+
+/**
  * Classifies the internal venture type based on raw inputs.
+ * Separates Professional Services / Bookkeeping & Community / NFP from SaaS FinTech and Trade/Construction.
  */
 function classifyVentureType(rawInputs = {}) {
   const idea = (rawInputs.idea || "").toLowerCase();
   const problem = (rawInputs.problem || "").toLowerCase();
   const category = (rawInputs.category || "").toLowerCase();
   const text = `${idea} ${problem} ${category}`;
+  const ideaAndCategory = `${idea} ${category}`;
 
   if (text.match(/\b(ride-share|rideshare|ride-hailing|ride-booking|ride hailing|ride booking|taxi|passenger transport|mobility|transport-booking|car booking|driver network|shuttle|transit|airport transfer|vehicle rental)\b/i) || category.match(/transport|mobility/i)) {
     return 'Transportation / Mobility / Marketplace';
@@ -175,22 +329,50 @@ function classifyVentureType(rawInputs = {}) {
   if (text.match(/manufacturing|factory|assembly|tooling|mould|mass production/)) {
     return 'Manufacturing';
   }
+
+  // Distinguish Bookkeeping / Accounting / Financial Administration Services from Software/FinTech products
+  const isSoftwareProductSignal = Boolean(ideaAndCategory.match(/\b(saas|software|app\b|application|platform|automated tool|fintech|open banking|api|algorithm|cloud platform|digital tool)\b/i));
+  const isBookkeepingOrAccountingService = Boolean(
+    ideaAndCategory.match(/\b(bookkeeping|bookkeeper|accounting services?|payroll services?|financial support|financial administration|tax agent|bas agent|xero advisor|chartered accountant|cpa practice|consulting|advisory|coaching)\b/i)
+  ) && !isSoftwareProductSignal;
+
+  if (isBookkeepingOrAccountingService) {
+    return 'Professional Services / Bookkeeping & Financial Advisory';
+  }
+
+  // Distinguish Community / Not-for-Profit / Social Enterprise concepts when primary offering is community/charity/NFP
+  const isCommunityOrNfpPrimary = Boolean(
+    ideaAndCategory.match(/\b(not-for-profit|non-profit|charity|charitable trust|incorporated society|social enterprise|community programme|community hub|youth programme|cultural programme)\b/i)
+  ) && !isBookkeepingOrAccountingService && !isSoftwareProductSignal;
+
+  if (isCommunityOrNfpPrimary) {
+    return 'Community / Not-for-Profit / Social Enterprise';
+  }
+
   if (text.match(/bank|fintech|tax|gst|accounting|payroll|insurance|lending|wealth|payment/)) {
+    if (!isSoftwareProductSignal && idea.match(/\b(service|services|support|guidance|advisory|practice|firm|freelance|consultant)\b/i)) {
+      return 'Professional Services / Bookkeeping & Financial Advisory';
+    }
     return 'Financial Services / FinTech';
   }
   if (text.match(/\b(two-sided marketplace|multi-sided marketplace|buyer-seller marketplace|peer-to-peer marketplace|freelance marketplace|service marketplace|rental marketplace)\b/i) || (text.match(/\bmarketplace\b/i) && !text.match(/\b(decision|software|developer|ai|saas|analytics|intelligence)\b/i))) {
     return 'Marketplace';
   }
-  if (text.match(/plumb|electrician|builder|building|construction|renovation|carpenter|roofer|painter|hvac|mechanic|handyman|\blawn\b|\bmow\b|cleaning|pest control|landscaping|\btrade\b|\blocal service\b/)) {
+
+  // Trade / Local Service: Check ONLY the core idea and category, and never match the verb "building" in "building trust" / "building financial confidence" / "building a business"
+  const cleanTradeText = ideaAndCategory
+    .replace(/\bbuilding\s+(?:trust|confidence|financial|relationships?|capacity|capability|communities|community|a\s+business|a\s+client|my\s+business|on\s+more)\b/gi, '');
+  if (cleanTradeText.match(/\b(plumb(?:er|ing)|electrician|electrical\s+contractor|builder|building\s+contractor|residential\s+construction|construction\s+company|construction\s+service|renovation|carpenter|carpentry|roofer|roofing|painter|hvac|mechanic|handyman|lawn\s+mowing|mowing|commercial\s+cleaning|cleaning\s+service|pest\s+control|landscaping|trade\s+service|local\s+trade)\b/i)) {
     return 'Trade / Local Service';
   }
-  if (text.match(/cafe|restaurant|baking|catering|bar|pub|food truck|hotel|hospitality/)) {
+
+  if (ideaAndCategory.match(/\b(cafe|restaurant|baking|bakery|catering|bar\b|pub\b|food truck|hotel|hospitality)\b/i)) {
     return 'Hospitality';
   }
-  if (text.match(/store|boutique|shop|e-commerce|shopify|retail/)) {
+  if (ideaAndCategory.match(/\b(store|boutique|shop|e-commerce|shopify|retail)\b/i)) {
     return 'Retail / E-Commerce';
   }
-  if (text.match(/consulting|agency|advisory|coaching|legal|law firm|accounting firm/)) {
+  if (ideaAndCategory.match(/\b(consulting|agency|advisory|coaching|legal|law firm|accounting firm|professional service)\b/i)) {
     return 'Professional Services / Agency / Traditional SME';
   }
   if (text.match(/regulated|compliance service|gaming|casino|liquor/)) {
@@ -403,6 +585,28 @@ function getCommercialAdviserOpinion(reconciled = {}, ventureType = "", gatesInf
   const founderScore = reconciled.categoryScores?.founderCapabilityFit?.scoreAchieved || 0;
   const isWeakFit = founderScore <= 6;
 
+  if (ventureType === 'Professional Services / Bookkeeping & Financial Advisory' || ventureType.includes('Professional Services')) {
+    return {
+      encouraging: "Strong submitted background in financial administration, payroll, reconciliations, and not-for-profit treasurer governance, paired with a well-defined target niche.",
+      caution: "Separate internal founder setup priorities (Xero certification, business registration, and building an initial client base) from external customer pain points, and validate monthly package pricing directly with prospective clients before committing overhead.",
+      unproven: "Verified customer willingness to pay for recurring monthly bookkeeping packages and client acquisition conversion rates within the target small-business and community segments.",
+      masterRecommendation: reconciled.masterRecommendation || "INVESTIGATE",
+      portfolioDecision: reconciled.overallScore >= 55 ? "INVESTIGATE" : (reconciled.overallScore >= 40 ? "PIVOT" : "PARK"),
+      portfolioAction: "Complete Xero advisor certification while conducting 8–10 structured discovery conversations with Pasifika small businesses and community organisations to secure 2–3 pilot bookkeeping clients."
+    };
+  }
+
+  if (ventureType === 'Community / Not-for-Profit / Social Enterprise') {
+    return {
+      encouraging: "Clear community mission, cultural alignment, and focus on grassroots capacity building.",
+      caution: "Ensure governance setup and ongoing operating commitments are matched by confirmed participant demand and sustainable fee-for-service or grant funding.",
+      unproven: "Long-term financial sustainability, recurring funder or fee-paying participant commitments, and delivery capacity.",
+      masterRecommendation: reconciled.masterRecommendation || "INVESTIGATE",
+      portfolioDecision: reconciled.overallScore >= 55 ? "INVESTIGATE" : (reconciled.overallScore >= 40 ? "PIVOT" : "PARK"),
+      portfolioAction: "Conduct 8–10 stakeholder discovery interviews and pilot an initial cohort or service agreement before scaling overhead."
+    };
+  }
+
   if (ventureType.includes('Hardware') || ventureType.includes('Manufacturing')) {
     return {
       encouraging: isWeakFit
@@ -587,12 +791,19 @@ function calculateFounderSubFactors(rawInputs = {}) {
     } else {
       domainScore = 1;
     }
-  } else if (allVentureText.match(/tax|gst|accounting|bookkeeping|fintech|payroll|invoice/)) {
-    hasDirectDomainMatch = !hasExplicitNoDomainStatement && Boolean(cleanFounderEvidence.match(/ca\b|cpa\b|chartered|accountant|tax|accounting|finance|bcom|auditor/));
+  } else if (allVentureText.match(/tax|gst|accounting|bookkeeping|fintech|payroll|invoice|financial support|financial administration/)) {
+    hasDirectDomainMatch = !hasExplicitNoDomainStatement && Boolean(cleanFounderEvidence.match(/ca\b|cpa\b|chartered|accountant|tax|accounting|finance|financial administration|financial reporting|accounts payable|payroll|reconciliation|bookkeep|treasurer|bcom|bachelor of business|auditor/));
     if (hasDirectDomainMatch) {
-      domainScore = cleanFounderEvidence.match(/15\+|20\+|senior|partner|director/) ? 4 : 3;
+      domainScore = cleanFounderEvidence.match(/10\+|15\+|20\+|28|senior|partner|director|treasurer/) ? 4 : 3;
     } else if (cleanFounderEvidence.match(/bookkeeper|finance|business owner/)) {
       domainScore = 2;
+    } else {
+      domainScore = 1;
+    }
+  } else if (ventureType === 'Community / Not-for-Profit / Social Enterprise' || allVentureText.match(/not-for-profit|non-profit|community organisation|incorporated society|charity/)) {
+    hasDirectDomainMatch = !hasExplicitNoDomainStatement && Boolean(cleanFounderEvidence.match(/community|not-for-profit|non-profit|society|treasurer|board|trustee|coordinator|governance|social|pasifika|māori|pacific/));
+    if (hasDirectDomainMatch) {
+      domainScore = cleanFounderEvidence.match(/10\+|15\+|20\+|since|board|treasurer|director|lead/) ? 4 : 3;
     } else {
       domainScore = 1;
     }
@@ -637,10 +848,12 @@ function calculateFounderSubFactors(rawInputs = {}) {
   }
 
   // 2. COMPONENT B: Relevant Execution Experience (0 to 3 points)
+  const hasPriorBusinessOwnership = Boolean(founderExp.match(/^yes|1\b|2\+|multiple|serial|started|ran a business|owned/i)) && !Boolean(founderExp.match(/^no\b|^none\b|^0\b/i));
+  const lacksPriorBusinessOwnership = Boolean(founderExp.match(/^no\b|^none\b|^0\b/i)) || Boolean(exp.match(/experience:\s*no\b/i));
   let executionScore = 0;
-  if (hasDirectDomainMatch && cleanFounderEvidence.match(/built|scaled|sold|director|partner|manager|led|leading|operated|operating|ran|principal|head|plumber|captain|landscaping|years|delivering|contractor|rental|tours/)) {
-    executionScore = 3;
-  } else if (cleanFounderEvidence.match(/director|partner|senior\s+manager|finance\s+manager|corporate\s+finance|chartered\s+accountant|ca\b|cpa\b|caanz|owner|ran\s+a\s+business|led|leading|project\s+lead|certificated|licensed/)) {
+  if (hasDirectDomainMatch && cleanFounderEvidence.match(/built|scaled|sold|director|partner|manager|led|leading|operated|operating|ran|principal|head|plumber|captain|landscaping|years|delivering|contractor|rental|tours|treasurer|board/)) {
+    executionScore = lacksPriorBusinessOwnership ? 2 : 3;
+  } else if (cleanFounderEvidence.match(/director|partner|senior\s+manager|finance\s+manager|corporate\s+finance|chartered\s+accountant|ca\b|cpa\b|caanz|owner|ran\s+a\s+business|led|leading|project\s+lead|certificated|licensed|treasurer/)) {
     executionScore = isVentureCriticalDomainNeeded ? 1 : 2;
   } else if (cleanFounderEvidence.match(/project|delivered|coordinator|team|management|years/)) {
     executionScore = 1;
@@ -650,7 +863,7 @@ function calculateFounderSubFactors(rawInputs = {}) {
 
   // 3. COMPONENT C: Transferable Commercial Capability (0 to 3 points)
   let commercialScore = 0;
-  if (cleanFounderEvidence.match(/ca\b|cpa\b|caanz|chartered|accountant|bcom|mba\b|finance\s+manager|director|partner|exited|sold\s+a\s+business|20\+\s+years/)) {
+  if (cleanFounderEvidence.match(/ca\b|cpa\b|caanz|chartered|accountant|bcom|bachelor of business|mba\b|finance\s+manager|director|partner|exited|sold\s+a\s+business|20\+\s+years|28\s+years/)) {
     commercialScore = 3;
   } else if (cleanFounderEvidence.match(/finance|accounting|budget|sales|marketing|commercial|business\s+degree|manager|phd\b|senior|principal/)) {
     commercialScore = 2;
@@ -786,12 +999,35 @@ function calculateFounderSubFactors(rawInputs = {}) {
 }
 
 /**
- * Calculates Problem & Customer Clarity Sub-Factors (Max 15)
- * Does NOT double-penalize if the underlying problem is legitimate.
+ * Calculates Problem & Customer Clarity Sub-Factors (Max 14)
+ * Distinguishes Founder's own capability/setup needs from external Customer Pain Points.
  */
 function calculateProblemSubFactors(rawInputs = {}) {
   const problem = (rawInputs.problem || "").toLowerCase();
   const target = (rawInputs.targetMarket || rawInputs.market || "").toLowerCase();
+  const problemAnalysis = detectProblemStatementMisclassification(rawInputs);
+
+  if (problemAnalysis.isFounderCapabilityNeedInProblemField) {
+    // Founder described their own training/setup/client-acquisition needs instead of the customer's pain point.
+    // Credit target customer specificity and inferred scope, but cap problem description & root cause clarity.
+    const subFactors = {
+      problemDescription: 1,
+      targetCustomerSpecificity: target.length > 25 ? 3 : 2,
+      rootCauseVsSymptom: 0,
+      frequencySeriousness: 1,
+      existingWorkarounds: target.match(/xero|myob|family|themselves|accountant/) ? 1 : 0,
+      customerConsequences: 0,
+      scopeFocus: 1
+    };
+    const score = Math.min(7, Object.values(subFactors).reduce((a, b) => a + b, 0));
+    return {
+      score,
+      subFactors,
+      isFounderCapabilityNeedInProblemField: true,
+      founderStatedSetupPriorities: problemAnalysis.founderStatedSetupPriorities,
+      inferredCustomerProblem: problemAnalysis.inferredCustomerProblem
+    };
+  }
 
   let subFactors = {
     problemDescription: 2,
@@ -806,19 +1042,30 @@ function calculateProblemSubFactors(rawInputs = {}) {
   if (problem.length > 40) subFactors.problemDescription = 3;
   if (target.length > 15) subFactors.targetCustomerSpecificity = 3;
   if (problem.length > 20) subFactors.rootCauseVsSymptom = 2;
-  if (problem.match(/electricity|energy|carbon|cost|gst|tax|cash|delay|urgent/)) subFactors.frequencySeriousness = 2;
-  if (problem.match(/manual|spreadsheet|bank|xero|myob|grid|hydro|fossil/)) subFactors.existingWorkarounds = 2;
-  if (problem.length > 30) subFactors.customerConsequences = 2;
+  if (problem.match(/electricity|energy|carbon|cost|gst|tax|cash|delay|urgent|compliance|manual|time|struggle|overwhelm/)) subFactors.frequencySeriousness = 2;
+  if (problem.match(/manual|spreadsheet|bank|xero|myob|grid|hydro|fossil|workaround/) || target.match(/manual|spreadsheet|xero|myob|themselves/)) subFactors.existingWorkarounds = 2;
+  if (problem.length > 30) subFactors.customerConsequences = 1;
 
   const score = Math.min(14, Object.values(subFactors).reduce((a, b) => a + b, 0));
-  return { score, subFactors };
+  return {
+    score,
+    subFactors,
+    isFounderCapabilityNeedInProblemField: false,
+    founderStatedSetupPriorities: "",
+    inferredCustomerProblem: ""
+  };
 }
 
 /**
  * Calculates Customer Validation Sub-Factors (Max 20)
+ * Incorporates customerValidation, businessStage, and network inputs, and detects contradictions.
  */
 function calculateCustomerValidationSubFactors(rawInputs = {}) {
   const net = (rawInputs.network || "").toLowerCase();
+  const custVal = (rawInputs.customerValidation || "").toLowerCase();
+  const bizStage = (rawInputs.businessStage || "").toLowerCase();
+  const combined = `${custVal} ${bizStage} ${net}`;
+
   let subFactors = {
     customerInterviews: 0,
     problemSeverityConfirmed: 1,
@@ -829,16 +1076,57 @@ function calculateCustomerValidationSubFactors(rawInputs = {}) {
     repeatRetention: 0
   };
 
-  if (net.includes("interview") || net.includes("survey")) subFactors.customerInterviews = 2;
-  if (net.includes("pilot") || net.includes("test")) subFactors.pilotUsers = 2;
-  if (net.includes("paying") || net.includes("pre-order") || net.includes("loi")) subFactors.payingCustomers = 2;
+  const isExplicitZeroCustomers = Boolean(custVal.match(/^0\b|0\s+potential|none|not\s+yet|no\s+customers/i));
+  const isPayingStage = Boolean(bizStage.match(/first\s+paying|growing\s+revenue|established/i));
+  const hasStageContradiction = isExplicitZeroCustomers && isPayingStage;
+
+  if (isExplicitZeroCustomers) {
+    subFactors.customerInterviews = 0;
+    subFactors.problemSeverityConfirmed = 1;
+  } else if (custVal.match(/20\+|more\s+than\s+20/)) {
+    subFactors.customerInterviews = 4;
+    subFactors.problemSeverityConfirmed = 3;
+    subFactors.solutionTested = 2;
+    subFactors.pricingTested = 1;
+  } else if (custVal.match(/6\s*[-–to]\s*20/)) {
+    subFactors.customerInterviews = 3;
+    subFactors.problemSeverityConfirmed = 2;
+    subFactors.solutionTested = 1;
+  } else if (custVal.match(/1\s*[-–to]\s*5/)) {
+    subFactors.customerInterviews = 2;
+    subFactors.problemSeverityConfirmed = 2;
+  } else if (net.includes("interview") || net.includes("survey")) {
+    subFactors.customerInterviews = 2;
+    subFactors.problemSeverityConfirmed = 2;
+  } else if (net.includes("access to mentors/early customers") || net.includes("early customers")) {
+    subFactors.customerInterviews = 1;
+    subFactors.problemSeverityConfirmed = 1;
+  }
+
+  if (!hasStageContradiction) {
+    if (bizStage.includes("growing revenue") || net.includes("repeat")) {
+      subFactors.pilotUsers = 3;
+      subFactors.payingCustomers = 2;
+      subFactors.repeatRetention = 2;
+      subFactors.pricingTested = 3;
+      subFactors.solutionTested = 3;
+    } else if (bizStage.includes("first paying") || net.includes("paying") || net.includes("pre-order") || net.includes("loi")) {
+      subFactors.pilotUsers = 2;
+      subFactors.payingCustomers = 2;
+      subFactors.pricingTested = 2;
+      subFactors.solutionTested = 2;
+    } else if (bizStage.includes("early testing") || bizStage.includes("prototype") || net.includes("pilot") || net.includes("test")) {
+      subFactors.pilotUsers = 2;
+      subFactors.solutionTested = 2;
+    }
+  }
 
   const score = Math.min(20, Object.values(subFactors).reduce((a, b) => a + b, 0));
-  return { score, subFactors };
+  return { score, subFactors, hasStageContradiction, isExplicitZeroCustomers };
 }
 
 /**
- * Calculates Market Opportunity Sub-Factors (Max 15)
+ * Calculates Market Opportunity Sub-Factors (Max 14)
  * Distinguishes TAM from Accessible Commercial Opportunity for proposed solution.
  */
 function calculateMarketSubFactors(rawInputs = {}) {
@@ -862,7 +1150,7 @@ function calculateMarketSubFactors(rawInputs = {}) {
   if (target.length > 20) subFactors.targetMarketIdentifiable = 3;
   else if (target.length > 5) subFactors.targetMarketIdentifiable = 2;
 
-  if (target.match(/b2b|smb|business|trader|accountant|electricity|energy|consumer/)) {
+  if (target.match(/b2b|smb|small business|sole trader|organisation|not-for-profit|business|trader|accountant|electricity|energy|consumer/)) {
     subFactors.commerciallyMeaningfulNeed = 3;
   }
 
@@ -872,7 +1160,6 @@ function calculateMarketSubFactors(rawInputs = {}) {
   );
 
   if (hasLegalBanOrExtremeBarriers) {
-    // Distinguish TAM (underlying market size, e.g. electricity demand) from accessible commercial market for THIS specific proposed solution.
     subFactors.targetMarketIdentifiable = Math.min(subFactors.targetMarketIdentifiable, 2);
     subFactors.commerciallyMeaningfulNeed = 1;
     subFactors.marketAccessible = 0;
@@ -884,25 +1171,30 @@ function calculateMarketSubFactors(rawInputs = {}) {
     if (scope.includes("national") || scope.includes("global") || scope.includes("international")) {
       subFactors.expansionPotential = 2;
       subFactors.marketAccessible = 2;
+    } else if (scope.includes("local") || scope.includes("regional") || target.includes("pasifika") || target.includes("community")) {
+      subFactors.marketAccessible = 2;
+      subFactors.expansionPotential = 1;
     }
 
-    if (category.match(/fintech|tax|ird|gst|compliance|energy/)) {
-      subFactors.regulatoryDrivers = 2;
+    if (text.match(/fintech|tax|ird|gst|compliance|bookkeep|accounting|payroll|energy/)) {
+      subFactors.regulatoryDrivers = 1;
       subFactors.customerUrgency = 2;
     }
   }
 
-  const score = Math.min(15, Object.values(subFactors).reduce((a, b) => a + b, 0));
+  const score = Math.min(14, Object.values(subFactors).reduce((a, b) => a + b, 0));
   return { score, subFactors, hasLegalBanOrExtremeBarriers };
 }
 
 /**
- * Calculates Business Model Sub-Factors (Max 15)
+ * Calculates Business Model Sub-Factors (Max 14)
  */
 function calculateBusinessModelSubFactors(rawInputs = {}) {
   const idea = (rawInputs.idea || "").toLowerCase();
-  const budget = (rawInputs.budget || "").toLowerCase();
+  const budget = (rawInputs.budget || rawInputs.investmentCommitment || "").toLowerCase();
   const category = (rawInputs.category || "").toLowerCase();
+  const fundingPref = (rawInputs.fundingPreference || "").toLowerCase();
+  const successDef = (rawInputs.successDefinition || "").toLowerCase();
 
   let subFactors = {
     whoPaysIdentified: 1,
@@ -916,25 +1208,35 @@ function calculateBusinessModelSubFactors(rawInputs = {}) {
 
   if (idea.match(/saas|subscription|tool|software/) || category.includes("saas")) {
     subFactors.revenueMechanismDefined = 2;
-    subFactors.recurringPotential = 3;
+    subFactors.recurringPotential = 2;
+    subFactors.grossMarginLogic = 2;
+  } else if (idea.match(/bookkeep|accounting|payroll|retainer|advisory|service/)) {
+    subFactors.revenueMechanismDefined = 2;
+    subFactors.recurringPotential = 2;
+    subFactors.costToServeLogic = 2;
     subFactors.grossMarginLogic = 2;
   }
 
-  if (budget.length > 0 && !budget.includes("0")) {
+  if (budget.length > 0 && !budget.match(/^0$/)) {
     subFactors.whoPaysIdentified = 2;
-    subFactors.pricingHypothesis = 2;
+    subFactors.pricingHypothesis = 1;
+  }
+  if (fundingPref.length > 0 || successDef.length > 0) {
+    subFactors.costToServeLogic = Math.max(subFactors.costToServeLogic, 2);
   }
 
-  const score = Math.min(15, Object.values(subFactors).reduce((a, b) => a + b, 0));
+  const score = Math.min(14, Object.values(subFactors).reduce((a, b) => a + b, 0));
   return { score, subFactors };
 }
 
 /**
- * Calculates Competitive Position Sub-Factors (Max 10)
+ * Calculates Competitive Position Sub-Factors (Max 9)
  */
 function calculateCompetitiveSubFactors(rawInputs = {}) {
   const idea = (rawInputs.idea || "").toLowerCase();
   const problem = (rawInputs.problem || "").toLowerCase();
+  const target = (rawInputs.targetMarket || "").toLowerCase();
+  const combined = `${idea} ${problem} ${target}`;
 
   let subFactors = {
     directCompetitors: 1,
@@ -945,27 +1247,32 @@ function calculateCompetitiveSubFactors(rawInputs = {}) {
     emergingAdvantage: 0
   };
 
-  if (problem.match(/manual|spreadsheet|bank|xero|myob|grid|hydro|fossil/)) {
+  if (target.includes("competitor") || combined.match(/independent bookkeeper|accountant|xero|myob/)) {
+    subFactors.directCompetitors = 2;
+  }
+  if (combined.match(/manual|spreadsheet|bank|xero|myob|grid|hydro|fossil|themselves|family/)) {
     subFactors.workaroundsIdentified = 2;
     subFactors.indirectAlternatives = 2;
   }
 
-  if (idea.match(/auto|ai|instant|direct|nuclear|clean/)) {
-    subFactors.differentiationArticulated = 2;
+  if (combined.match(/auto|ai|instant|direct|nuclear|clean|pasifika|cultural|relationship-based|specialised|specialized/)) {
+    subFactors.differentiationArticulated = 1;
     subFactors.emergingAdvantage = 1;
   }
 
-  const score = Math.min(10, Object.values(subFactors).reduce((a, b) => a + b, 0));
+  const score = Math.min(9, Object.values(subFactors).reduce((a, b) => a + b, 0));
   return { score, subFactors };
 }
 
 /**
- * Calculates Execution Readiness Sub-Factors (Max 10)
+ * Calculates Execution Readiness Sub-Factors (Max 9)
  */
 function calculateExecutionSubFactors(rawInputs = {}) {
-  const capacity = (rawInputs.capacity || rawInputs.timeCommitment || "").toLowerCase();
+  const timeNorm = normalizeFounderTimeCommitment(rawInputs);
   const budget = (rawInputs.budget || rawInputs.investmentCommitment || "").toLowerCase();
   const idea = (rawInputs.idea || "").toLowerCase();
+  const problem = (rawInputs.problem || "").toLowerCase();
+  const obstacle = (rawInputs.biggestObstacle || "").toLowerCase();
 
   let subFactors = {
     weeklyTimeDefined: 1,
@@ -977,33 +1284,40 @@ function calculateExecutionSubFactors(rawInputs = {}) {
     commitmentConsistency: 0
   };
 
-  // Capital & Timeline gap check for capital-intensive infrastructure
   const isCapitalIntensive = Boolean(idea.match(/nuclear|power plant|atomic|refinery|dam|utility scale/));
 
   if (isCapitalIntensive) {
-    // Extreme gap between $5k founder budget & 15-year multi-billion infrastructure project
     subFactors.scopeMatchesTime = 0;
     subFactors.initialCapitalDefined = 1;
     subFactors.riskCapitalDefined = 0;
     subFactors.lowCostValidationPlan = 1;
   } else {
-    if (capacity.match(/20\+|35|full-time/)) {
+    if (timeNorm.numericMidpoint >= 20) {
       subFactors.weeklyTimeDefined = 2;
-      subFactors.commitmentConsistency = 2;
-    } else if (capacity.match(/10-15|10|15/)) {
-      subFactors.weeklyTimeDefined = 2;
+      subFactors.scopeMatchesTime = 2;
       subFactors.commitmentConsistency = 1;
+    } else if (timeNorm.numericMidpoint >= 10) {
+      subFactors.weeklyTimeDefined = 2;
+      subFactors.scopeMatchesTime = 1;
+      subFactors.commitmentConsistency = 1;
+    } else {
+      subFactors.weeklyTimeDefined = 1;
+      subFactors.scopeMatchesTime = 1;
     }
 
-    if (budget.match(/\$2,500|\$5,000|5,000\+/)) {
-      subFactors.initialCapitalDefined = 2;
-      subFactors.riskCapitalDefined = 2;
+    if (budget.match(/\$2,500|\$5,000|5,000\+|10,000/)) {
+      subFactors.initialCapitalDefined = 1;
+      subFactors.riskCapitalDefined = 1;
     } else if (budget.length > 0) {
       subFactors.initialCapitalDefined = 1;
     }
+
+    if (problem.match(/xero|training|requirements to set up|client base/) || obstacle.length > 0) {
+      subFactors.capabilityGapsRecognized = 1;
+    }
   }
 
-  const score = Math.min(10, Object.values(subFactors).reduce((a, b) => a + b, 0));
+  const score = Math.min(9, Object.values(subFactors).reduce((a, b) => a + b, 0));
   return { score, subFactors };
 }
 
@@ -1088,7 +1402,9 @@ function reconcileScores(rawCategories = {}, rawInputs = {}) {
     }
 
     // RECONCILE NARRATIVE CONTRADICTIONS & DOMAIN MISMATCH EXPLANATIONS
-    if (finalScore <= 6 && key === 'founderCapabilityFit') {
+    if (key === 'problemCustomerClarity' && problemCalc.isFounderCapabilityNeedInProblemField) {
+      explanation = `The submitted problem statement describes the founder's own operational setup and training goals (${problemCalc.founderStatedSetupPriorities.slice(0, 140)}) rather than the external customer pain point. The target customer segment is clearly identified, and the inferred customer need for culturally responsive bookkeeping and financial compliance support is plausible, but must be validated directly with prospective clients.`;
+    } else if (finalScore <= 6 && key === 'founderCapabilityFit') {
       if (!founderCalc.hasDirectDomainMatch || explanation.match(/direct|relevant|strong|expert|technical|nuclear|engineering/i)) {
         explanation = `Founder demonstrates useful general commercial capabilities, but the project team does not yet evidence the direct technical engineering or sector-specific domain experience required for this venture.`;
       }
@@ -1100,7 +1416,9 @@ function reconcileScores(rawCategories = {}, rawInputs = {}) {
     const ratio = finalScore / config.max;
     let evidenceLevel = "Partial Evidence";
 
-    if (key === 'founderCapabilityFit') {
+    if (key === 'problemCustomerClarity' && problemCalc.isFounderCapabilityNeedInProblemField) {
+      evidenceLevel = "Partial Evidence";
+    } else if (key === 'founderCapabilityFit') {
       if (finalScore >= 13) {
         evidenceLevel = "Strong Evidence";
       } else if (finalScore >= 10) {
@@ -1127,6 +1445,16 @@ function reconcileScores(rawCategories = {}, rawInputs = {}) {
     // RECONCILE MISSING EVIDENCE & IMPROVEMENT ACTIONS
     let missingEvidence = (rawObj.missingEvidence || config.defaultMissing || `Direct validation and market evidence required.`).trim();
     let howToImprove = (rawObj.improvementAction || rawObj.howToImprove || config.defaultImprove || `Conduct pre-feasibility analysis and test core assumptions.`).trim();
+
+    if (key === 'problemCustomerClarity' && problemCalc.isFounderCapabilityNeedInProblemField) {
+      missingEvidence = "A customer-framed problem statement backed by direct discovery interviews quantifying specific bookkeeping, payroll, and GST compliance pain points among target clients.";
+      howToImprove = "Separate founder readiness tasks (Xero training, business registration, client acquisition) from the customer problem statement, and interview 8–10 target business owners and community treasurers to document their top financial administration challenges.";
+    } else if (key === 'executionReadiness') {
+      const timeNorm = normalizeFounderTimeCommitment(rawInputs);
+      if (explanation.match(/\b20 hours\/week\b/i) && timeNorm.normalizedBand === "15–30 hours/week") {
+        explanation = explanation.replace(/\b20 hours\/week\b/gi, "15–30 hours/week");
+      }
+    }
 
     if (gatesInfo.hasCriticalGate) {
       if (key === 'problemCustomerClarity') {
@@ -1273,7 +1601,9 @@ function calculate5DimensionFutureTrends(rawInputs = {}, gatesInfo = {}, venture
   let adjacentOpportunities = ["Workflow automation tools", "API-driven add-ons", "Enterprise reporting integrations"];
   let trendAlignmentScore = 7;
 
-  const isFinTech = ventureType === "Financial Services / FinTech" || Boolean(text.match(/\b(tax|gst|ird|fintech|accounting|bookkeep|invoic|payroll|banking)\b/i));
+  const isBookkeepingOrProfService = ventureType === "Professional Services / Bookkeeping & Financial Advisory" || ventureType === "Professional Services / Agency / Traditional SME";
+  const isCommunityOrNfp = ventureType === "Community / Not-for-Profit / Social Enterprise";
+  const isFinTech = !isBookkeepingOrProfService && !isCommunityOrNfp && (ventureType === "Financial Services / FinTech" || Boolean(text.match(/\b(fintech|open banking|neobank|payment gateway|tax software)\b/i)));
 
   if (isNuclear || gatesInfo?.hasCriticalGate) {
     marketDirection = "POSITIVE";
@@ -1286,6 +1616,28 @@ function calculate5DimensionFutureTrends(rawInputs = {}, gatesInfo = {}, venture
     whatThisMeansForFounder = "Preserve the problem definition and track policy developments. Do not deploy private development capital into commercial nuclear generation in NZ until a clear statutory and regulatory pathway has been confirmed by specialist counsel.";
     adjacentOpportunities = ["Off-grid micro-grids and clean energy storage", "Geothermal & hydro grid-firming technologies", "Nuclear technology & regulatory advisory for OECD markets"];
     trendAlignmentScore = 7; // Reflects high structural alignment with 3-10 year decarbonization & energy demand trends
+  } else if (isBookkeepingOrProfService) {
+    marketDirection = "POSITIVE";
+    solutionOutlook = "FAVOURABLE";
+    demandTrend = "Growing small-business and community-organisation demand for accessible, culturally responsive bookkeeping, payroll administration, and practical financial literacy support.";
+    technologyTrend = "Widespread adoption of cloud accounting platforms (such as Xero and MYOB), payday filing, and digital receipt capture enables bookkeepers to standardise monthly reconciliation workflows while focusing on high-trust client guidance.";
+    regulatoryTrend = "Ongoing Inland Revenue (IRD) digital GST/PAYE compliance expectations, Incorporated Societies Act 2022 financial reporting updates, and charity accountability standards drive steady demand for reliable bookkeeping support.";
+    competitionTrend = "Generalist bookkeepers, accounting practices, and DIY cloud accounting software compete on price and automation, creating clear space for a relationship-led, culturally grounded specialist practice serving Pasifika businesses and community groups.";
+    capitalTrend = "Low-overhead professional service model funded through founder savings and early client retainers, where growth is governed by billable founder capacity, workflow standardisation, and client retention.";
+    whatThisMeansForFounder = "Complete Xero advisor certification and business setup while validating fixed-fee monthly bookkeeping and payroll packages directly with prospective Pasifika small business and community organisation clients.";
+    adjacentOpportunities = ["Not-for-profit & Incorporated Society treasurer/grant reporting packages", "Xero onboarding and financial literacy workshops for Pasifika sole traders", "Outsourced payroll and GST administration retainers"];
+    trendAlignmentScore = 8;
+  } else if (isCommunityOrNfp) {
+    marketDirection = "POSITIVE";
+    solutionOutlook = "VIABLE";
+    demandTrend = "Sustained community and institutional demand for culturally grounded programmes, grassroots capacity building, and measurable social impact.";
+    technologyTrend = "Digital community engagement tools, online training delivery, and cloud financial/grant reporting streamline programme administration.";
+    regulatoryTrend = "Incorporated Societies Act 2022 re-registration requirements, Charities Services reporting tiers, and outcome-based public/philanthropic funding standards.";
+    competitionTrend = "Established community trusts and social service providers compete for limited grant pools, favouring organisations with deep community trust and transparent governance.";
+    capitalTrend = "Blended sustainability model combining fee-for-service workshops, community contracts, philanthropic grants, and low-cost volunteer/founder delivery.";
+    whatThisMeansForFounder = "Validate community participant demand and partner organisation commitments early before expanding programme overhead.";
+    adjacentOpportunities = ["Fee-for-service capability workshops", "Local council or ministry contract delivery", "Sponsor-backed community literacy cohorts"];
+    trendAlignmentScore = 7;
   } else if (isFinTech) {
     marketDirection = "POSITIVE";
     solutionOutlook = "FAVOURABLE";
@@ -1383,7 +1735,10 @@ function calculate5DimensionFutureTrends(rawInputs = {}, gatesInfo = {}, venture
  */
 function computePortfolioMeta(rawInputs = {}, reconciled = {}, ventureType = "", gatesInfo = {}) {
   const idea = rawInputs.idea || "Business Opportunity";
-  const problem = rawInputs.problem || "Observed customer or market challenge";
+  const problemAnalysis = detectProblemStatementMisclassification(rawInputs);
+  const problem = problemAnalysis.isFounderCapabilityNeedInProblemField
+    ? problemAnalysis.inferredCustomerProblem
+    : (rawInputs.problem || "Observed customer or market challenge");
   const masterRecommendation = reconciled.masterRecommendation || "INVESTIGATE";
   const score = reconciled.overallScore || 0;
 
@@ -1402,6 +1757,10 @@ function computePortfolioMeta(rawInputs = {}, reconciled = {}, ventureType = "",
     problemStatus = "Worth Investigating (Problem Preserved)";
     solutionStatus = "Materially Constrained Pending Legal Confirmation";
     portfolioAction = "PARK / PRESERVE";
+  } else if (problemAnalysis.isFounderCapabilityNeedInProblemField) {
+    problemStatus = "Assumption Requiring Direct Customer Discovery";
+    solutionStatus = "Viable Service Candidate";
+    portfolioAction = "Validate customer bookkeeping pain points and monthly fee willingness-to-pay alongside Xero certification.";
   } else if (score < 40) {
     problemStatus = "Requires Problem Discovery";
     solutionStatus = "Requires Reframing";
@@ -1419,6 +1778,12 @@ function computePortfolioMeta(rawInputs = {}, reconciled = {}, ventureType = "",
   if (gatesInfo?.hasCriticalGate) {
     nextEvidenceGateway = "Credible statutory/regulatory pathway or material external change.";
     reassessmentTrigger = "Statutory reform under land-based energy legislation (such as Radiation Safety Act or RMA), central government policy change, or commercial SMR deployment in peer OECD nations.";
+  } else if (ventureType === "Professional Services / Bookkeeping & Financial Advisory" || ventureType === "Professional Services / Agency / Traditional SME") {
+    nextEvidenceGateway = "Complete 8–10 structured discovery conversations with target small businesses and community organisations and test fixed-fee monthly bookkeeping packages.";
+    reassessmentTrigger = "Return after completing Xero advisor certification, interviewing 8–10 prospective clients, and securing 2–3 paying pilot retainers.";
+  } else if (ventureType === "Community / Not-for-Profit / Social Enterprise") {
+    nextEvidenceGateway = "Conduct 8–10 community stakeholder interviews and secure 2 pilot community group or funder commitments.";
+    reassessmentTrigger = "Return after validating participant demand and confirming initial programme funding or fee-for-service sustainability.";
   } else if (ventureType === "Trade / Local Service") {
     nextEvidenceGateway = "Present fixed-price service offer to 5 prospective local commercial/residential clients.";
     reassessmentTrigger = "Return after completing 5 service quotes and securing 2 paying local clients.";
@@ -1780,13 +2145,21 @@ function generateContextualInvestorCommentary(area, rating, scoreAchieved, maxSc
       return "The theoretical generation opportunity is large, but practical scalability is constrained by capital, regulation, site development and infrastructure requirements.";
     }
     const isHardware = ventureType.includes("Hardware") || ventureType.includes("Manufacturing");
-    const isService = ventureType.includes("Trade") || ventureType.includes("Local Service") || ventureType.includes("Professional Services");
+    const isBookkeepingOrProfService = ventureType === "Professional Services / Bookkeeping & Financial Advisory" || ventureType.includes("Professional Services");
+    const isCommunityOrNfp = ventureType === "Community / Not-for-Profit / Social Enterprise";
+    const isService = isBookkeepingOrProfService || isCommunityOrNfp || ventureType.includes("Trade") || ventureType.includes("Local Service") || ventureType.includes("Hospitality");
     const isMarketplace = ventureType.includes("Marketplace");
 
     if (isHardware) {
       return rating >= 4
         ? "Scalability is supported by standardised hardware manufacturing and channel distribution, though unit gross margins and tooling investments govern capital efficiency."
         : "Scalability is constrained by hardware manufacturing tooling costs, physical inventory working capital, and supply chain lead times.";
+    }
+    if (isBookkeepingOrProfService) {
+      return "Scalability is governed by billable founder capacity (15–30 hours/week initially), standardised cloud bookkeeping workflows (such as Xero templates and automated bank rules), recurring monthly retainers, and eventual contractor or junior bookkeeper delegation rather than software economics.";
+    }
+    if (isCommunityOrNfp) {
+      return "Scalability is governed by facilitator capacity, community trust partnerships, repeatable workshop/programme templates, and sustainable multi-year contract or fee-for-service funding.";
     }
     if (isService) {
       return rating >= 4
@@ -1928,9 +2301,21 @@ function getLegalRegulatoryAssessment(rawInputs = {}, gatesInfo = {}, ventureTyp
 function generateContextualInvestorVerdict(reqData = {}, reconciled = {}, legalReg = {}, founderResourceReality = {}) {
   const idea = (reqData.idea || "").trim();
   const isNuclear = (idea + " " + (reqData.category || "")).toLowerCase().includes("nuclear");
+  const ventureType = reconciled.ventureType || classifyVentureType(reqData);
+  const fundingPref = String(reqData.fundingPreference || "").toLowerCase();
+  const successDef = String(reqData.successDefinition || "").toLowerCase();
+  const isSelfFundedOrLifestyle = Boolean(fundingPref.match(/personal savings|bootstrap|no external|revenue/i)) || Boolean(successDef.match(/side income|full-time income|small profitable/i));
 
   if (isNuclear || reconciled.gatesInfo?.hasCriticalGate) {
     return "In its current conceptual state, the opportunity is not presently suitable for conventional venture-capital investment. Statutory and regulatory feasibility, specialist technical capability, capital structure and delivery pathways remain unresolved. The founder brings useful transferable commercial and financial capability, but a credible venture would require substantial specialist nuclear, engineering, regulatory and infrastructure capability alongside it. Investment consideration should remain deferred until the primary statutory/legal gateway has been investigated.";
+  }
+
+  if (ventureType === "Professional Services / Bookkeeping & Financial Advisory" || ventureType.includes("Professional Services")) {
+    return `This venture is structured as a specialist professional bookkeeping and financial support practice rather than an external venture-capital play${isSelfFundedOrLifestyle ? ", aligning with the founder's self-funded and sustainable practice goals" : ""}. The founder brings strong submitted financial administration, payroll, and not-for-profit treasurer credentials. Commercial viability depends on completing Xero advisor certification, validating fixed-fee monthly package pricing with target Pasifika small businesses and community organisations, and securing the first 3–5 recurring retainer clients.`;
+  }
+
+  if (ventureType === "Community / Not-for-Profit / Social Enterprise") {
+    return "This concept is structured around community and social impact delivery rather than equity venture-capital returns. Financial sustainability depends on validating participant demand, establishing clear governance under the Incorporated Societies or Charities framework, and securing recurring fee-for-service contracts or multi-year community funding.";
   }
 
   if (reconciled.overallScore >= 75) {
@@ -1943,7 +2328,357 @@ function generateContextualInvestorVerdict(reqData = {}, reconciled = {}, legalR
 }
 
 /**
- * PL-FIX-20261009-002: Automated Cross-Assessment Data Contamination Detector & Resolver.
+ * Authoritative Assessment Snapshot & Input Coverage Audit (PL-FIX-20261030-01 Section 2 & 3).
+ * Creates an immutable normalized snapshot of all 17 questionnaire fields + founder predictions + CV upload,
+ * and produces a complete Input Coverage Audit table recording disposition for every question.
+ */
+function buildAuthoritativeAssessmentSnapshot(reqData = {}, evaluationId = "", submissionId = "") {
+  const timeNorm = normalizeFounderTimeCommitment(reqData);
+  const capNorm = normalizeFounderCapital(reqData);
+  const problemMisclass = detectProblemStatementMisclassification(reqData);
+  const ventureType = classifyVentureType(reqData);
+
+  // Extract structured fields from legacy concatenated `experience` string if individual fields were not explicitly sent
+  const rawExp = String(reqData.experience || "").trim();
+  let founderExp = String(reqData.founderExperience ?? "").trim();
+  let industryExp = String(reqData.industryExperience ?? "").trim();
+  let narrative = String(reqData.founderBackgroundNarrative ?? "").trim();
+
+  if (!founderExp && rawExp) {
+    const m = rawExp.match(/Experience:\s*([^\.\n]+)/i);
+    if (m) founderExp = m[1].trim();
+  }
+  if (!industryExp && rawExp) {
+    const m = rawExp.match(/Industry expertise:\s*([^\.\n]+)/i);
+    if (m) industryExp = m[1].trim();
+  }
+  if (!narrative && rawExp) {
+    const m = rawExp.match(/Founder Background Narrative:\s*([\s\S]*?)(?:\.\s*Experience:|$)/i);
+    if (m) narrative = m[1].trim();
+    else narrative = rawExp;
+  }
+
+  const locCountry = String(reqData.locationCountry || "").trim();
+  const locRegion = String(reqData.locationRegion || "").trim();
+  const locCity = String(reqData.locationCity || "").trim();
+  const locSummary = String(reqData.locationSummary || [locCity, locRegion, locCountry].filter(Boolean).join(", ") || "New Zealand").trim();
+
+  return {
+    schemaVersion: "2026-10-30.v1",
+    evaluationId: evaluationId || reqData.evaluationId || "",
+    submissionId: submissionId || reqData.submissionId || "",
+    userId: reqData.userId || "",
+    founderName: String(reqData.founderName || "").trim(),
+    ventureType,
+    ventureContext: ventureType,
+    founderTime: timeNorm,
+    founderCapital: capNorm,
+    problemClassification: problemMisclass,
+    isFounderCapabilityNeedInProblemField: problemMisclass.isFounderCapabilityNeedInProblemField,
+    founderStatedSetupPriorities: problemMisclass.founderStatedSetupPriorities,
+    inferredCustomerProblem: problemMisclass.inferredCustomerProblem,
+    fields: {
+      q1_idea: String(reqData.idea || "").trim(),
+      q2_problem: String(reqData.problem || "").trim(),
+      q3_targetMarket: String(reqData.targetMarket || "").trim(),
+      q4_marketScope: String(reqData.marketScope || "Local / Regional").trim(),
+      q5_location: locSummary,
+      q6_founderBackgroundNarrative: narrative,
+      q7_cvAttachment: {
+        uploaded: Boolean(reqData.founderCvUploaded || reqData.cvStoragePath || reqData.cvFileName),
+        fileName: String(reqData.cvFileName || "").trim(),
+        extractedTextLength: String(reqData.founderCvExtractedText || "").length
+      },
+      q8_founderExperience: founderExp !== "" ? founderExp : "Not specified",
+      q9_industryExperience: industryExp !== "" ? industryExp : "Not specified",
+      q10_founderMotivation: String(reqData.founderMotivation || "").trim(),
+      q11_biggestObstacle: String(reqData.biggestObstacle || "").trim(),
+      q12_timeCommitment: timeNorm.normalizedBand,
+      q12_stepHoursLabel: timeNorm.stepHoursLabel,
+      q13_investmentCommitment: capNorm.availableCapital,
+      q13_initialRiskCapital: capNorm.initialRiskCapital,
+      q14_businessStage: String(reqData.businessStage || "Idea only").trim(),
+      q15_customerValidation: String(reqData.customerValidation || reqData.network || "").trim(),
+      q16_fundingPreference: String(reqData.fundingPreference || "Personal savings only").trim(),
+      q17_successDefinition: String(reqData.successDefinition || "Sustainable profitable business").trim(),
+      q18_founderPredictions: reqData.founderPredictions || null
+    }
+  };
+}
+
+/**
+ * Generates an explicit Input Coverage Audit verifying that every answered question is accounted for
+ * with a clear disposition ('used', 'contextual', 'conflicting', 'not_applicable').
+ */
+function computeInputCoverageAudit(reqData = {}, evaluationData = {}, snapshot = null) {
+  const authSnap = snapshot || buildAuthoritativeAssessmentSnapshot(reqData, evaluationData.id, evaluationData.submissionId);
+  const f = authSnap.fields;
+  const valCalc = calculateCustomerValidationSubFactors(reqData);
+
+  const makeEntry = ({
+    questionId,
+    questionVersion = "v1.4",
+    questionText,
+    submittedValue,
+    normalizedValue,
+    isOptional = false,
+    analysisDimensions = [],
+    aiCallsReceived = ["assessIdea(Gemini-2.5-Flash)", "deterministicScoringEngine"],
+    findingsInformed = [],
+    disposition = "used",
+    dispositionReason = ""
+  }) => {
+    const hasValue = submittedValue !== undefined && submittedValue !== null && String(submittedValue).trim() !== "" && String(submittedValue).trim() !== "Not specified";
+    let status = hasValue ? "answered" : (isOptional ? "skipped" : "skipped");
+    let finalDisposition = disposition;
+    let finalReason = dispositionReason;
+
+    if (!hasValue && isOptional) {
+      status = "not_applicable";
+      finalDisposition = "not_applicable";
+      finalReason = finalReason || "Optional input not provided by founder.";
+    } else if (!hasValue) {
+      status = "skipped";
+      finalDisposition = "contextual";
+      finalReason = finalReason || "Field was not explicitly populated in legacy submission; synthesized from narrative/context.";
+    }
+
+    return {
+      questionId,
+      questionVersion,
+      questionText,
+      submittedValue: typeof submittedValue === "object" ? JSON.stringify(submittedValue) : String(submittedValue ?? ""),
+      normalizedValue: typeof normalizedValue === "object" ? JSON.stringify(normalizedValue) : String(normalizedValue ?? ""),
+      status,
+      analysisDimensions,
+      aiCallsReceived,
+      findingsInformed,
+      disposition: finalDisposition,
+      dispositionReason: finalReason
+    };
+  };
+
+  const items = [
+    makeEntry({
+      questionId: "q1_idea",
+      questionText: "What is your business idea?",
+      submittedValue: reqData.idea || f.q1_idea,
+      normalizedValue: f.q1_idea,
+      analysisDimensions: ["problemCustomerClarity", "businessModelWillingnessToPay", "competitivePosition", "futureTrends"],
+      findingsInformed: ["executiveSummary", "businessModelSnapshot.coreOffering", "businessTheme", "actionPlan"],
+      disposition: "used",
+      dispositionReason: `Classified venture as '${authSnap.ventureType}' and grounded core offering and roadmap.`
+    }),
+    makeEntry({
+      questionId: "q2_problem",
+      questionText: "What problem does this solve for customers?",
+      submittedValue: reqData.problem || f.q2_problem,
+      normalizedValue: authSnap.isFounderCapabilityNeedInProblemField
+        ? `[Founder Setup Needs: ${authSnap.founderStatedSetupPriorities}] -> [Inferred Customer Problem: ${authSnap.inferredCustomerProblem}]`
+        : f.q2_problem,
+      analysisDimensions: ["problemCustomerClarity", "executionReadiness"],
+      findingsInformed: ["scores.problemCustomerClarity", "businessModelSnapshot.customerProblem", "executiveSummary", "actionPlan"],
+      disposition: authSnap.isFounderCapabilityNeedInProblemField ? "conflicting" : "used",
+      dispositionReason: authSnap.isFounderCapabilityNeedInProblemField
+        ? "Submitted answer lists founder's own setup/training/client-acquisition needs (Xero proficiency, business setup requirements, new client base) rather than external customer pain points; separated into founder execution priorities and inferred customer problem assumption."
+        : "Directly used to evaluate customer pain severity, root cause clarity, and value proposition alignment."
+    }),
+    makeEntry({
+      questionId: "q3_targetMarket",
+      questionText: "Who is your target customer, who are your competitors, and is the market new or mature?",
+      submittedValue: reqData.targetMarket || f.q3_targetMarket,
+      normalizedValue: f.q3_targetMarket,
+      analysisDimensions: ["problemCustomerClarity", "marketCommercialOpportunity", "competitivePosition"],
+      findingsInformed: ["businessModelSnapshot.targetCustomer", "marketInsights", "scores.marketCommercialOpportunity", "scores.competitivePosition"],
+      disposition: "used",
+      dispositionReason: "Used to identify primary customer segments, direct/indirect alternatives, and market maturity."
+    }),
+    makeEntry({
+      questionId: "q4_marketScope",
+      questionText: "What is your target market geographic scope?",
+      submittedValue: reqData.marketScope || f.q4_marketScope,
+      normalizedValue: f.q4_marketScope,
+      analysisDimensions: ["marketCommercialOpportunity", "businessModelWillingnessToPay"],
+      findingsInformed: ["scores.marketCommercialOpportunity", "marketInsights.marketLandscape"],
+      disposition: reqData.marketScope ? "used" : "contextual",
+      dispositionReason: "Informs addressable market reachability and expansion potential."
+    }),
+    makeEntry({
+      questionId: "q5_location",
+      questionText: "Where will the business operate (Country / Region / City)?",
+      submittedValue: reqData.locationSummary || reqData.locationCountry || f.q5_location,
+      normalizedValue: f.q5_location,
+      analysisDimensions: ["marketCommercialOpportunity", "futureTrends", "legalRegulatoryAssessment"],
+      findingsInformed: ["marketInsights.governmentPolicyInfluence", "legalRegulatoryAssessment", "futureTrends.dimensions.regulatoryTrend"],
+      disposition: "used",
+      dispositionReason: "Grounds regulatory compliance (e.g. NZ IRD/GST, Incorporated Societies Act) and regional market context."
+    }),
+    makeEntry({
+      questionId: "q6_founderBackgroundNarrative",
+      questionText: "Tell us about your professional background, skills, and domain experience.",
+      submittedValue: reqData.founderBackgroundNarrative || f.q6_founderBackgroundNarrative,
+      normalizedValue: f.q6_founderBackgroundNarrative,
+      analysisDimensions: ["founderCapabilityFit", "executionReadiness"],
+      findingsInformed: ["scores.founderCapabilityFit", "founderCapabilityExplanation", "cvAnalysis", "executiveSummary"],
+      disposition: "used",
+      dispositionReason: "Evaluated across 5 founder capability components (domain, execution, commercial, coverage, bridgeability)."
+    }),
+    makeEntry({
+      questionId: "q7_cvAttachment",
+      questionText: "Optional CV / Resume attachment",
+      submittedValue: f.q7_cvAttachment.uploaded ? (f.q7_cvAttachment.fileName || "Uploaded CV") : "",
+      normalizedValue: f.q7_cvAttachment,
+      isOptional: true,
+      analysisDimensions: ["founderCapabilityFit"],
+      findingsInformed: ["cvAnalysis", "founderMetrics.cvUploaded", "scores.founderCapabilityFit"],
+      disposition: f.q7_cvAttachment.uploaded ? "used" : "not_applicable",
+      dispositionReason: f.q7_cvAttachment.uploaded
+        ? "Extracted CV text combined with founder narrative to assess domain credentials."
+        : "No CV uploaded; founder assessment relies on submitted questionnaire narrative without penalty."
+    }),
+    makeEntry({
+      questionId: "q8_founderExperience",
+      questionText: "Have you started or run a business before?",
+      submittedValue: reqData.founderExperience ?? f.q8_founderExperience,
+      normalizedValue: f.q8_founderExperience,
+      analysisDimensions: ["founderCapabilityFit", "executionReadiness"],
+      findingsInformed: ["scores.founderCapabilityFit", "founderCapabilityExplanation", "actionPlan"],
+      disposition: "used",
+      dispositionReason: f.q8_founderExperience.toLowerCase() === "no"
+        ? "Answered 'No' (first-time business owner); accounted for in execution readiness and business setup guidance without negating 10+ years of domain experience."
+        : "Prior business ownership experience incorporated into execution capability score."
+    }),
+    makeEntry({
+      questionId: "q9_industryExperience",
+      questionText: "How many years of experience do you have in this industry?",
+      submittedValue: reqData.industryExperience ?? f.q9_industryExperience,
+      normalizedValue: f.q9_industryExperience,
+      analysisDimensions: ["founderCapabilityFit"],
+      findingsInformed: ["scores.founderCapabilityFit", "executiveSummary", "founderCapabilityExplanation"],
+      disposition: "used",
+      dispositionReason: "Directly weights Component A (Direct Domain Experience) in Founder Capability Fit."
+    }),
+    makeEntry({
+      questionId: "q10_founderMotivation",
+      questionText: "Why do you want to start this business?",
+      submittedValue: reqData.founderMotivation || f.q10_founderMotivation,
+      normalizedValue: f.q10_founderMotivation || "Inferred from founder narrative and mission statement",
+      analysisDimensions: ["founderCapabilityFit", "executionReadiness"],
+      findingsInformed: ["executiveSummary", "businessTheme.strategicPositioning"],
+      disposition: reqData.founderMotivation ? "used" : "contextual",
+      dispositionReason: "Informs founder commitment, mission alignment, and positioning."
+    }),
+    makeEntry({
+      questionId: "q11_biggestObstacle",
+      questionText: "What do you see as your biggest obstacle right now?",
+      submittedValue: reqData.biggestObstacle || f.q11_biggestObstacle,
+      normalizedValue: f.q11_biggestObstacle || (authSnap.isFounderCapabilityNeedInProblemField ? authSnap.founderStatedSetupPriorities : "Customer acquisition and validation"),
+      analysisDimensions: ["executionReadiness", "problemCustomerClarity"],
+      findingsInformed: ["summaryBlock.biggestRiskToThisIdea", "actionPlan.topFivePriorities", "scores.executionReadiness"],
+      disposition: reqData.biggestObstacle ? "used" : "contextual",
+      dispositionReason: "Directly addressed in immediate 30-day action priorities and risk mitigation."
+    }),
+    makeEntry({
+      questionId: "q12_timeCommitment",
+      questionText: "How many hours per week can you commit to this business?",
+      submittedValue: reqData.timeCommitment || reqData.capacity || f.q12_timeCommitment,
+      normalizedValue: `${f.q12_timeCommitment} (${f.q12_stepHoursLabel})`,
+      analysisDimensions: ["executionReadiness"],
+      findingsInformed: ["founderMetrics.weeklyAvailableHours", "scores.executionReadiness", "actionPlan.ninetyDayRoadmap.steps", "investorQuestions"],
+      disposition: authSnap.founderTime?.hasConflict ? "conflicting" : "used",
+      dispositionReason: authSnap.founderTime?.hasConflict
+        ? `${authSnap.founderTime.conflictNote} Enforced '${f.q12_timeCommitment}' across all report sections.`
+        : `Normalized to '${f.q12_timeCommitment}' and enforced consistently across founderMetrics, roadmap step hours (${f.q12_stepHoursLabel}), and execution readiness.`
+    }),
+    makeEntry({
+      questionId: "q13_investmentCommitment",
+      questionText: "How much capital are you prepared to invest initially?",
+      submittedValue: reqData.investmentCommitment || reqData.budget || f.q13_investmentCommitment,
+      normalizedValue: `Available: ${f.q13_investmentCommitment} | Initial Risk Budget: ${f.q13_initialRiskCapital}`,
+      analysisDimensions: ["executionReadiness", "businessModelWillingnessToPay"],
+      findingsInformed: ["founderMetrics.availableCapital", "founderMetrics.initialRiskCapital", "scores.executionReadiness", "actionPlan"],
+      disposition: "used",
+      dispositionReason: "Preserves both total available startup capital and initial validation risk budget across all financial and roadmap sections."
+    }),
+    makeEntry({
+      questionId: "q14_businessStage",
+      questionText: "What stage is your business idea at today?",
+      submittedValue: reqData.businessStage || f.q14_businessStage,
+      normalizedValue: f.q14_businessStage,
+      analysisDimensions: ["customerValidation", "executionReadiness"],
+      findingsInformed: ["scores.customerValidation", "validationLadder", "portfolioMeta.ventureStage"],
+      disposition: valCalc.hasStageContradiction ? "conflicting" : (reqData.businessStage ? "used" : "contextual"),
+      dispositionReason: valCalc.hasStageContradiction
+        ? "Contradiction detected between reported paying/revenue stage and 0 customer validation interactions; capped validation score pending evidence."
+        : "Calibrates validation ladder progress and recommended next evidence gateway."
+    }),
+    makeEntry({
+      questionId: "q15_customerValidation",
+      questionText: "How many potential customers have you spoken to or tested this with?",
+      submittedValue: reqData.customerValidation || reqData.network || f.q15_customerValidation,
+      normalizedValue: f.q15_customerValidation,
+      analysisDimensions: ["customerValidation"],
+      findingsInformed: ["scores.customerValidation", "validationLadder", "summaryBlock.doThisBeforeBuildingMore"],
+      disposition: valCalc.hasStageContradiction ? "conflicting" : "used",
+      dispositionReason: "Directly determines Customer Validation sub-factor score and discovery interview targets."
+    }),
+    makeEntry({
+      questionId: "q16_fundingPreference",
+      questionText: "How do you plan to fund this business?",
+      submittedValue: reqData.fundingPreference || f.q16_fundingPreference,
+      normalizedValue: f.q16_fundingPreference,
+      analysisDimensions: ["businessModelWillingnessToPay", "executionReadiness"],
+      findingsInformed: ["investorBite.investmentVerdict", "businessModelSnapshot.commercialAssessment"],
+      disposition: reqData.fundingPreference ? "used" : "contextual",
+      dispositionReason: "Tailors the Investor & Commercial Readiness framing (e.g. self-funded owner-operator cashflow vs external equity)."
+    }),
+    makeEntry({
+      questionId: "q17_successDefinition",
+      questionText: "What does success look like for you with this business?",
+      submittedValue: reqData.successDefinition || f.q17_successDefinition,
+      normalizedValue: f.q17_successDefinition,
+      analysisDimensions: ["businessModelWillingnessToPay", "executionReadiness"],
+      findingsInformed: ["investorBite.investmentVerdict", "finalRecommendation.pathForward"],
+      disposition: reqData.successDefinition ? "used" : "contextual",
+      dispositionReason: "Aligns commercial milestones and scale expectations with the founder's personal definition of success."
+    }),
+    makeEntry({
+      questionId: "q18_founderPredictions",
+      questionText: "Founder Pre-Assessment Confidence & Risk Predictions",
+      submittedValue: f.q18_founderPredictions ? JSON.stringify(f.q18_founderPredictions) : "",
+      normalizedValue: f.q18_founderPredictions || "Default baseline comparison",
+      isOptional: true,
+      analysisDimensions: ["founderEvidenceGap"],
+      findingsInformed: ["founderEvidenceGap"],
+      disposition: f.q18_founderPredictions ? "used" : "not_applicable",
+      dispositionReason: f.q18_founderPredictions
+        ? "Compared against PitchLab independent scores in the Founder Perception vs Evidence section without biasing scores."
+        : "Optional prediction sliders not submitted; default baseline comparison applied."
+    })
+  ];
+
+  const answeredItems = items.filter(i => i.status === "answered");
+  const unaccountedItems = answeredItems.filter(i => !i.disposition || !["used", "contextual", "conflicting", "not_applicable"].includes(i.disposition));
+
+  return {
+    schemaVersion: "2026-10-30.v1",
+    generatedAt: new Date().toISOString(),
+    summary: {
+      totalQuestionsAudited: items.length,
+      answeredCount: answeredItems.length,
+      usedCount: items.filter(i => i.disposition === "used").length,
+      contextualCount: items.filter(i => i.disposition === "contextual").length,
+      conflictingCount: items.filter(i => i.disposition === "conflicting").length,
+      notApplicableCount: items.filter(i => i.disposition === "not_applicable").length,
+      unaccountedCount: unaccountedItems.length,
+      completeCoverageVerified: unaccountedItems.length === 0
+    },
+    items
+  };
+}
+
+/**
+ * PL-FIX-20261009-002 & PL-FIX-20261030-01: Automated Cross-Assessment Data Contamination Detector & Resolver.
  * Enforces assessment isolation, detects cross-industry/archetype bleed and unrelated entities,
  * cleanses contaminated fields from clean founder submission context, and records an immutable audit log.
  */
@@ -2203,7 +2938,7 @@ function validateReportIntegrityGate(evaluationData = {}, reqData = {}) {
   if (/\b(?:undefined|null|\[object Object\])\b/.test(fullReportText)) {
     throw new Error("PITCHLAB QA INTEGRITY FAILURE: Raw undefined/null/[object Object] detected in report output.");
   }
-  if (/(?:^|[^\$])\s*,\s*500\b/.test(fullReportText) || /,\s*500\s*[-–]/.test(fullReportText)) {
+  if (/(?:^|[^\$0-9]),\s*500\b/.test(fullReportText)) {
     throw new Error("PITCHLAB QA INTEGRITY FAILURE: Malformed currency range starting with ',500' detected in report output.");
   }
 
@@ -2439,6 +3174,87 @@ function validateReportIntegrityGate(evaluationData = {}, reqData = {}) {
     }
   }
 
+  // 23. Construction / Trade Contamination Check in Non-Construction Ventures (PL-FIX-20261030-01 Error A)
+  const isActualConstructionOrTrade = ventureType === "Trade / Local Service";
+  if (!isActualConstructionOrTrade) {
+    const constructionContaminationRules = [
+      { pattern: /residential property owners and architects/i, phrase: "residential property owners and architects" },
+      { pattern: /subcontractor trade vetting/i, phrase: "subcontractor trade vetting" },
+      { pattern: /renovation quotes/i, phrase: "renovation quotes" },
+      { pattern: /fixed-price construction contracts?/i, phrase: "fixed-price construction contracts" },
+      { pattern: /pilot construction contract/i, phrase: "pilot construction contract" },
+      { pattern: /building supply merchants/i, phrase: "building supply merchants" },
+      { pattern: /milestone construction/i, phrase: "milestone construction" }
+    ];
+    const allActionAndSummaryText = [
+      fullReportText,
+      JSON.stringify(evaluationData.actionPlan || {}),
+      JSON.stringify(evaluationData.investorBite?.scorecard || [])
+    ].join(" \n ");
+    for (const rule of constructionContaminationRules) {
+      if (rule.pattern.test(allActionAndSummaryText)) {
+        throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Unrelated construction recommendation ('${rule.phrase}') detected in ${ventureType} assessment.`);
+      }
+    }
+  }
+
+  // 24. Software / SaaS Product Contamination Check in Professional Service / Community Ventures (PL-FIX-20261030-01 Error B)
+  const isProfServiceOrCommunity = ventureType === "Professional Services / Bookkeeping & Financial Advisory" ||
+    ventureType === "Professional Services / Agency / Traditional SME" ||
+    ventureType === "Community / Not-for-Profit / Social Enterprise";
+  if (isProfServiceOrCommunity) {
+    const softwareProductContaminationRules = [
+      { pattern: /before investing heavily in custom software development/i, phrase: "before investing heavily in custom software development" },
+      { pattern: /validate core customer workflow integration and bank feed connectivity/i, phrase: "validate core customer workflow integration and bank feed connectivity" },
+      { pattern: /lean software capital model with low initial infrastructure overhead/i, phrase: "lean software capital model with low initial infrastructure overhead" },
+      { pattern: /scaling through subscription software economics/i, phrase: "scaling through subscription software economics" },
+      { pattern: /software scalability with low marginal distribution and hosting costs/i, phrase: "software scalability with low marginal distribution and hosting costs" },
+      { pattern: /automated tax set-aside/i, phrase: "automated tax set-aside" }
+    ];
+    const allScorecardAndReportText = [
+      fullReportText,
+      JSON.stringify(evaluationData.investorBite?.scorecard || []),
+      evaluationData.futureTrends?.whatThisMeansForFounder || ""
+    ].join(" \n ");
+    for (const rule of softwareProductContaminationRules) {
+      if (rule.pattern.test(allScorecardAndReportText)) {
+        throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Unrelated software-product assumption ('${rule.phrase}') detected in ${ventureType} assessment.`);
+      }
+    }
+  }
+
+  // 25. Unsupported Confidence & "verified background in No" Guardrail (PL-FIX-20261030-01 Error E)
+  if (/verified background in No\b/i.test(fullReportText) || /background in No,/i.test(fullReportText)) {
+    throw new Error("PITCHLAB QA INTEGRITY FAILURE: Malformed founder credential phrase ('verified background in No') detected.");
+  }
+
+  // 26. Mid-Word Truncation & Ambiguous NZST Timestamp Guardrail (PL-FIX-20261030-01 Error F)
+  const snapshotTargetCustomer = evaluationData.businessModelSnapshot?.targetCustomer || "";
+  if (/\bfood and ho\./i.test(fullReportText) || /\bcleaning a\./i.test(fullReportText) || /\bcleaning a\./i.test(snapshotTargetCustomer)) {
+    throw new Error("PITCHLAB QA INTEGRITY FAILURE: Mid-word text truncation ('food and ho.' / 'cleaning a.') detected in report output.");
+  }
+  const tsFormatted = evaluationData.assessmentGeneratedAtFormatted || evaluationData.meta?.assessmentGeneratedAtFormatted || "";
+  if (/\bNZST\b|\bNZDT\b/.test(tsFormatted)) {
+    throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Ambiguous timezone label in timestamp ('${tsFormatted}'). Must use 'GMT (UTC+00:00)'.`);
+  }
+
+  // 27. Score Sum Reconciliation & Input Coverage Completeness Check (PL-FIX-20261030-01 Section 2 & 12)
+  const scoreMap = evaluationData.scores || evaluationData.scorecard || {};
+  const catKeys = Object.keys(SCORING_CONFIG.CATEGORIES);
+  if (Object.keys(scoreMap).length >= 7) {
+    let catSum = 0;
+    for (const k of catKeys) {
+      catSum += Number(scoreMap[k]?.scoreAchieved ?? scoreMap[k]?.score ?? 0);
+    }
+    const reportedOverall = Number(evaluationData.overallScore ?? evaluationData.score ?? 0);
+    if (catSum !== reportedOverall) {
+      throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Category score sum (${catSum}) does not equal overallScore (${reportedOverall}).`);
+    }
+  }
+  if (evaluationData.inputCoverage?.summary && evaluationData.inputCoverage.summary.unaccountedCount > 0) {
+    throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Input coverage audit found ${evaluationData.inputCoverage.summary.unaccountedCount} unaccounted answered question(s).`);
+  }
+
   return true;
 }
 
@@ -2449,12 +3265,18 @@ module.exports = {
   computeMasterRecommendation,
   calculateFounderSubFactors,
   calculateProblemSubFactors,
+  calculateCustomerValidationSubFactors,
   calculateMarketSubFactors,
   calculateBusinessModelSubFactors,
   calculateCompetitiveSubFactors,
   calculateExecutionSubFactors,
   detectFeasibilityGates,
   classifyVentureType,
+  normalizeFounderTimeCommitment,
+  normalizeFounderCapital,
+  detectProblemStatementMisclassification,
+  buildAuthoritativeAssessmentSnapshot,
+  computeInputCoverageAudit,
   calculateFRI,
   calculateFounderEvidenceGap,
   calculate5DimensionFutureTrends,

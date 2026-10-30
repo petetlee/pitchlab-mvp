@@ -23,20 +23,27 @@ class EvaluationResult {
     return name.length > 40 ? '${name.substring(0, 40)}...' : name;
   }
   String get conceptSummary => _str(raw['meta']?['conceptSummary'], fallback: 'Commercial Idea Evaluation');
-  String get founderName => _str(raw['meta']?['founderName'], fallback: 'Founder');
+  String get founderName => _str(raw['founderName'] ?? raw['meta']?['founderName'] ?? raw['authoritativeSnapshot']?['founderName'], fallback: 'Founder (Name not supplied)');
   String get founderRegion => _str(raw['meta']?['founderRegion'], fallback: 'Global');
   // Version Control & Deployment Metadata
-  String get appVersion => _str(raw['appVersion'], fallback: 'v0.9.3');
-  String get fullVersionString => _str(raw['fullVersionString'], fallback: 'PitchLab MVP v0.9.3');
-  String get buildId => _str(raw['buildId'], fallback: '1ef9fa0');
-  String get assessmentGeneratedAtFormatted => _str(raw['assessmentGeneratedAtFormatted'], fallback: '01 Oct 2026 NZST');
-  String get assessmentDate => _str(raw['assessmentDate'] ?? raw['assessmentGeneratedAtFormatted'] ?? raw['meta']?['date'], fallback: '01 Oct 2026');
-  String get versionMarker => '$fullVersionString • Build $buildId';
+  String get appVersion => _str(raw['appVersion'], fallback: 'v0.12.4');
+  String get fullVersionString => _str(raw['fullVersionString'], fallback: 'PitchLab MVP v0.12.4');
+  String get buildId => _str(raw['buildId'], fallback: 'sr20261030a');
+  String get changeId => _str(raw['changeId'], fallback: 'PL-FIX-20261030-01');
+  String get assessmentGeneratedAtFormatted {
+    final val = _str(raw['assessmentGeneratedAtFormatted'], fallback: '2026-10-30 10:30 GMT (UTC+00:00)');
+    if (val.endsWith(' NZST')) {
+      return '${val.substring(0, val.length - 5)} GMT (UTC+00:00)';
+    }
+    return val;
+  }
+  String get assessmentDate => _str(raw['assessmentDate'] ?? raw['assessmentGeneratedAtFormatted'] ?? raw['meta']?['date'], fallback: '2026-10-30 10:30 GMT (UTC+00:00)');
+  String get versionMarker => '$fullVersionString • Build $buildId • $changeId';
 
   // Summary Block
   Map<String, dynamic> get summaryBlock => (raw['summaryBlock'] as Map<String, dynamic>?) ?? {};
 
-  // Reconciled Overall Score (Sum of 7 Categories)
+  // Reconciled Overall Score (Sum of 8 Scored Categories = 100 Max)
   int get overallScore {
     final categories = scorecardCategories;
     if (categories.isNotEmpty) {
@@ -84,6 +91,8 @@ class EvaluationResult {
     return 'Moderate';
   }
 
+  String get ventureContext => _str(raw['ventureContext'] ?? raw['authoritativeSnapshot']?['ventureContext'], fallback: '');
+
   bool get isNuclear {
     final text = '${raw['idea'] ?? ''} ${raw['category'] ?? ''} ${raw['businessName'] ?? ''} ${raw['problem'] ?? ''}'.toLowerCase();
     final reg = RegExp(r'\b(nuclear|atomic|reactor|fission|smr|radiation)\b');
@@ -91,6 +100,9 @@ class EvaluationResult {
   }
 
   bool get isHardware {
+    if (ventureContext.contains('Bookkeeping') || ventureContext.contains('Community') || ventureContext.contains('Trade / Local Service')) {
+      return false;
+    }
     final text = '${raw['idea'] ?? ''} ${raw['category'] ?? ''} ${raw['businessName'] ?? ''}'.toLowerCase();
     const hardwareKeywords = [
       'hardware', 'device', 'physical', 'mooring', 'rope', 'pest', 'rodent', 'solar',
@@ -100,35 +112,65 @@ class EvaluationResult {
     return hardwareKeywords.any((kw) => text.contains(kw));
   }
 
+  bool get isBookkeepingService {
+    if (ventureContext.contains('Bookkeeping') || ventureContext.contains('Professional Services')) {
+      return true;
+    }
+    final coreText = '${raw['idea'] ?? ''} ${raw['category'] ?? ''} ${raw['businessName'] ?? ''} ${raw['problem'] ?? ''}'.toLowerCase();
+    final isSoftwareProduct = RegExp(r'\b(saas|software platform|mobile app|web app|open banking api|build an app|develop software|fintech app)\b').hasMatch(coreText);
+    if (isSoftwareProduct) return false;
+    return RegExp(r'\b(bookkeeping|bookkeeper|accounting service|accounting practice|tax agent|payroll service|xero|myob|financial administration|advisory service)\b').hasMatch(coreText);
+  }
+
+  bool get isCommunityVenture {
+    if (ventureContext.contains('Community') || ventureContext.contains('Not-for-Profit')) {
+      return true;
+    }
+    final coreText = '${raw['idea'] ?? ''} ${raw['category'] ?? ''} ${raw['businessName'] ?? ''}'.toLowerCase();
+    return RegExp(r'\b(not-for-profit|non-profit|nonprofit|charity|charitable trust|incorporated society|social enterprise|community organisation|community organization)\b').hasMatch(coreText);
+  }
+
   bool get isTaxFintech {
-    final text = '${raw['idea'] ?? ''} ${raw['category'] ?? ''} ${raw['businessName'] ?? ''} ${raw['problem'] ?? ''} ${raw['targetMarket'] ?? ''}'.toLowerCase();
-    final reg = RegExp(r'\b(tax|gst|fintech|accounting|bookkeeping|ird|inland revenue|compliance)\b');
-    return reg.hasMatch(text);
+    if (isBookkeepingService || isCommunityVenture) return false;
+    if (ventureContext == 'Financial Services / FinTech') return true;
+    final coreText = '${raw['idea'] ?? ''} ${raw['category'] ?? ''} ${raw['businessName'] ?? ''}'.toLowerCase();
+    final hasSoftware = RegExp(r'\b(fintech|saas|app|platform|software|automated|open banking|api)\b').hasMatch(coreText);
+    final hasTax = RegExp(r'\b(tax|gst|ird|inland revenue|compliance)\b').hasMatch(coreText);
+    return hasSoftware && hasTax;
   }
 
   bool get isTransport {
-    final text = '${raw['idea'] ?? ''} ${raw['category'] ?? ''} ${raw['businessName'] ?? ''} ${raw['problem'] ?? ''} ${raw['targetMarket'] ?? ''}'.toLowerCase();
+    final text = '${raw['idea'] ?? ''} ${raw['category'] ?? ''} ${raw['businessName'] ?? ''} ${raw['problem'] ?? ''}'.toLowerCase();
     final reg = RegExp(r'\b(ride-share|rideshare|ride-hailing|ride-booking|taxi|airport transfer|passenger transport|driver network|shuttle|fleet operations)\b');
     return reg.hasMatch(text);
   }
 
   bool get isAiDecisionSupport {
-    final text = '${raw['idea'] ?? ''} ${raw['category'] ?? ''} ${raw['businessName'] ?? ''} ${raw['problem'] ?? ''} ${raw['targetMarket'] ?? ''}'.toLowerCase();
+    final text = '${raw['idea'] ?? ''} ${raw['category'] ?? ''} ${raw['businessName'] ?? ''} ${raw['problem'] ?? ''}'.toLowerCase();
     final reg = RegExp(r'\b(pitchlab|decision support|decision intelligence|startup validation|idea validation|idea assessment|founder intelligence)\b');
     return reg.hasMatch(text);
   }
 
   bool get isMarketplace {
-    final text = '${raw['idea'] ?? ''} ${raw['category'] ?? ''} ${raw['businessName'] ?? ''} ${raw['problem'] ?? ''} ${raw['targetMarket'] ?? ''}'.toLowerCase();
+    final text = '${raw['idea'] ?? ''} ${raw['category'] ?? ''} ${raw['businessName'] ?? ''} ${raw['problem'] ?? ''}'.toLowerCase();
     if (isAiDecisionSupport) return false;
     final reg = RegExp(r'\b(two-sided marketplace|multi-sided marketplace|buyer-seller marketplace|peer-to-peer marketplace|freelance marketplace)\b');
     return reg.hasMatch(text);
   }
 
   bool get isTradesServices {
-    final text = '${raw['idea'] ?? ''} ${raw['category'] ?? ''} ${raw['businessName'] ?? ''} ${raw['problem'] ?? ''} ${raw['targetMarket'] ?? ''}'.toLowerCase();
-    final reg = RegExp(r'\b(construction|builder|building|renovation|trades|carpentry|contractor|roofing|plumbing|electrical)\b');
-    return reg.hasMatch(text);
+    if (isBookkeepingService || isCommunityVenture || isTaxFintech || isHardware || isNuclear || isTransport || isAiDecisionSupport) {
+      return false;
+    }
+    if (ventureContext.isNotEmpty) {
+      return ventureContext == 'Trade / Local Service';
+    }
+    // Never inspect targetMarket or "building trust/relationships" to avoid misclassifying B2B services targeting trades
+    final ideaAndCat = '${raw['idea'] ?? ''} ${raw['category'] ?? ''} ${raw['businessName'] ?? ''}'
+        .toLowerCase()
+        .replaceAll(RegExp(r'\bbuilding\s+(trust|relationships?|confidence|rapport|capability|skills|a\s+business|a\s+client\s+base|client\s+base)\b'), '');
+    final reg = RegExp(r'\b(construction|builder|residential building|renovation|tradesperson|carpentry|roofing|plumbing|electrical contractor|landscaping)\b');
+    return reg.hasMatch(ideaAndCat);
   }
 
   String get pitchLabVerdict {
@@ -242,26 +284,45 @@ class EvaluationResult {
 
   String get executiveSummary => _str(raw['executiveSummary'], fallback: 'This commercial assessment synthesizes your business idea, target market, founder capabilities, and validation readiness into an actionable roadmap.');
 
-  // Scorecard (7 Categories)
+  // Scorecard (8 Reconciled Categories summing to 100 Max)
   Map<String, dynamic> get scorecardMap => (raw['scorecard'] as Map<String, dynamic>?) ?? (raw['scores'] as Map<String, dynamic>?) ?? {};
 
   List<ScorecardCategory> get scorecardCategories {
-    final categoriesDef = [
-      {'key': 'problemCustomerClarity', 'label': 'Problem and customer clarity', 'max': 15},
-      {'key': 'founderCapabilityFit', 'label': 'Founder capability and fit', 'max': 15},
-      {'key': 'customerValidation', 'label': 'Customer validation', 'max': 20},
-      {'key': 'marketCommercialOpportunity', 'label': 'Market and commercial opportunity', 'max': 15},
-      {'key': 'businessModelWillingnessToPay', 'label': 'Business model and willingness to pay', 'max': 15},
-      {'key': 'competitivePosition', 'label': 'Competitive position', 'max': 10},
-      {'key': 'executionReadiness', 'label': 'Execution readiness', 'max': 10},
-    ];
+    final has8CategoryModel = scorecardMap.containsKey('futureTrends') ||
+        (raw['scores'] is Map && (raw['scores'] as Map).containsKey('futureTrends')) ||
+        (scorecardMap['problemCustomerClarity'] is Map && scorecardMap['problemCustomerClarity']['maxScore'] == 14);
+
+    final categoriesDef = has8CategoryModel
+        ? [
+            {'key': 'problemCustomerClarity', 'label': 'Problem and customer clarity', 'max': 14},
+            {'key': 'founderCapabilityFit', 'label': 'Founder capability and fit', 'max': 15},
+            {'key': 'customerValidation', 'label': 'Customer validation', 'max': 20},
+            {'key': 'marketCommercialOpportunity', 'label': 'Market and commercial opportunity', 'max': 14},
+            {'key': 'businessModelWillingnessToPay', 'label': 'Business model and willingness to pay', 'max': 14},
+            {'key': 'competitivePosition', 'label': 'Competitive position', 'max': 9},
+            {'key': 'executionReadiness', 'label': 'Execution readiness', 'max': 9},
+            {'key': 'futureTrends', 'label': 'Future trends and market direction', 'max': 5},
+          ]
+        : [
+            {'key': 'problemCustomerClarity', 'label': 'Problem and customer clarity', 'max': 15},
+            {'key': 'founderCapabilityFit', 'label': 'Founder capability and fit', 'max': 15},
+            {'key': 'customerValidation', 'label': 'Customer validation', 'max': 20},
+            {'key': 'marketCommercialOpportunity', 'label': 'Market and commercial opportunity', 'max': 15},
+            {'key': 'businessModelWillingnessToPay', 'label': 'Business model and willingness to pay', 'max': 15},
+            {'key': 'competitivePosition', 'label': 'Competitive position', 'max': 10},
+            {'key': 'executionReadiness', 'label': 'Execution readiness', 'max': 10},
+          ];
 
     return categoriesDef.map((def) {
       final key = def['key'] as String;
-      final max = def['max'] as int;
+      final defaultMax = def['max'] as int;
       final label = def['label'] as String;
-      final item = scorecardMap[key] as Map<String, dynamic>? ?? {};
+      final item = (scorecardMap[key] as Map<String, dynamic>?) ??
+          ((raw['scores'] is Map && raw['scores'][key] is Map)
+              ? Map<String, dynamic>.from(raw['scores'][key] as Map)
+              : <String, dynamic>{});
 
+      final max = (item['maxScore'] is num) ? (item['maxScore'] as num).toInt() : defaultMax;
       int rawScore = (item['scoreAchieved'] is num) ? (item['scoreAchieved'] as num).toInt() : (item['score'] is num ? (item['score'] as num).toInt() : 0);
 
       // Auto-scale 0-100 percentage scores down to category max (e.g. 80 on 15 -> 12/15)
@@ -818,11 +879,26 @@ class EvaluationResult {
     if (combined.contains('chartered accountant') || combined.contains('caanz') || combined.contains(' ca ')) {
       creds.add('Chartered Accountant (CA / CAANZ)');
     }
-    if (combined.contains('bachelor of commerce') || combined.contains('bcom')) {
+    if (combined.contains('bachelor of business')) {
+      creds.add('Bachelor of Business Degree');
+    } else if (combined.contains('bachelor of commerce') || combined.contains('bcom')) {
       creds.add('Bachelor of Commerce (BCom)');
     }
-    if (combined.contains('xero certified') || combined.contains('xero')) {
+    if (combined.contains('diploma in applied management') || combined.contains('applied management')) {
+      creds.add('Diploma in Applied Management');
+    }
+    if (combined.contains('28 years') || combined.contains('28+ years') || (combined.contains('financial administration') && combined.contains('payroll'))) {
+      creds.add('28+ Years Financial Administration, Payroll & Project Controls Experience');
+    }
+    if (combined.contains('treasurer') || combined.contains('incorporated society') || combined.contains('nzqa')) {
+      creds.add('Treasurer & Governance Experience (Incorporated Society / NZQA Stakeholder Advisory)');
+    }
+    if (combined.contains('xero certified')) {
       creds.add('Xero Certified Advisor & Accounting Systems Specialist');
+    } else if (combined.contains('xero') && (combined.contains('course') || combined.contains('enrolling') || combined.contains('proficient'))) {
+      creds.add('Active Accounting Systems Experience (Expanding Xero Certification)');
+    } else if (combined.contains('xero') || combined.contains('myob')) {
+      creds.add('Accounting Systems & Ledger Administration Experience (Xero / MYOB)');
     }
     if (combined.contains('finance manager') || combined.contains('clever core')) {
       creds.add('Finance Manager / Senior Financial Leadership Experience');
@@ -833,8 +909,8 @@ class EvaluationResult {
     if (combined.contains('manufacturing') || combined.contains('off-site') || combined.contains('d365') || combined.contains('hyperion')) {
       creds.add('Manufacturing, ERP (D365) & Operational Systems Management');
     }
-    if (combined.contains('20+') || combined.contains('years') || combined.contains('tax')) {
-      creds.add('20+ Years Senior Commercial, Tax & Business Advisory Experience');
+    if ((combined.contains('20+') || combined.contains('years') || combined.contains('tax')) && creds.length < 3) {
+      creds.add('Extensive Financial, Tax & Business Administration Experience');
     }
     if (creds.isNotEmpty) return creds;
     return ['Identified Domain Background & Industry Context', 'Commercial & Operational Capability'];
@@ -1145,27 +1221,54 @@ class EvaluationResult {
     return 'Completion of 30-day discovery milestone or material market feedback.';
   }
 
-  // Prioritize exact user questionnaire choices
+  // Prioritize authoritative normalized snapshot & exact user questionnaire choices
   String get timeAvailable {
+    final authLabel = _str(
+      founderMetrics['weeklyAvailableHours'] ??
+          timeReality['weeklyAvailableHours'] ??
+          raw['authoritativeSnapshot']?['founderTime']?['canonicalLabel'],
+      fallback: '',
+    );
+    if (authLabel.isNotEmpty && authLabel.contains('hours')) {
+      return authLabel;
+    }
     final userChoice = _str(raw['timeCommitment'], fallback: '');
     if (userChoice.isNotEmpty && userChoice.contains('hours')) {
       return userChoice;
     }
     final cap = _str(raw['capacity'], fallback: '');
     if (cap == '35') return '30+ hours/week';
-    if (cap == '20') return '15-30 hours/week';
-    if (cap == '10') return '5-15 hours/week';
-    if (cap == '3') return '0-5 hours/week';
-    return _str(founderMetrics['weeklyAvailableHours'] ?? timeReality['weeklyAvailableHours'], fallback: '15-30 hours/week');
+    if (cap == '20') return '15–30 hours/week';
+    if (cap == '10') return '5–15 hours/week';
+    if (cap == '3') return '0–5 hours/week';
+    return '15–30 hours/week';
   }
 
   String get capitalAvailable {
+    final authCap = _str(
+      founderMetrics['availableCapital'] ??
+          capitalReality['availableCapital'] ??
+          raw['authoritativeSnapshot']?['founderCapital']?['canonicalLabel'],
+      fallback: '',
+    );
+    if (authCap.isNotEmpty) {
+      return authCap;
+    }
     final userChoice = raw['investmentCommitment'] ?? raw['budget'];
     final aiChoice = founderMetrics['availableCapital'] ?? capitalReality['availableCapital'];
     return _formatCapitalValue(userChoice?.toString(), aiChoice?.toString());
   }
 
   String get riskCapital {
+    final explicitRiskCap = _str(
+      founderMetrics['initialRiskCapital'] ??
+          capitalReality['initialRiskCapital'] ??
+          raw['authoritativeSnapshot']?['founderCapital']?['initialRiskCapital'],
+      fallback: '',
+    );
+    if (explicitRiskCap.isNotEmpty) {
+      return explicitRiskCap;
+    }
     final invest = capitalAvailable;
     if (invest.contains(r'$0') || invest.contains('500')) {
       return r'$500 NZD';
@@ -1176,7 +1279,7 @@ class EvaluationResult {
     } else if (invest.contains('25,000') || invest.contains('50,000') || invest.contains('100,000')) {
       return r'$5,000 NZD';
     }
-    return _str(founderMetrics['initialRiskCapital'] ?? capitalReality['initialRiskCapital'], fallback: r'$1,000 NZD');
+    return r'$1,000 NZD';
   }
 
   // Helper flags
@@ -1313,6 +1416,112 @@ class EvaluationResult {
       if (parsed.length == 3) {
         return parsed;
       }
+    }
+
+    if (isBookkeepingService) {
+      return [
+        {
+          'phaseNumber': 'Phase 1',
+          'daysRange': 'Days 1–30',
+          'title': 'Practice Readiness & Customer Problem Validation',
+          'name': 'Phase 1: Days 1–30 — Practice Readiness & Customer Problem Validation',
+          'objective': 'Complete Xero proficiency training and business setup while validating actual bookkeeping, payroll, and compliance pain points with small business owners, sole traders, and community organisations.',
+          'activities': [
+            'Complete Xero Advisor and Xero Payroll training modules to build practical cloud accounting fluency.',
+            'Map business setup requirements including company/sole-trader registration, professional indemnity insurance, and client engagement terms.',
+            'Conduct 8–10 structured discovery interviews with target small business owners, sole traders, and community organisation treasurers.',
+            'Document specific customer pain points (unreconciled bank feeds, late GST/PAYE filings, cashflow blind spots, and grant reporting obligations).'
+          ],
+          'successCriteria': 'Completed Xero certification and at least 70% of interviewed prospects confirm recurring bookkeeping or compliance pain and interest in culturally responsive support.',
+          'deliverables': 'Xero Certification, Business Setup Checklist, and Customer Discovery Synthesis Log (8–10 interviews).',
+          'decisionMilestone': 'Problem Gate: Confirm specific service packages and pricing tiers that match validated small-business and community needs.'
+        },
+        {
+          'phaseNumber': 'Phase 2',
+          'daysRange': 'Days 31–60',
+          'title': 'Service Package Validation & Pilot Client Onboarding',
+          'name': 'Phase 2: Days 31–60 — Service Package Validation & Pilot Client Onboarding',
+          'objective': 'Test fixed-fee monthly bookkeeping and financial literacy coaching packages with initial pilot clients and establish repeatable onboarding workflows.',
+          'activities': [
+            'Design 3 clear service tiers: (1) Sole Trader GST & Bank Reconciliation, (2) Small Employer Bookkeeping & Payroll, and (3) Community Organisation / Charity Treasurer Reporting.',
+            'Standardize client onboarding SOPs including Xero ledger health checks, chart-of-accounts cleanup, and monthly reporting templates.',
+            'Present formal service proposals to 5–6 qualified prospects identified during Phase 1 discovery.',
+            'Onboard 2–3 paying pilot clients and deliver their first monthly reconciliation, GST review, and plain-language financial walkthrough.'
+          ],
+          'successCriteria': 'Secured 2–3 paying pilot clients on monthly retainers with standardized onboarding taking less than 4 hours per client.',
+          'deliverables': 'Tiered Pricing & Scope Guide, Client Onboarding SOP, and 2–3 Signed Pilot Retainer Agreements.',
+          'decisionMilestone': 'Solution Gate: Verify that monthly delivery hours per client leave healthy hourly margins within the founder\'s available weekly capacity.'
+        },
+        {
+          'phaseNumber': 'Phase 3',
+          'daysRange': 'Days 61–90',
+          'title': 'Retainer Base Expansion & Referral Channel Growth',
+          'name': 'Phase 3: Days 61–90 — Retainer Base Expansion & Referral Channel Growth',
+          'objective': 'Build a recurring client base of 5–8 retainer clients through community trust networks, workshops, and chartered accountant referral partnerships.',
+          'activities': [
+            'Establish referral partnerships with 2–3 year-end Chartered Accountants who need a trusted bookkeeper to keep client Xero files clean prior to annual tax filing.',
+            'Host a practical 60-minute financial literacy and Xero/GST basics workshop with a local business network, church, or community hub.',
+            'Review time-per-client metrics across initial retainers to ensure scope creep is controlled and effective hourly rates remain sustainable.',
+            'Expand active recurring client base toward 5–8 monthly retainers sustainable within the founder\'s weekly time availability.'
+          ],
+          'successCriteria': '5+ active monthly retainer clients, 2 Chartered Accountant referral relationships, and positive recurring operating cashflow.',
+          'deliverables': 'Practice Utilisation & Margin Review, 2 Referral Partner Agreements, and 90-Day Client Growth Plan.',
+          'decisionMilestone': 'Commercial Gateway: Decide whether to maintain a high-margin part-time practice or transition to full-time practice expansion.'
+        }
+      ];
+    }
+
+    if (isCommunityVenture) {
+      return [
+        {
+          'phaseNumber': 'Phase 1',
+          'daysRange': 'Days 1–30',
+          'title': 'Community Need & Stakeholder Discovery',
+          'name': 'Phase 1: Days 1–30 — Community Need & Stakeholder Discovery',
+          'objective': 'Validate beneficiary needs, community organisation pain points, and governance requirements.',
+          'activities': [
+            'Conduct 8–10 structured conversations with target community members, treasurers, and grassroots leaders.',
+            'Map Incorporated Society or charitable trust setup and governance requirements.',
+            'Identify 3 potential community hub partners, churches, or funding bodies aligned with the mission.',
+            'Synthesize beneficiary pain points into a clear programme scope and measurable outcome framework.'
+          ],
+          'successCriteria': '8–10 documented community discovery interviews and a clear governance setup checklist.',
+          'deliverables': 'Community Need Synthesis Log & Governance Setup Checklist.',
+          'decisionMilestone': 'Problem Gate: Confirm specific workshop/service scope with community stakeholders before launching delivery.'
+        },
+        {
+          'phaseNumber': 'Phase 2',
+          'daysRange': 'Days 31–60',
+          'title': 'Pilot Programme Delivery & Fee/Grant Validation',
+          'name': 'Phase 2: Days 31–60 — Pilot Programme Delivery & Fee/Grant Validation',
+          'objective': 'Deliver an initial pilot cohort or service cycle with 2–3 community groups and validate sustainable funding or fee-for-service terms.',
+          'activities': [
+            'Develop culturally grounded workshop materials, templates, and practical support checklists.',
+            'Deliver a 4-week pilot programme or support package for 2–3 partner organisations or cohorts.',
+            'Test affordable fee-for-service pricing alongside community grant or sponsorship applications.',
+            'Collect pre- and post-session participant confidence and outcome evaluations.'
+          ],
+          'successCriteria': 'Successful delivery of 1 pilot cohort or 2–3 organisation engagements with >80% positive participant feedback.',
+          'deliverables': 'Pilot Curriculum/SOP, Participant Outcome Report, and 2 Signed Partner MOUs.',
+          'decisionMilestone': 'Solution Gate: Confirm that delivery hours and funding/fee model are sustainable within founder capacity.'
+        },
+        {
+          'phaseNumber': 'Phase 3',
+          'daysRange': 'Days 61–90',
+          'title': 'Sustainable Funding & Community Network Expansion',
+          'name': 'Phase 3: Days 61–90 — Sustainable Funding & Community Network Expansion',
+          'objective': 'Secure recurring service contracts or multi-month community funding to sustain ongoing operations.',
+          'activities': [
+            'Present pilot outcome report to 3 community trusts, local board funders, or corporate sponsors.',
+            'Convert initial pilot groups into recurring quarterly support retainers or scheduled workshops.',
+            'Formalize referral pipelines through local community hubs and advisory boards.',
+            'Establish 12-month operating budget and capacity schedule.'
+          ],
+          'successCriteria': 'At least 2 recurring community contracts or approved funding commitments covering operating costs.',
+          'deliverables': 'Community Impact Report, 2 Recurring Support Agreements, and 12-Month Sustainability Plan.',
+          'decisionMilestone': 'Sustainability Gateway: Confirm recurring revenue/grant coverage before expanding programme headcount.'
+        }
+      ];
     }
 
     if (isNuclear || primaryGatingRisk.contains('Statutory') || isRegulated) {
@@ -1633,48 +1842,115 @@ class EvaluationResult {
   }
 
   List<Map<String, String>> get ninetyDayRoadmapSteps {
+    final String hrsLabel = timeAvailable;
+    final rawSteps = raw['ninetyDayRoadmap']?['steps'] ?? raw['ninetyDayRoadmapSteps'];
+    if (rawSteps is List && rawSteps.isNotEmpty) {
+      final parsedSteps = <Map<String, String>>[];
+      for (var item in rawSteps) {
+        if (item is Map) {
+          parsedSteps.add({
+            'week': _str(item['week'], fallback: 'W ${(parsedSteps.length * 2) + 1}-${(parsedSteps.length * 2) + 2}'),
+            'objective': _cleanNarrativeText(_str(item['objective'], fallback: 'Validation Milestone'), isHardware: isHardware),
+            'tasks': _cleanNarrativeText(_str(item['tasks'], fallback: 'Execute structured customer validation.'), isHardware: isHardware),
+            'hours': hrsLabel,
+            'evidence': _cleanNarrativeText(_str(item['evidence'], fallback: 'Documented validation log'), isHardware: isHardware),
+          });
+        }
+      }
+      if (parsedSteps.isNotEmpty) {
+        return parsedSteps;
+      }
+    }
+
+    if (isBookkeepingService) {
+      return [
+        {
+          'week': 'W 1-2',
+          'objective': 'Client Discovery & Compliance Scoping',
+          'tasks': 'Interview 8–10 Pasifika SME owners and community treasurers on GST/payroll pain; verify AML/CFT & Xero practice setup.',
+          'hours': hrsLabel,
+          'evidence': 'Client discovery log & compliance checklist'
+        },
+        {
+          'week': 'W 3-4',
+          'objective': 'Service Tier & Retainer Design',
+          'tasks': 'Package fixed-fee monthly bookkeeping, payroll, and GST tiers; complete Xero Advisor Certification module.',
+          'hours': hrsLabel,
+          'evidence': '3-tier service & pricing schedule'
+        },
+        {
+          'week': 'W 5-6',
+          'objective': 'Engagement Letters & Pilot Onboarding',
+          'tasks': 'Draft standard client engagement letters; onboard 2–3 pilot clients for ledger clean-up and reconciliation.',
+          'hours': hrsLabel,
+          'evidence': '2–3 signed pilot engagement letters'
+        },
+        {
+          'week': 'W 7-8',
+          'objective': 'Live Monthly Reconciliation Cycle',
+          'tasks': 'Deliver first monthly reconciliation, payroll, and GST cycle for pilot clients; measure delivery hours vs. fee.',
+          'hours': hrsLabel,
+          'evidence': 'Pilot delivery time & margin log'
+        },
+        {
+          'week': 'W 9-10',
+          'objective': 'CA & Community Referral Channels',
+          'tasks': 'Establish referral arrangements with 2 Chartered Accountants and 2 Pasifika business/community networks.',
+          'hours': hrsLabel,
+          'evidence': '2 referral partner agreements'
+        },
+        {
+          'week': 'W 11-12',
+          'objective': 'Retainer Conversion & Practice Gateway',
+          'tasks': 'Convert pilot clients into ongoing monthly retainers and review recurring practice unit economics.',
+          'hours': hrsLabel,
+          'evidence': 'Practice Go / Scale Decision Memo'
+        },
+      ];
+    }
+
     if (isNuclear || primaryGatingRisk.contains('Statutory') || isRegulated) {
       return [
         {
           'week': 'W 1-2',
           'objective': 'Legal & Statutory Scoping',
           'tasks': 'Identify applicable legislation and engage appropriate specialist legal/regulatory expertise.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': 'Preliminary legal-framework map'
         },
         {
           'week': 'W 3-4',
           'objective': 'Regulatory Pathway Assessment',
           'tasks': 'Determine whether any credible statutory pathway exists for commercial nuclear generation.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': 'Regulatory pathway scoping note / specialist scope'
         },
         {
           'week': 'W 5-6',
           'objective': 'Technical Pre-Feasibility',
           'tasks': 'Engage nuclear/energy infrastructure specialists to identify fundamental technical prerequisites.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': 'Technical prerequisite and capability-gap memo'
         },
         {
           'week': 'W 7-8',
           'objective': 'Policy & Stakeholder Mapping',
           'tasks': 'Identify relevant government, regulatory and energy infrastructure stakeholders.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': 'Stakeholder map'
         },
         {
           'week': 'W 9-10',
           'objective': 'Capital & Delivery Reality',
           'tasks': 'Establish indicative project capital scale, financing structure and consortium requirements.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': 'Indicative capital-scale model'
         },
         {
           'week': 'W 11-12',
           'objective': 'Evidence Gateway Decision',
           'tasks': 'STOP / PARK / PIVOT / CONTINUE based on statutory and pre-feasibility evidence obtained.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': 'Evidence Gateway Decision'
         },
       ];
@@ -1685,42 +1961,42 @@ class EvaluationResult {
           'week': 'W 1-2',
           'objective': 'User Problem Discovery',
           'tasks': 'Interview 10 target operators on current equipment issues & costs.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': 'Interview transcript log'
         },
         {
           'week': 'W 3-4',
           'objective': 'Technical CAD & Specs',
           'tasks': 'Draft initial mechanical CAD model & electronic component specs.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': 'CAD spec sheet'
         },
         {
           'week': 'W 5-6',
           'objective': 'Physical Prototype Build',
           'tasks': 'Fabricate benchtop physical prototype for initial mechanism testing.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': 'Benchtop prototype'
         },
         {
           'week': 'W 7-8',
           'objective': 'Field & Durability Testing',
           'tasks': 'Test prototype in real operating environment under stress conditions.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': 'Field test log'
         },
         {
           'week': 'W 9-10',
           'objective': 'Unit Economics & Sourcing',
           'tasks': 'Obtain quotes from 2 manufacturers for bill of materials & batch assembly.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': 'Supplier quote comparison'
         },
         {
           'week': 'W 11-12',
           'objective': 'Commercial Pre-Orders',
           'tasks': 'Present tested prototype to 5 prospective buyers to secure pre-orders.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': '2 pilot deposits / pre-orders'
         },
       ];
@@ -1731,42 +2007,42 @@ class EvaluationResult {
           'week': 'W 1-2',
           'objective': 'Passenger & Driver Outreach',
           'tasks': 'Interview 10 passengers and 5 local drivers on booking unreliability and idle time.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': 'Passenger & driver outreach log'
         },
         {
           'week': 'W 3-4',
           'objective': 'Pricing & Route Mapping',
           'tasks': 'Map primary transport routes, peak travel delays, and current fare workarounds.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': 'Route & fare comparison matrix'
         },
         {
           'week': 'W 5-6',
           'objective': 'Concierge Dispatch Pilot',
           'tasks': 'Operate a manual concierge booking trial for 10-15 airport/hotel transfers.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': 'Concierge trial trip log'
         },
         {
           'week': 'W 7-8',
           'objective': 'Driver Commission Testing',
           'tasks': 'Present formal per-ride commission terms to 5 local transport operators.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': '5 driver pilot commitments'
         },
         {
           'week': 'W 9-10',
           'objective': 'Hotel & Partner Channels',
           'tasks': 'Engage 3 local accommodation providers for preferred transfer referrals.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': '2 hotel referral LOIs'
         },
         {
           'week': 'W 11-12',
           'objective': 'Digital MVP Scope Gateway',
           'tasks': 'Synthesize manual trial findings; make Go/Pivot decision on app build vs. concierge scale.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': 'Marketplace Gateway Decision Report'
         },
       ];
@@ -1777,42 +2053,42 @@ class EvaluationResult {
           'week': 'W 1-2',
           'objective': 'Client Discovery Outreach',
           'tasks': 'Interview 8 homeowners and 4 architects on quote delays and budget blowouts.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': 'Client discovery interview transcripts'
         },
         {
           'week': 'W 3-4',
           'objective': 'Competitor Pricing Analysis',
           'tasks': 'Benchmark regional builder rates, markup structures, and standard contracting terms.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': 'Trade pricing & markup matrix'
         },
         {
           'week': 'W 5-6',
           'objective': 'Estimating & Trade Vetting',
           'tasks': 'Build standardized job cost calculator and vet 3 core subcontractor trades.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': 'Job estimating model & trade agreements'
         },
         {
           'week': 'W 7-8',
           'objective': 'Milestone Proposal Test',
           'tasks': 'Deliver fixed-price proposal with digital milestones to 2 active prospects.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': '1 signed pilot renovation contract'
         },
         {
           'week': 'W 9-10',
           'objective': 'Referral Pipeline Setup',
           'tasks': 'Establish formal referral agreements with 2 local architects or designers.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': '2 signed referral agreements'
         },
         {
           'week': 'W 11-12',
           'objective': 'Margin & Capacity Review',
           'tasks': 'Reconcile project actual margins (>20%) and decide on trade crew expansion.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': 'Margin Reconciliation & Growth Plan'
         },
       ];
@@ -1823,42 +2099,42 @@ class EvaluationResult {
           'week': 'W 1-2',
           'objective': 'Founder Problem Discovery',
           'tasks': 'Interview 10 founders and 4 mentors on idea validation hurdles and wasted capital.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': 'Founder interview transcript log'
         },
         {
           'week': 'W 3-4',
           'objective': 'Alternative Benchmarking',
           'tasks': 'Benchmark generic AI prompts and consulting alternatives against structured evaluation criteria.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': 'Competitive benchmark matrix'
         },
         {
           'week': 'W 5-6',
           'objective': 'Report Accuracy Audits',
           'tasks': 'Run 6 diverse archetype evaluations and audit report actionability with test founders.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': 'Report accuracy audit feedback'
         },
         {
           'week': 'W 7-8',
           'objective': 'Pricing & LOI Testing',
           'tasks': 'Present subscription and pay-per-report pricing to 8 prospective founders and 2 incubators.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': '3 paid assessment commitments'
         },
         {
           'week': 'W 9-10',
           'objective': 'Onboarding & Funnel Analytics',
           'tasks': 'Measure self-serve assessment completion rates and founder retention satisfaction.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': 'Conversion funnel analytics report'
         },
         {
           'week': 'W 11-12',
           'objective': 'Commercial Launch Gateway',
           'tasks': 'Reassess unit economics and make disciplined Go/Scale decision on public launch campaign.',
-          'hours': '5 hrs/wk',
+          'hours': hrsLabel,
           'evidence': 'Commercial Launch Decision Report'
         },
       ];
@@ -1868,42 +2144,42 @@ class EvaluationResult {
         'week': 'W 1-2',
         'objective': 'Problem Discovery',
         'tasks': 'Draft interview guide; reach out to 10 target prospects',
-        'hours': '5 hrs/wk',
+        'hours': hrsLabel,
         'evidence': 'Target outreach log'
       },
       {
         'week': 'W 3-4',
         'objective': 'Customer Interviews',
         'tasks': 'Conduct 6 structured interviews; record pain points',
-        'hours': '5 hrs/wk',
+        'hours': hrsLabel,
         'evidence': '6 interview transcripts'
       },
       {
         'week': 'W 5-6',
         'objective': 'Solution Workflow Test',
         'tasks': 'Test interactive prototype or workflow with 3 target users',
-        'hours': '5 hrs/wk',
+        'hours': hrsLabel,
         'evidence': 'User feedback logs'
       },
       {
         'week': 'W 7-8',
         'objective': 'Price & Offer Test',
         'tasks': 'Present formal pricing terms to 5 target prospects',
-        'hours': '5 hrs/wk',
+        'hours': hrsLabel,
         'evidence': '2 LOIs / deposit commitments'
       },
       {
         'week': 'W 9-10',
         'objective': 'Pilot Evaluation',
         'tasks': 'Measure initial retention, manual effort, and user satisfaction',
-        'hours': '5 hrs/wk',
+        'hours': hrsLabel,
         'evidence': 'Pilot metrics report'
       },
       {
         'week': 'W 11-12',
         'objective': 'Commercial Decision',
         'tasks': 'Reassess evidence; decide whether to Build, Pivot, or Stop',
-        'hours': '5 hrs/wk',
+        'hours': hrsLabel,
         'evidence': 'PitchLab Reassessment'
       },
     ];
