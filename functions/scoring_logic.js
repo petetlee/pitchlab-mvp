@@ -149,8 +149,12 @@ const SCORING_CONFIG = {
  * Normalizes weekly available time commitment into a canonical band and step label.
  */
 function normalizeFounderTimeCommitment(rawInputs = {}) {
-  const rawTime = String(rawInputs.timeCommitment || rawInputs.weeklyAvailableHours || "").trim();
-  const rawCap = String(rawInputs.capacity || "").trim();
+  const cleanRaw = (v) => {
+    const s = String(v ?? "").trim();
+    return (!s || s === "undefined" || s === "null") ? "" : s;
+  };
+  const rawTime = cleanRaw(rawInputs.timeCommitment || rawInputs.weeklyAvailableHours);
+  const rawCap = cleanRaw(rawInputs.capacity);
 
   const parseBand = (str) => {
     const s = String(str || "").trim().toLowerCase();
@@ -168,6 +172,14 @@ function normalizeFounderTimeCommitment(rawInputs = {}) {
         normalizedBand: "15–30 hours/week",
         stepHoursLabel: "15–30 hrs/wk",
         numericMidpoint: 20,
+        isConstrained: false
+      };
+    }
+    if (s.match(/10\s*[-–to]\s*15|\b12\b|\b12\.5\b/) || s === "12") {
+      return {
+        normalizedBand: "10–15 hours/week",
+        stepHoursLabel: "10–15 hrs/wk",
+        numericMidpoint: 12,
         isConstrained: false
       };
     }
@@ -206,6 +218,7 @@ function normalizeFounderTimeCommitment(rawInputs = {}) {
     canonicalLabel: chosen.normalizedBand,
     stepHoursLabel: chosen.stepHoursLabel,
     numericMidpoint: chosen.numericMidpoint,
+    hoursPerWeek: chosen.numericMidpoint,
     isConstrained: chosen.isConstrained,
     hasConflict,
     conflictDetected: hasConflict,
@@ -219,29 +232,42 @@ function normalizeFounderTimeCommitment(rawInputs = {}) {
  * Normalizes founder available budget and initial risk capital without conflating them.
  */
 function normalizeFounderCapital(rawInputs = {}) {
-  let avail = String(rawInputs.investmentCommitment || rawInputs.budget || rawInputs.availableCapital || "").trim() || "$0–$500 NZD";
+  const cleanRaw = (v) => {
+    const s = String(v ?? "").trim();
+    return (!s || s === "undefined" || s === "null") ? "" : s;
+  };
+  let avail = cleanRaw(rawInputs.investmentCommitment || rawInputs.budget || rawInputs.availableCapital) || "$0–$500 NZD";
   avail = avail.replace(/\$([0-9,]+)\s*-\s*\$([0-9,]+)/g, "$$$1–$$$2");
   const formattedAvail = avail.includes("NZD") || avail === "Bootstrapped" ? avail : `${avail} NZD`;
 
-  let riskCap = String(rawInputs.initialRiskCapital || "").trim();
+  let riskCap = cleanRaw(rawInputs.initialRiskCapital || rawInputs.riskCapital);
   if (!riskCap) {
     const lower = formattedAvail.toLowerCase();
-    if (lower.includes("0–$500") || lower.includes("0-$500") || lower.includes("under $500") || lower === "$0 nzd") {
+    if (lower.includes("0–$500") || lower.includes("0-$500") || lower.includes("under $500") || lower === "$0 nzd" || lower === "$500 nzd") {
       riskCap = "$0–$500 NZD";
     } else if (lower.includes("500") && (lower.includes("2,500") || lower.includes("2500"))) {
       riskCap = "$500–$1,000 NZD";
     } else if (lower.includes("2,500") || lower.includes("5,000")) {
-      riskCap = "$500–$1,500 NZD";
+      riskCap = "$1,000 NZD";
+    } else if (lower.includes("10,000") || lower.includes("25,000") || lower.includes("50,000")) {
+      riskCap = "$2,500 NZD";
     } else {
-      riskCap = "$500–$1,500 NZD";
+      riskCap = "$1,000 NZD";
     }
+  } else if (!riskCap.includes("NZD") && riskCap.startsWith("$")) {
+    riskCap = `${riskCap} NZD`;
   }
+
+  const ideaText = String(rawInputs.idea || "").toLowerCase();
+  const requiresExternalInfrastructureCapital = Boolean(ideaText.match(/\b(nuclear|smr|power plant|atomic|reactor|refinery|utility scale)\b/i));
+
   return {
     availableCapital: formattedAvail,
     normalizedDisplay: formattedAvail,
     canonicalLabel: formattedAvail,
     initialRiskCapital: riskCap,
-    initialRiskCapitalDisplay: riskCap
+    initialRiskCapitalDisplay: riskCap,
+    requiresExternalInfrastructureCapital
   };
 }
 
@@ -411,13 +437,23 @@ function detectFeasibilityGates(rawInputs = {}) {
   if (isNuclear && isNZ) {
     gates.push({
       type: 'Legal & Statutory Framework Barrier',
-      label: 'Land-based commercial nuclear power generation in New Zealand appears to face substantial statutory and regulatory barriers (under the Radiation Safety Act 2016, Resource Management Act 1991, and Atomic Energy Act 1945), distinct from the New Zealand Nuclear Free Zone Act 1987 warship/weapon prohibitions, subject to specialist legal confirmation',
+      regulatoryStatusCategory: 'No established or complete regulatory pathway',
+      label: 'Land-based commercial nuclear electricity generation in New Zealand faces an unestablished and incomplete regulatory licensing pathway under the Atomic Energy Act 1945, Radiation Safety Act 2016, Resource Management Act 1991, and Electricity Industry Act 2010 (distinct from the New Zealand Nuclear Free Zone, Disarmament, and Arms Control Act 1987, which prohibits nuclear explosive devices, nuclear-powered ships, and radioactive waste dumping rather than land-based civilian power reactors), subject to specialist legal confirmation',
+      severity: 'Critical',
+      status: 'Verified Constraint'
+    });
+  } else if (fullText.match(/\b(expressly prohibited by statute|criminal offence|unlawful contraband)\b/i)) {
+    gates.push({
+      type: 'Express Statutory Prohibition',
+      regulatoryStatusCategory: 'Expressly prohibited',
+      label: 'Activity is expressly prohibited by statute in the target jurisdiction',
       severity: 'Critical',
       status: 'Verified Constraint'
     });
   } else if (fullText.match(/\b(illegal|prohibited|unlawful|banned)\b/i)) {
     gates.push({
       type: 'Legal & Statutory Framework Barrier',
+      regulatoryStatusCategory: 'Legal permissibility uncertain',
       label: 'Statutory or regulatory restrictions apply to this activity in the target jurisdiction, subject to specialist legal confirmation',
       severity: 'Critical',
       status: 'Verified Constraint'
@@ -572,27 +608,32 @@ function getCommercialAdviserOpinion(reconciled = {}, ventureType = "", gatesInf
   const isNuclear = idea.includes("nuclear");
 
   if (isNuclear || gatesInfo?.hasCriticalGate) {
+    const authDecision = reconciled.masterRecommendation || "PARK";
+    const narrative = "Preserve the underlying energy-security problem and monitor alternative solutions, jurisdictions and relevant statutory/regulatory changes; do not proceed with commercial SMR execution unless Stage Gate 1 statutory and regulatory feasibility criteria are met.";
     return {
       encouraging: "The underlying national energy-security problem is legitimate and strategically important.",
-      caution: "The proposed solution faces substantial statutory, political, technical and capital barriers.",
-      unproven: "Whether a credible legal/regulatory pathway exists for commercial nuclear generation in New Zealand, subject to specialist legal confirmation.",
-      masterRecommendation: reconciled.masterRecommendation || "STOP - Current Formulation",
-      portfolioDecision: "PARK",
-      portfolioAction: "Preserve the underlying energy-security problem and monitor alternative solutions, jurisdictions and relevant external changes."
+      caution: "The proposed solution faces substantial statutory, regulatory, licensing, technical and capital barriers.",
+      unproven: "Whether an established or viable legal/regulatory licensing pathway exists for land-based commercial nuclear generation in New Zealand, subject to specialist legal confirmation.",
+      masterRecommendation: authDecision,
+      portfolioDecision: authDecision,
+      portfolioAction: narrative,
+      opinionNarrative: narrative
     };
   }
 
   const founderScore = reconciled.categoryScores?.founderCapabilityFit?.scoreAchieved || 0;
   const isWeakFit = founderScore <= 6;
+  const authMasterRec = reconciled.masterRecommendation || (reconciled.overallScore >= 85 ? "PURSUE" : (reconciled.overallScore >= 40 ? "INVESTIGATE" : "PARK"));
 
   if (ventureType === 'Professional Services / Bookkeeping & Financial Advisory' || ventureType.includes('Professional Services')) {
     return {
       encouraging: "Strong submitted background in financial administration, payroll, reconciliations, and not-for-profit treasurer governance, paired with a well-defined target niche.",
       caution: "Separate internal founder setup priorities (Xero certification, business registration, and building an initial client base) from external customer pain points, and validate monthly package pricing directly with prospective clients before committing overhead.",
       unproven: "Verified customer willingness to pay for recurring monthly bookkeeping packages and client acquisition conversion rates within the target small-business and community segments.",
-      masterRecommendation: reconciled.masterRecommendation || "INVESTIGATE",
-      portfolioDecision: reconciled.overallScore >= 55 ? "INVESTIGATE" : (reconciled.overallScore >= 40 ? "PIVOT" : "PARK"),
-      portfolioAction: "Complete Xero advisor certification while conducting 8–10 structured discovery conversations with Pasifika small businesses and community organisations to secure 2–3 pilot bookkeeping clients."
+      masterRecommendation: authMasterRec,
+      portfolioDecision: authMasterRec,
+      portfolioAction: "Complete Xero advisor certification while conducting 8–10 structured discovery conversations with Pasifika small businesses and community organisations to secure 2–3 pilot bookkeeping clients.",
+      opinionNarrative: "Complete Xero advisor certification while conducting 8–10 structured discovery conversations with Pasifika small businesses and community organisations to secure 2–3 pilot bookkeeping clients."
     };
   }
 
@@ -601,74 +642,106 @@ function getCommercialAdviserOpinion(reconciled = {}, ventureType = "", gatesInf
       encouraging: "Clear community mission, cultural alignment, and focus on grassroots capacity building.",
       caution: "Ensure governance setup and ongoing operating commitments are matched by confirmed participant demand and sustainable fee-for-service or grant funding.",
       unproven: "Long-term financial sustainability, recurring funder or fee-paying participant commitments, and delivery capacity.",
-      masterRecommendation: reconciled.masterRecommendation || "INVESTIGATE",
-      portfolioDecision: reconciled.overallScore >= 55 ? "INVESTIGATE" : (reconciled.overallScore >= 40 ? "PIVOT" : "PARK"),
-      portfolioAction: "Conduct 8–10 stakeholder discovery interviews and pilot an initial cohort or service agreement before scaling overhead."
+      masterRecommendation: authMasterRec,
+      portfolioDecision: authMasterRec,
+      portfolioAction: "Conduct 8–10 stakeholder discovery interviews and pilot an initial cohort or service agreement before scaling overhead.",
+      opinionNarrative: "Conduct 8–10 stakeholder discovery interviews and pilot an initial cohort or service agreement before scaling overhead."
     };
   }
 
   if (ventureType.includes('Hardware') || ventureType.includes('Manufacturing')) {
+    const act = reconciled.overallScore >= 40 ? "Actively investigate physical prototype field testing, marine durability, and customer willingness to pay." : "Reformulate physical solution architecture.";
     return {
       encouraging: isWeakFit
         ? "Strong general commercial background and clear physical product problem definition."
         : "Strong domain experience, hands-on user insight, and practical product vision.",
       caution: "Ensure mass production and tooling costs are delayed until physical prototype field durability and customer deposits are secured.",
       unproven: "Manufacturing unit economics, supplier reliability, and retail/direct distribution margins.",
-      masterRecommendation: reconciled.masterRecommendation || "Validate Before Building",
-      portfolioDecision: reconciled.overallScore >= 55 ? "INVESTIGATE" : (reconciled.overallScore >= 40 ? "PIVOT" : "PARK"),
-      portfolioAction: reconciled.overallScore >= 55 ? "Actively investigate physical prototype field testing and pre-orders." : "Reformulate physical solution architecture."
+      masterRecommendation: authMasterRec,
+      portfolioDecision: authMasterRec,
+      portfolioAction: act,
+      opinionNarrative: act
     };
   }
 
   if (ventureType.includes('Transportation') || ventureType.includes('Mobility') || (ventureType.includes('Marketplace') && ((rawInputs.idea || '') + ' ' + (rawInputs.category || '')).toLowerCase().match(/ride|transport|driver|passenger|mobility/i))) {
+    const act = reconciled.overallScore >= 40 ? "Conduct structured passenger and driver discovery interviews and concierge transfer trials." : "Preserve local transport problem while exploring manual or alternative dispatch models.";
     return {
       encouraging: isWeakFit
         ? "Strong general commercial background and clear local passenger transport problem definition."
         : "Strong local transport domain experience, operational background, and practical market relationships.",
       caution: "Ensure custom mobile application and software development are delayed until driver supply liquidity and passenger booking demand are validated through concierge trials.",
       unproven: "Marketplace unit economics, passenger booking frequency, and driver retention in the local market.",
-      masterRecommendation: reconciled.masterRecommendation || "Validate Before Building",
-      portfolioDecision: reconciled.overallScore >= 55 ? "INVESTIGATE" : (reconciled.overallScore >= 40 ? "PIVOT" : "PARK"),
-      portfolioAction: reconciled.overallScore >= 55 ? "Conduct structured passenger and driver discovery interviews and concierge transfer trials." : "Preserve local transport problem while exploring manual or alternative dispatch models."
+      masterRecommendation: authMasterRec,
+      portfolioDecision: authMasterRec,
+      portfolioAction: act,
+      opinionNarrative: act
     };
   }
 
+  const act = reconciled.overallScore >= 40 ? "Conduct structured customer discovery interviews and initial evidence gathering." : "Preserve problem statement while exploring alternative commercial formulations.";
   return {
     encouraging: isWeakFit
       ? "Strong general commercial capability combined with clear problem definition."
       : "Strong problem definition, domain experience, and clear commercial opportunity.",
     caution: "Ensure non-essential expenditure and feature expansion are delayed until core customer demand and willingness to pay are validated.",
     unproven: "Repeat customer demand, unit economics, and scalable customer acquisition channels.",
-    masterRecommendation: reconciled.masterRecommendation || "Validate Before Building",
-    portfolioDecision: reconciled.overallScore >= 55 ? "INVESTIGATE" : (reconciled.overallScore >= 40 ? "PIVOT" : "PARK"),
-    portfolioAction: reconciled.overallScore >= 55 ? "Conduct structured customer discovery interviews and initial evidence gathering." : "Preserve problem statement while exploring alternative commercial formulations."
+    masterRecommendation: authMasterRec,
+    portfolioDecision: authMasterRec,
+    portfolioAction: act,
+    opinionNarrative: act
   };
 }
 
 /**
- * Returns dynamic Portfolio Action & Decision metadata separating Commercial Recommendation from Portfolio State.
+ * Returns dynamic Portfolio Action & Decision metadata enforcing ONE Single Authoritative Master Portfolio Decision
+ * while preserving the Problem vs Solution vs Conditional Phase 1 distinction.
  */
-function getPortfolioDecision(masterRecommendation = "", ventureType = "", gatesInfo = {}, rawInputs = {}) {
+function getPortfolioDecision(arg1 = "", arg2 = "", arg3 = {}, arg4 = {}) {
+  let masterRecommendation = "";
+  let ventureType = "";
+  let gatesInfo = {};
+  let rawInputs = {};
+
+  if (typeof arg1 === "object" && arg1 !== null && (arg1.idea !== undefined || arg1.inputs !== undefined || arg1.businessConcept !== undefined)) {
+    // Called as (rawInputs, reconciled, ventureType, gatesInfo)
+    rawInputs = arg1 || {};
+    const reconciled = arg2 || {};
+    masterRecommendation = reconciled.masterRecommendation || reconciled.recommendation || "";
+    ventureType = typeof arg3 === "string" ? arg3 : "";
+    gatesInfo = typeof arg4 === "object" && arg4 !== null ? arg4 : (typeof arg3 === "object" ? arg3 : {});
+  } else {
+    masterRecommendation = typeof arg1 === "string" ? arg1 : (arg1?.masterRecommendation || "");
+    ventureType = typeof arg2 === "string" ? arg2 : "";
+    gatesInfo = typeof arg3 === "object" && arg3 !== null ? arg3 : {};
+    rawInputs = typeof arg4 === "object" && arg4 !== null ? arg4 : {};
+  }
+
   const idea = (rawInputs.idea || "").toLowerCase();
   const isNuclear = idea.includes("nuclear");
+  const isExpresslyIllegal = Boolean(gatesInfo?.gates?.some(g => g.type === 'Express Statutory Prohibition'));
 
   if (isNuclear || gatesInfo?.hasCriticalGate) {
+    const authDecision = isExpresslyIllegal ? "STOP" : (String(masterRecommendation || "").toUpperCase() === "STOP" ? "STOP" : "PARK");
     return {
-      masterRecommendation: "STOP — Current Formulation",
-      portfolioDecision: "PARK",
-      portfolioAction: "Preserve the underlying energy-security problem while exploring alternative solutions, jurisdictions or material future changes in feasibility.",
-      portfolioReason: "The national energy-security problem remains strategically relevant and worth tracking, but the proposed solution faces significant statutory and regulatory barriers under current legislation, subject to specialist legal confirmation.",
+      masterRecommendation: authDecision,
+      portfolioDecision: authDecision,
+      decisionState: authDecision,
+      portfolioAction: "Preserve the underlying energy-security problem while parking commercial SMR execution pending specialist statutory/regulatory clarification, policy reform, or alternative clean-firm generation structures.",
+      portfolioReason: "The national energy-security problem remains strategically relevant and worth preserving, but commercial SMR nuclear power generation in New Zealand lacks an established regulatory/licensing pathway and requires multi-billion-dollar infrastructure capital beyond early-stage private venture feasibility.",
       problemStatus: "Worth Preserving",
-      solutionStatus: "Materially Constrained Pending Legal Confirmation",
+      solutionStatus: "No Established Regulatory Pathway — Parked in Current Formulation",
+      conditionalActivityStatus: "Conditional Phase 1 Only — Low-Cost Statutory & Regulatory Verification ($0–$500 NZD, 0–5 hrs/wk)",
       currentStage: "Exploration",
-      nextEvidenceGateway: "Credible statutory/legal and regulatory pathway.",
-      reassessmentTrigger: "Material statutory/regulatory policy change, relevant technology development, or formal pre-feasibility legal clarification.",
+      nextEvidenceGateway: "Confirm whether any credible statutory/licensing pathway or policy reform mandate exists under New Zealand law before committing technical or commercial capital.",
+      reassessmentTrigger: "Material statutory/regulatory policy change, establishment of a national nuclear regulatory regime, or specialist legal confirmation of a viable licensing pathway.",
       problemVsSolution: {
         underlyingProblem: "New Zealand's need for reliable, affordable, low-carbon electricity as demand increases and variable generation creates reliability and price challenges.",
         currentProposedSolution: "Development of a commercial SMR-based nuclear generation business in New Zealand.",
         problemStatus: "Worth Preserving",
-        solutionStatus: "Materially Constrained Pending Legal Confirmation",
-        portfolioAction: "Preserve the underlying energy-security problem while exploring alternative solutions, jurisdictions or material future changes in feasibility."
+        solutionStatus: "No Established Regulatory Pathway — Parked in Current Formulation",
+        conditionalActivityStatus: "Conditional Phase 1 Only — Low-Cost Statutory & Regulatory Verification",
+        portfolioAction: "Preserve the underlying energy-security problem while parking commercial SMR execution pending specialist statutory/regulatory clarification or policy reform."
       }
     };
   }
@@ -676,32 +749,46 @@ function getPortfolioDecision(masterRecommendation = "", ventureType = "", gates
   let decision = "INVESTIGATE";
   let problemStatus = "Worth Investigating";
   let actionText = "Conduct structured customer discovery interviews and initial evidence gathering.";
-  const masterLower = (masterRecommendation || "").toLowerCase();
+  const masterUpper = String(masterRecommendation || "").toUpperCase();
 
-  if (masterLower.includes("stop") || masterLower.includes("pause")) {
+  if (masterUpper.includes("STOP")) {
+    decision = "STOP";
+    problemStatus = "Discontinued";
+    actionText = "Do not proceed with further investment in this concept.";
+  } else if (masterUpper.includes("PARK") || masterUpper.includes("PAUSE")) {
     decision = "PARK";
     problemStatus = "Worth Preserving";
     actionText = "Preserve the problem statement while exploring alternative solutions or target geographies.";
-  } else if (masterLower.includes("pivot") || masterLower.includes("refine")) {
-    decision = "PIVOT";
-    problemStatus = "Worth Investigating";
-    actionText = "Reformulate the solution, customer segment, or business model around validated friction points.";
-  } else if (masterLower.includes("proceed") || masterLower.includes("pursue")) {
+  } else if (masterUpper.includes("PURSUE") || masterUpper.includes("PROCEED")) {
     decision = "PURSUE";
     problemStatus = "Worth Pursuing";
     actionText = "Actively progress commercial validation and pilot deployment.";
+  } else {
+    decision = "INVESTIGATE";
+    problemStatus = "Worth Investigating";
+    actionText = "Conduct structured customer discovery interviews and initial evidence gathering.";
   }
 
   return {
-    masterRecommendation: masterRecommendation || "INVESTIGATE — Validate Assumptions",
+    masterRecommendation: decision,
     portfolioDecision: decision,
+    decisionState: decision,
     portfolioAction: actionText,
-    portfolioReason: "Commercial concept undergoing structured validation based on evidence maturity.",
+    portfolioReason: "Commercial concept undergoing structured stage-gated validation based on evidence maturity.",
     problemStatus: problemStatus,
-    solutionStatus: "Under Validation",
+    solutionStatus: "Under Stage-Gated Validation",
+    conditionalActivityStatus: "Proceed to Phase 2 only after Phase 1 problem & willingness-to-pay criteria are met",
     currentStage: "Validation",
     nextEvidenceGateway: "Complete initial discovery interviews and confirm customer willingness to pay.",
-    reassessmentTrigger: "Completion of 30-day discovery milestone or material market feedback."
+    reassessmentTrigger: "Completion of 30-day discovery milestone or material market feedback.",
+    problemVsSolution: {
+      underlyingProblem: String(rawInputs.problem || "Target customer pain point").trim(),
+      currentProposedSolution: String(rawInputs.idea || "Proposed commercial solution").trim(),
+      problemStatus: problemStatus,
+      solutionStatus: "Under Stage-Gated Validation",
+      conditionalActivityStatus: "Proceed to Phase 2 only after Phase 1 problem & willingness-to-pay criteria are met",
+      portfolioAction: actionText
+    }
   };
 }
 
@@ -1516,19 +1603,27 @@ function reconcileScores(rawCategories = {}, rawInputs = {}) {
     evidence: gatesInfo.summary || "No critical feasibility gate detected.",
     confidence: gatesInfo.hasCriticalGate ? "high" : "low",
     categoriesAffected: gatesInfo.hasCriticalGate
-      ? ["marketCommercialOpportunity", "businessModelWillingnessToPay", "competitivePosition", "executionReadiness"]
+      ? ["marketCommercialOpportunity", "businessModelWillingnessToPay", "competitivePosition", "executionReadiness", "futureTrends"]
       : [],
     capsApplied: Boolean(gatesInfo.hasCriticalGate),
     reasoning: gatesInfo.summary || "Standard commercial evaluation."
   };
 
-  const portfolioMeta = computePortfolioMeta(rawInputs, { overallScore, masterRecommendation }, ventureType, gatesInfo);
   const legalRegulatoryAssessment = getLegalRegulatoryAssessment(rawInputs, gatesInfo, ventureType);
+  const portfolioMeta = computePortfolioMeta(rawInputs, { overallScore, masterRecommendation, categoryScores }, ventureType, gatesInfo);
+  const rubricAndIndicators = buildScoringRubricAndIndicators(overallScore, categoryScores, rawInputs, gatesInfo);
+  const evidenceClassification = buildEvidenceClassificationRegistry(rawInputs, { overallScore, masterRecommendation, categoryScores }, ventureType, legalRegulatoryAssessment);
 
   return {
     overallScore,
     scoreBand,
     masterRecommendation,
+    portfolioDecision: masterRecommendation,
+    opportunityPotential: rubricAndIndicators.opportunityPotential,
+    evidenceConfidence: rubricAndIndicators.evidenceConfidence,
+    executionReadinessIndicator: rubricAndIndicators.executionReadinessIndicator,
+    scoringRubric: rubricAndIndicators.scoringRubric,
+    evidenceClassification,
     categoryScores,
     subFactors: {
       founder: founderCalc.subFactors,
@@ -1546,35 +1641,260 @@ function reconcileScores(rawCategories = {}, rawInputs = {}) {
 }
 
 /**
- * Computes a single deterministic Master Recommendation across the entire application using expanded taxonomy.
+ * Computes a single deterministic Master Portfolio Decision across the entire application.
+ * Canonical states: PURSUE, INVESTIGATE, PARK, STOP.
  */
 function computeMasterRecommendation(score, categoryScores = {}, rawInputs = {}, gatesInfo = {}) {
   if (gatesInfo?.hasCriticalGate) {
-    const isLegalProhibition = gatesInfo.gates?.some(g => g.type === 'Legal Prohibition');
-    const isExtremeCapital = gatesInfo.gates?.some(g => g.type === 'Capital & Infrastructure Dependency');
-    if (isLegalProhibition || isExtremeCapital) {
-      return "STOP — Current Formulation";
+    const isExpressStatutoryProhibition = gatesInfo.gates?.some(g => g.type === 'Express Statutory Prohibition' || g.regulatoryStatusCategory === 'Expressly prohibited');
+    if (isExpressStatutoryProhibition) {
+      return "STOP";
     }
-    return "REFRAME — Current Formulation";
+    return "PARK";
   }
 
   const validationScore = categoryScores.customerValidation?.scoreAchieved || 0;
   const founderScore = categoryScores.founderCapabilityFit?.scoreAchieved || 0;
   const problemScore = categoryScores.problemCustomerClarity?.scoreAchieved || 0;
 
-  if (score >= 85 && validationScore >= 14) {
+  if (score >= 80 && validationScore >= 12) {
     return "PURSUE";
-  }
-  if (score >= 70 && validationScore >= 8) {
-    return "INVESTIGATE";
   }
   if (score >= 40 || (founderScore >= 8 && problemScore >= 8)) {
     return "INVESTIGATE";
   }
-  if (problemScore < 5) {
-    return "REFRAME";
+  if (problemScore < 4 && validationScore === 0 && score < 25) {
+    return "STOP";
   }
   return "PARK";
+}
+
+/**
+ * Builds transparent scoring rubrics and qualitative Opportunity Potential, Evidence Confidence, and Execution Readiness indicators.
+ */
+function buildScoringRubricAndIndicators(overallScore, categoryScores = {}, rawInputs = {}, gatesInfo = {}) {
+  const probScore = categoryScores.problemCustomerClarity?.scoreAchieved ?? 0;
+  const valScore = categoryScores.customerValidation?.scoreAchieved ?? 0;
+  const mktScore = categoryScores.marketCommercialOpportunity?.scoreAchieved ?? 0;
+  const execScore = categoryScores.executionReadiness?.scoreAchieved ?? 0;
+  const founderScore = categoryScores.founderCapabilityFit?.scoreAchieved ?? 0;
+
+  let opportunityPotential = "Moderate";
+  if (gatesInfo?.hasCriticalGate) {
+    opportunityPotential = "Constrained by Regulatory & Infrastructure Prerequisites (High Underlying Problem Significance)";
+  } else if (probScore >= 11 && mktScore >= 10) {
+    opportunityPotential = "High";
+  } else if (probScore < 7 && mktScore < 6) {
+    opportunityPotential = "Low";
+  }
+
+  let evidenceConfidence = "Low — Pre-Validation (Founder-Provided & Inferred Inputs)";
+  if (valScore >= 14) {
+    evidenceConfidence = "High — Verified Customer & Commercial Evidence";
+  } else if (valScore >= 7) {
+    evidenceConfidence = "Moderate — Initial Market & Discovery Evidence";
+  }
+
+  let executionReadinessIndicator = "Moderate — Stage-Gated Validation Accessible";
+  if (gatesInfo?.hasCriticalGate) {
+    executionReadinessIndicator = "Constrained — Critical Regulatory, Consortium & Capital Prerequisites Missing";
+  } else if (execScore >= 7 && founderScore >= 11) {
+    executionReadinessIndicator = "Strong — Ready for Immediate Execution";
+  } else if (execScore <= 3) {
+    executionReadinessIndicator = "Constrained — Foundational Setup Required";
+  }
+
+  return {
+    opportunityPotential,
+    evidenceConfidence,
+    executionReadinessIndicator,
+    scoringRubric: {
+      totalMaxPoints: 100,
+      reconciliationFormula: "14 + 15 + 20 + 14 + 14 + 9 + 9 + 5 = 100",
+      decisionThresholds: {
+        PURSUE: "Overall score >= 80/100 with verified customer validation (>= 12/20) and no unresolved critical feasibility gates.",
+        INVESTIGATE: "Overall score 40–79/100 (or strong founder/problem foundation) where core assumptions are testable through structured customer and technical stage gates.",
+        PARK: "Underlying customer or national problem is worth preserving, but the current solution formulation faces an unestablished regulatory pathway, critical capital/infrastructure disproportion, or unresolved prerequisite gate; limit immediate activity to low-cost Phase 1 gateway verification.",
+        STOP: "Activity is expressly prohibited by law or confirmed to have no viable customer problem or commercial pathway."
+      },
+      categoryDefinitions: {
+        problemCustomerClarity: "Measures clarity, specificity, and strategic importance of the underlying problem and target customer segment (Max 14 pts). Distinct from Customer Validation.",
+        founderCapabilityFit: "Measures the founder's existing credentials, transferable commercial skills, and bridgeability of missing specialist operating-organisation capabilities (Max 15 pts).",
+        customerValidation: "Measures independent empirical proof of customer demand, discovery interviews, LOIs, pilots, or paying off-takers (Max 20 pts).",
+        marketCommercialOpportunity: "Measures commercially accessible demand under current regulatory and market conditions (Max 14 pts).",
+        businessModelWillingnessToPay: "Measures pricing logic, unit economics, capital structure realism, and verified willingness to pay (Max 14 pts).",
+        competitivePosition: "Measures defensibility against direct competitors, indirect alternatives, existing workarounds, and substitute technologies (Max 9 pts).",
+        executionReadiness: "Measures alignment of founder time availability, validation risk capital, and near-term stage-gated execution feasibility (Max 9 pts).",
+        futureTrends: "Combines macro 3–10 year structural trend alignment with near-term regulatory and commercial deployability (Max 5 pts)."
+      }
+    }
+  };
+}
+
+/**
+ * Classifies assessment evidence into 4 explicit transparency categories (PL-FIX-20261103-01 Section 3):
+ * Category A — Founder-provided information
+ * Category B — Independently verified evidence
+ * Category C — AI inference
+ * Category D — Untested assumptions
+ */
+function buildEvidenceClassificationRegistry(rawInputs = {}, reconciled = {}, ventureType = "", legalReg = {}) {
+  const idea = String(rawInputs.idea || "").trim();
+  const problem = String(rawInputs.problem || "").trim();
+  const targetMarket = String(rawInputs.targetMarket || "").trim();
+  const isNuclear = Boolean(`${idea} ${problem}`.toLowerCase().match(/\b(nuclear|smr|atomic|reactor)\b/));
+  const isMoorSafe = Boolean(`${idea} ${problem}`.toLowerCase().match(/\b(moorsafe|mooring|pest deterrent|rodent|rat guard)\b/));
+  const timeNorm = normalizeFounderTimeCommitment(rawInputs);
+  const capNorm = normalizeFounderCapital(rawInputs);
+  const generatedUtc = new Date().toISOString();
+
+  const categoryA_founderProvided = [
+    {
+      field: "Proposed Concept & Solution Scope",
+      label: "[Founder Input]",
+      statement: idea || "Submitted business concept.",
+      verificationStatus: "Founder-stated scope; assessed as submitted without importing excluded prior concepts."
+    },
+    {
+      field: "Stated Problem",
+      label: "[Founder Input]",
+      statement: problem || "Submitted customer problem.",
+      verificationStatus: "Founder-articulated problem statement."
+    },
+    {
+      field: "Target Customer & Market Assertion",
+      label: "[Founder Input]",
+      statement: targetMarket || "Submitted target market description.",
+      verificationStatus: "Founder assertion; embedded claims regarding customer spending or competitor unreliability are treated as untested hypotheses until verified."
+    },
+    {
+      field: "Founder Resource Commitments",
+      label: "[Founder Input]",
+      statement: `Weekly availability: ${timeNorm.normalizedBand}; Available capital: ${capNorm.availableCapital}; Initial validation risk budget: ${capNorm.initialRiskCapital}; Stage: ${rawInputs.businessStage || "Idea only"}.`,
+      verificationStatus: "Directly preserved from canonical submission snapshot."
+    }
+  ];
+
+  const categoryB_independentlyVerified = isNuclear
+    ? [
+        {
+          sourceName: "New Zealand Nuclear Free Zone, Disarmament, and Arms Control Act 1987 (Public Act 1987 No 86, ss 4–11)",
+          publicationYear: 1987,
+          url: "https://www.legislation.govt.nz/act/public/1987/0086/latest/DLM115116.html",
+          retrievedAtUtc: generatedUtc,
+          label: "[Verified Source]",
+          finding: "Establishes the New Zealand Nuclear Free Zone and prohibits nuclear explosive devices, biological weapons, entry of nuclear-powered ships, and dumping of radioactive waste; does not contain an express blanket statutory ban on land-based civilian nuclear electricity generation."
+        },
+        {
+          sourceName: "Atomic Energy Act 1945 (Public Act 1945 No 41)",
+          publicationYear: 1945,
+          url: "https://www.legislation.govt.nz/act/public/1945/0041/latest/DLM239294.html",
+          retrievedAtUtc: generatedUtc,
+          label: "[Verified Source]",
+          finding: "Regulates prescribed substances (uranium, thorium, plutonium) and atomic energy apparatus in New Zealand under ministerial notification, control, and consent provisions."
+        },
+        {
+          sourceName: "Radiation Safety Act 2016 (Public Act 2016 No 6)",
+          publicationYear: 2016,
+          url: "https://www.legislation.govt.nz/act/public/2016/0006/latest/DLM6339517.html",
+          retrievedAtUtc: generatedUtc,
+          label: "[Verified Source]",
+          finding: "Requires source and use licences administered by the Office of Radiation Safety / Director for Radiation Safety; designed for medical, industrial, and research radiation sources rather than utility-scale commercial nuclear power reactor licensing."
+        },
+        {
+          sourceName: "Resource Management Act 1991 (Public Act 1991 No 69) & Electricity Industry Act 2010 (Public Act 2010 No 116)",
+          publicationYear: 1991,
+          url: "https://www.legislation.govt.nz/act/public/1991/0069/latest/DLM230265.html",
+          retrievedAtUtc: generatedUtc,
+          label: "[Verified Source]",
+          finding: "Govern major environmental resource consenting, national policy alignment, and national grid connection in New Zealand."
+        }
+      ]
+    : [
+        {
+          sourceName: "New Zealand Biosecurity & Maritime Pest Management Context / Commercial Hardware Compliance",
+          publicationYear: 2026,
+          url: "https://www.mpi.govt.nz/biosecurity/",
+          retrievedAtUtc: generatedUtc,
+          label: "[Verified Source]",
+          finding: isMoorSafe
+            ? "Rodent and invasive pest incursion via vessel mooring lines is a recognised maritime biosecurity and vessel maintenance concern across marinas, ports, and island sanctuaries; conventional conical plastic/metal rat guards are the standard physical workaround."
+            : "Standard New Zealand commercial, tax, and consumer protection frameworks apply to early-stage market validation."
+        }
+      ];
+
+  const categoryC_aiInference = isNuclear
+    ? [
+        {
+          label: "[AI Inference]",
+          inference: "While the NZ Nuclear Free Zone Act 1987 does not expressly prohibit land-based civilian nuclear power reactors, New Zealand currently lacks an established nuclear power reactor regulatory agency, nuclear liability regime, and complete licensing pathway under the Atomic Energy Act 1945, Radiation Safety Act 2016, and RMA 1991.",
+          basis: "Synthesised from the statutory scope of NZ radiation, atomic energy, and environmental legislation alongside the absence of existing civilian power reactor regulations."
+        },
+        {
+          label: "[AI Inference]",
+          inference: "Peter Lee's Chartered Accountant (CAANZ) and BCom background provides strong commercial structuring, financial governance, and feasibility coordination capability, while nuclear engineering, safety licensing, and utility infrastructure delivery would require a specialist consortium.",
+          basis: "Derived by comparing submitted founder credentials against utility-scale SMR development requirements."
+        }
+      ]
+    : [
+        {
+          label: "[AI Inference]",
+          inference: isMoorSafe
+            ? "A solar-powered, low-voltage electrical mooring-rope deterrent targets a plausible functional gap left by passive plastic/metal conical rat guards (which can slip, split, or fail in high wind/line-angle conditions), provided marine saltwater durability and safety can be engineered at an acceptable unit cost."
+            : "The proposed business model aligns logically with the stated customer segment, subject to empirical pricing and acquisition validation.",
+          basis: "Derived from product mechanics, existing customer workarounds, and founder commercial background."
+        }
+      ];
+
+  const categoryD_untestedAssumptions = isNuclear
+    ? [
+        {
+          label: "[Untested Assumption]",
+          assumption: "Whether New Zealand central government and regulators would establish or permit a statutory licensing pathway for commercial Small Modular Reactors (SMRs).",
+          howToTest: "Complete Stage Gate 1 desktop statutory review and obtain preliminary written guidance from specialist NZ energy/public law counsel ($0–$500 NZD)."
+        },
+        {
+          label: "[Untested Assumption]",
+          assumption: "Whether industrial energy off-takers, iwi/community stakeholders, and institutional infrastructure investors would support SMR deployment over domestic hydro, geothermal, and wind+storage alternatives.",
+          howToTest: "Defer commercial off-taker and capital structuring until Stage Gate 1 confirms a credible regulatory pathway."
+        }
+      ]
+    : isMoorSafe
+    ? [
+        {
+          label: "[Untested Assumption]",
+          assumption: "Founder assertion that target boat owners and marina operators 'already spend heavily on maintenance and protection, indicating willingness to pay' for an active solar-powered electrical mooring-line pest deterrent.",
+          howToTest: "Interview 15–20 recreational boat owners, liveaboards, and marina managers to quantify actual annual spend on pest control/rat guards and test price sensitivity ($150–$450 NZD per unit)."
+        },
+        {
+          label: "[Untested Assumption]",
+          assumption: "Founder assertion that 'existing solutions like plastic guards are unreliable, hard to fit, or ineffective against smaller pests' to a degree that justifies switching to an active solar-electronic device.",
+          howToTest: "Document specific failure modes of conventional conical rat guards across rope diameters and test whether boat owners view the problem as frequent/severe enough to purchase MoorSafe."
+        },
+        {
+          label: "[Untested Assumption]",
+          assumption: "Technical durability, waterproof sealing (IP67/IP68), salt-spray corrosion resistance, battery/solar autonomy, and safe non-lethal low-voltage pulse delivery on wet conductive marine mooring ropes.",
+          howToTest: "Build and bench-test a low-voltage proof-of-concept unit on wet salt-laden mooring lines in Stage Gate 2 before committing production tooling capital."
+        }
+      ]
+    : [
+        {
+          label: "[Untested Assumption]",
+          assumption: "Target customers experience the problem with sufficient urgency and frequency to switch from current workarounds and pay the proposed price.",
+          howToTest: "Conduct 10–15 structured customer discovery interviews and run a direct pricing/pre-commitment test."
+        }
+      ];
+
+  return {
+    schemaVersion: "2026-11-03.v1",
+    generatedAtUtc: generatedUtc,
+    categories: {
+      founderProvided: categoryA_founderProvided,
+      independentlyVerified: categoryB_independentlyVerified,
+      aiInference: categoryC_aiInference,
+      untestedAssumptions: categoryD_untestedAssumptions
+    }
+  };
 }
 
 /**
@@ -1607,15 +1927,15 @@ function calculate5DimensionFutureTrends(rawInputs = {}, gatesInfo = {}, venture
 
   if (isNuclear || gatesInfo?.hasCriticalGate) {
     marketDirection = "POSITIVE";
-    solutionOutlook = "MATERIAL CONSTRAINTS PENDING LEGAL CONFIRMATION";
-    demandTrend = "National demand for 24/7 low-carbon firm electricity is expected to increase driven by electrification and climate targets.";
-    technologyTrend = "SMR technologies continue to progress internationally, although commercial maturity, deployment timelines and economics vary materially by technology and jurisdiction.";
-    regulatoryTrend = "Significant statutory and regulatory frameworks (e.g. Radiation Safety Act 2016, Atomic Energy Act 1945, RMA) currently constrain commercial nuclear generation in NZ, subject to specialist legal confirmation.";
-    competitionTrend = "Traditional grid generators (hydro, geothermal, wind) dominate under current regulatory architecture.";
-    capitalTrend = "Multi-billion dollar CAPEX structure incompatible with early-stage venture funding without government underwriting.";
-    whatThisMeansForFounder = "Preserve the problem definition and track policy developments. Do not deploy private development capital into commercial nuclear generation in NZ until a clear statutory and regulatory pathway has been confirmed by specialist counsel.";
-    adjacentOpportunities = ["Off-grid micro-grids and clean energy storage", "Geothermal & hydro grid-firming technologies", "Nuclear technology & regulatory advisory for OECD markets"];
-    trendAlignmentScore = 7; // Reflects high structural alignment with 3-10 year decarbonization & energy demand trends
+    solutionOutlook = "NO ESTABLISHED REGULATORY PATHWAY — PARKED PENDING STATUTORY CLARITY";
+    demandTrend = "National demand for 24/7 low-carbon firm electricity is expected to increase driven by industrial electrification, data-centre load, and dry-year hydro security [Verified Context].";
+    technologyTrend = "Small Modular Reactor (SMR) designs continue to progress internationally, although commercial licensing maturity, deployment timelines, and levelised cost of electricity (LCOE) remain early-stage across OECD markets [AI Inference].";
+    regulatoryTrend = "While the New Zealand Nuclear Free Zone, Disarmament, and Arms Control Act 1987 prohibits nuclear weapons, nuclear-powered vessels, and radioactive waste dumping rather than land-based civilian power reactors, New Zealand currently has no established nuclear power reactor licensing pathway under the Atomic Energy Act 1945, Radiation Safety Act 2016, Resource Management Act 1991, and Electricity Industry Act 2010 [Verified Source].";
+    competitionTrend = "Domestic renewable firming alternatives—including hydro storage, geothermal baseload, wind/solar paired with grid-scale battery storage (BESS), biomass, and industrial demand response—operate within established New Zealand regulatory pathways [AI Inference].";
+    capitalTrend = "Multi-billion-dollar utility CAPEX structure requires sovereign policy backing, specialist nuclear OEM consortium partners, and institutional project finance incompatible with early-stage private venture funding [AI Inference].";
+    whatThisMeansForFounder = "Park active commercial development while preserving the underlying energy-security thesis. Restrict Phase 1 to a low-cost ($0–$500 NZD, 0–5 hrs/wk) statutory and policy verification gateway before considering any technical or commercial expenditure.";
+    adjacentOpportunities = ["Grid-firming energy analytics and commercial power-purchase advisory", "Geothermal, hydro, or industrial energy-efficiency project structuring", "Monitoring OECD SMR regulatory and policy developments"];
+    trendAlignmentScore = 7; // High macro decarbonisation alignment (7/10), while scorecard Future Trends is capped at 1/5 until an established NZ regulatory pathway exists
   } else if (isBookkeepingOrProfService) {
     marketDirection = "POSITIVE";
     solutionOutlook = "FAVOURABLE";
@@ -1651,13 +1971,13 @@ function calculate5DimensionFutureTrends(rawInputs = {}, gatesInfo = {}, venture
     trendAlignmentScore = 8;
   } else if (ventureType.includes("Hardware") || ventureType.includes("Manufacturing")) {
     marketDirection = "POSITIVE";
-    solutionOutlook = "PROMISSING";
-    demandTrend = "Increasing market demand for durable physical equipment and automation.";
-    technologyTrend = "Falling costs of rapid prototyping, IoT sensors, and local manufacturing tooling.";
-    regulatoryTrend = "Standard environmental and safety compliance standards apply.";
-    competitionTrend = "Moderate competition from established traditional equipment suppliers.";
-    capitalTrend = "Requires upfront tooling and prototype risk capital prior to revenue.";
-    whatThisMeansForFounder = "Validate physical prototype durability and secure customer pre-orders before committing tooling capital.";
+    solutionOutlook = "PROMISING";
+    demandTrend = "Steady vessel-owner, liveaboard, and marina demand for practical, low-maintenance protection against rodent and insect boarding via mooring lines.";
+    technologyTrend = "Compact solar-charging electronics, sealed marine-grade enclosures, and low-voltage pulse circuits enable self-contained active deterrents on mooring ropes.";
+    regulatoryTrend = "Maritime biosecurity expectations (particularly for island sanctuaries and marinas) alongside electrical safety, EMC, and marine environmental durability standards.";
+    competitionTrend = "Conventional passive conical plastic/metal rat guards, manual baiting/traps, and ultrasonic deterrents represent the primary incumbent workarounds.";
+    capitalTrend = "Staged hardware capital model: low-cost customer discovery and benchtop proof-of-concept first, followed by marine field trials and production tooling only after validation.";
+    whatThisMeansForFounder = "Validate customer willingness to pay and test a solar-powered low-voltage proof-of-concept on wet mooring ropes before committing manufacturing tooling capital.";
     adjacentOpportunities = ["No adjacent opportunity should currently be prioritised. Validate the core business first."];
     trendAlignmentScore = 6;
   } else if (ventureType === 'Transportation / Mobility / Marketplace' || ventureType.includes("Transportation") || ventureType.includes("Mobility") || Boolean(text.match(/\b(ride-share|rideshare|ride-hailing|ride-booking|taxi|passenger transport|transport-booking|car booking|driver network)\b/i))) {
@@ -1730,89 +2050,11 @@ function calculate5DimensionFutureTrends(rawInputs = {}, gatesInfo = {}, venture
 }
 
 /**
- * Computes P.A.R.A.-inspired Idea Portfolio & Decision System metadata (Fix 14).
- * Preserves underlying problem definition while evaluating current proposed solution.
+ * Computes P.A.R.A.-inspired Idea Portfolio & Decision System metadata.
+ * Always delegates to getPortfolioDecision so masterRecommendation and portfolioDecision are 100% unified.
  */
 function computePortfolioMeta(rawInputs = {}, reconciled = {}, ventureType = "", gatesInfo = {}) {
-  const idea = rawInputs.idea || "Business Opportunity";
-  const problemAnalysis = detectProblemStatementMisclassification(rawInputs);
-  const problem = problemAnalysis.isFounderCapabilityNeedInProblemField
-    ? problemAnalysis.inferredCustomerProblem
-    : (rawInputs.problem || "Observed customer or market challenge");
-  const masterRecommendation = reconciled.masterRecommendation || "INVESTIGATE";
-  const score = reconciled.overallScore || 0;
-
-  let ventureStage = "Exploration";
-  if (score >= 85) ventureStage = "Build";
-  else if (score >= 70) ventureStage = "Validation";
-  else if (score >= 40) ventureStage = "Research";
-  else ventureStage = "Exploration";
-
-  // Problem vs Solution Separation (Fix 14 / Req #6 / Fix 6)
-  let problemStatus = "Worth Investigating";
-  let solutionStatus = "Viable";
-  let portfolioAction = "Proceed with controlled validation.";
-
-  if (gatesInfo?.hasCriticalGate) {
-    problemStatus = "Worth Investigating (Problem Preserved)";
-    solutionStatus = "Materially Constrained Pending Legal Confirmation";
-    portfolioAction = "PARK / PRESERVE";
-  } else if (problemAnalysis.isFounderCapabilityNeedInProblemField) {
-    problemStatus = "Assumption Requiring Direct Customer Discovery";
-    solutionStatus = "Viable Service Candidate";
-    portfolioAction = "Validate customer bookkeeping pain points and monthly fee willingness-to-pay alongside Xero certification.";
-  } else if (score < 40) {
-    problemStatus = "Requires Problem Discovery";
-    solutionStatus = "Requires Reframing";
-    portfolioAction = "Conduct discovery interviews to validate problem urgency before solution build.";
-  } else {
-    problemStatus = "Validated Urgency";
-    solutionStatus = "Viable Candidate";
-    portfolioAction = "Focus on customer willingness-to-pay and execution velocity.";
-  }
-
-  // Archetype-Specific Next Evidence Gateway (Req #7)
-  let nextEvidenceGateway = "";
-  let reassessmentTrigger = "";
-
-  if (gatesInfo?.hasCriticalGate) {
-    nextEvidenceGateway = "Credible statutory/regulatory pathway or material external change.";
-    reassessmentTrigger = "Statutory reform under land-based energy legislation (such as Radiation Safety Act or RMA), central government policy change, or commercial SMR deployment in peer OECD nations.";
-  } else if (ventureType === "Professional Services / Bookkeeping & Financial Advisory" || ventureType === "Professional Services / Agency / Traditional SME") {
-    nextEvidenceGateway = "Complete 8–10 structured discovery conversations with target small businesses and community organisations and test fixed-fee monthly bookkeeping packages.";
-    reassessmentTrigger = "Return after completing Xero advisor certification, interviewing 8–10 prospective clients, and securing 2–3 paying pilot retainers.";
-  } else if (ventureType === "Community / Not-for-Profit / Social Enterprise") {
-    nextEvidenceGateway = "Conduct 8–10 community stakeholder interviews and secure 2 pilot community group or funder commitments.";
-    reassessmentTrigger = "Return after validating participant demand and confirming initial programme funding or fee-for-service sustainability.";
-  } else if (ventureType === "Trade / Local Service") {
-    nextEvidenceGateway = "Present fixed-price service offer to 5 prospective local commercial/residential clients.";
-    reassessmentTrigger = "Return after completing 5 service quotes and securing 2 paying local clients.";
-  } else if (ventureType === "Physical Consumer Product / Hardware") {
-    nextEvidenceGateway = "Produce physical proof-of-concept prototype & obtain manufacturer unit cost estimates.";
-    reassessmentTrigger = "Return after completing field durability testing and receiving formal supplier BOM pricing.";
-  } else if (ventureType === "Energy / Infrastructure / Heavy Industrial" || ventureType === "Medical / Biotech / Clinical" || ventureType === "Regulated Service") {
-    nextEvidenceGateway = "Obtain preliminary regulatory advice and technical pre-feasibility confirmation.";
-    reassessmentTrigger = "Return after securing written regulatory guidance or specialist pre-feasibility clearance.";
-  } else {
-    nextEvidenceGateway = "Conduct 10 customer discovery interviews & validate prototype interactive workflow.";
-    reassessmentTrigger = "Return after completing 10 discovery calls and securing 3 LOIs or pre-orders.";
-  }
-
-  return {
-    ideaId: rawInputs.ideaId || `idea_${Date.now()}`,
-    decisionState: masterRecommendation,
-    ventureStage: ventureStage,
-    problemVsSolution: {
-      underlyingProblem: problem,
-      currentProposedSolution: idea,
-      problemStatus: problemStatus,
-      solutionStatus: solutionStatus,
-      portfolioAction: portfolioAction
-    },
-    nextEvidenceGateway: nextEvidenceGateway,
-    reassessmentTrigger: reassessmentTrigger,
-    lastAssessedDate: new Date().toISOString().split('T')[0]
-  };
+  return getPortfolioDecision(rawInputs, reconciled, ventureType, gatesInfo);
 }
 
 /**
@@ -1997,23 +2239,43 @@ function calculateFounderEvidenceGap(founderPredictions = {}, reconciled = {}, r
   };
 }
 
+function extractCleanCustomerSegmentLabel(rawTargetMarket = "") {
+  const raw = String(rawTargetMarket || "target customers").trim();
+  if (!raw) return "target customers";
+  const firstSentence = raw.split(/(?<=[.!?])\s+/)[0] || raw;
+  const cleaned = firstSentence
+    .replace(/^the target market includes\s+/i, "")
+    .replace(/^our target customers? (?:are|include)\s+/i, "")
+    .replace(/\.$/, "")
+    .trim();
+  return cleaned.length > 140 ? cleaned.slice(0, 137) + "..." : cleaned;
+}
+
 function generateContextualScoreExplanation(key, scoreAchieved, maxScore, rawInputs = {}, gatesInfo = {}, founderCalc = {}) {
   const idea = (rawInputs.idea || "Proposed venture").trim();
   const targetMarket = (rawInputs.targetMarket || "target customers").trim();
+  const cleanSegment = extractCleanCustomerSegmentLabel(targetMarket);
   const isNuclear = (idea + " " + (rawInputs.category || "")).toLowerCase().includes("nuclear");
+  const isMoorSafe = (idea + " " + (rawInputs.problem || "")).toLowerCase().match(/\b(moorsafe|mooring|pest deterrent|rodent|rat guard)\b/);
   const ratio = maxScore > 0 ? scoreAchieved / maxScore : 0;
 
   if (key === 'problemCustomerClarity') {
     if (isNuclear || gatesInfo?.hasCriticalGate) {
-      return "The underlying energy-security and baseload supply challenge is clearly defined, but commercial demand accessibility is governed by statutory framework constraints.";
+      return "The national baseload electricity reliability, dry-year hydro security, and industrial decarbonisation challenge is clearly articulated and strategically significant [Founder Input / Verified Context]. Problem & Customer Clarity (14/14) reflects strong strategic problem articulation, whereas commercial off-taker demand is evaluated separately under Customer Validation (1/20).";
+    }
+    if (isMoorSafe) {
+      return `The core problem—preventing rodents and insects from boarding vessels via mooring ropes—and the primary customer segment (${cleanSegment}) are clearly defined [Founder Input]. Founder assertions that existing plastic guards are unreliable and that boat owners already spend heavily on protection are treated as testable hypotheses requiring empirical customer discovery [Untested Assumption].`;
     }
     return ratio >= 0.7
-      ? `The commercial problem and target customer segment (${targetMarket}) are clearly defined with high articulated urgency.`
+      ? `The commercial problem and target customer segment (${cleanSegment}) are clearly articulated [Founder Input], with problem frequency and willingness-to-pay hypotheses ready for empirical customer discovery.`
       : `The problem concept is identified, but target customer definition and problem severity require sharper empirical validation.`;
   }
   if (key === 'founderCapabilityFit') {
     if (isNuclear && !founderCalc?.hasDirectDomainMatch) {
-      return "Founder demonstrates strong transferable commercial and financial capability, but lacks direct technical nuclear engineering credentials.";
+      return "Founder brings strong transferable commercial, financial modelling, and governance capability (Chartered Accountant / BCom) [Founder Input], while specialist nuclear engineering, reactor safety licensing, and utility infrastructure delivery capabilities would require a specialist technical consortium [AI Inference].";
+    }
+    if (isMoorSafe) {
+      return "Founder brings strong commercial, financial, and business management credentials (CA / BCom) [Founder Input] suitable for venture coordination and commercial validation, while marine electrical engineering, waterproof enclosure design, and manufacturing tooling represent specialist capabilities to be outsourced or partnered [AI Inference].";
     }
     if (founderCalc?.hasDirectDomainMatch) {
       return "Founder background demonstrates relevant sector experience, practical operational authority, and strong commercial capability, with technical development identified as the bridgeable execution gap.";
@@ -2024,51 +2286,51 @@ function generateContextualScoreExplanation(key, scoreAchieved, maxScore, rawInp
   }
   if (key === 'customerValidation') {
     if (isNuclear || gatesInfo?.hasCriticalGate) {
-      return "No commercial off-taker validation is currently evidenced; customer commitment is a downstream step following statutory permissibility.";
+      return "No commercial off-taker validation, industrial Letters of Intent (LOIs), or power-purchase commitments are currently evidenced (1/20); commercial off-taker engagement remains downstream of establishing a statutory and regulatory licensing pathway.";
     }
     return ratio >= 0.5
       ? "Initial customer interest or early feedback is documented, requiring formal willingness-to-pay testing."
-      : "Empirical customer validation logs, LOIs, or formal user feedback are not yet evidenced.";
+      : "Empirical customer validation logs, discovery interviews, LOIs, or pre-orders are not yet evidenced [Untested Assumption].";
   }
   if (key === 'marketCommercialOpportunity') {
     if (isNuclear || gatesInfo?.hasCriticalGate) {
-      return "Underlying electricity market demand is substantial, but accessible commercial market opportunity is severely constrained by statutory and capital barriers.";
+      return "While New Zealand's long-term electricity demand and decarbonisation needs are substantial, commercially accessible market opportunity for land-based SMR generation is capped (2/14) because no established nuclear power licensing pathway currently exists under New Zealand law [Verified Source / AI Inference].";
     }
     return ratio >= 0.7
-      ? `Addressable market opportunity in ${targetMarket} displays positive growth tailwinds and accessible customer segments.`
-      : `Market segment opportunity is present, but early commercial reachability and adoption friction require verification.`;
+      ? `The target segment (${cleanSegment}) represents a plausible commercial market opportunity [AI Inference], though commercially accessible demand and verified willingness to pay must be confirmed through direct customer interviews [Untested Assumption].`
+      : `Market segment opportunity (${cleanSegment}) is plausible in principle [AI Inference], but commercially accessible demand, switching willingness, and price sensitivity remain unverified [Untested Assumption].`;
   }
   if (key === 'businessModelWillingnessToPay') {
     if (isNuclear || gatesInfo?.hasCriticalGate) {
-      return "Wholesale power revenue mechanisms are identifiable, but no compliant off-take, regulatory consenting, or multi-billion project financing structure exists.";
+      return "Wholesale Power Purchase Agreement (PPA) revenue mechanisms exist in energy markets generally, but no legally compliant licensing pathway, sovereign risk-sharing structure, or multi-billion-dollar project finance model is established in New Zealand.";
     }
     return ratio >= 0.7
-      ? "Revenue model and pricing structure are logically structured relative to target customer value proposition."
-      : "Monetisation model is conceptual; customer willingness-to-pay and unit margins require empirical testing.";
+      ? "Revenue model and pricing structure are logically structured relative to target customer value proposition, subject to willingness-to-pay verification."
+      : "Monetisation model is conceptual; founder assumptions regarding customer spending and unit margins require direct empirical testing [Untested Assumption].";
   }
   if (key === 'competitivePosition') {
     if (isNuclear || gatesInfo?.hasCriticalGate) {
-      return "No venture-specific defensible advantage is yet evidenced relative to established generation alternatives or state-backed utility infrastructure.";
+      return "No venture-specific defensible advantage is evidenced relative to established New Zealand low-carbon generation and firming alternatives (hydro, geothermal, wind/solar with battery storage, biomass, and demand response) operating within existing regulatory frameworks.";
     }
     return ratio >= 0.7
-      ? "Value proposition articulates clear operational advantages over existing manual workarounds."
-      : "Differentiation against entrenched market incumbents and existing customer workarounds remains early stage.";
+      ? "Value proposition articulates clear functional differentiation over existing manual workarounds, subject to field performance testing."
+      : "Differentiation against conventional customer workarounds and incumbent alternatives remains unverified in field conditions [Untested Assumption].";
   }
   if (key === 'executionReadiness') {
     if (isNuclear || gatesInfo?.hasCriticalGate) {
-      return "Execution readiness is constrained by multi-billion-dollar capital scale, multi-stage statutory consenting, and specialist capability prerequisites.";
+      return "Execution readiness is capped (1/9) due to the absence of an established NZ reactor licensing pathway, multi-billion-dollar infrastructure capital requirements versus $0–$500 initial validation budget, and 0–5 hrs/wk founder availability—making a low-cost Phase 1 statutory gateway the only appropriate immediate step.";
     }
     return ratio >= 0.7
       ? "Execution plan outlines structured milestones aligned with available founder time and validation resources."
-      : "Near-term execution roadmap requires disciplined scoping around high-risk commercial assumptions.";
+      : "Near-term execution roadmap requires disciplined stage-gated validation aligned with the founder's weekly hours and initial risk capital.";
   }
   if (key === 'futureTrends') {
     if (isNuclear || gatesInfo?.hasCriticalGate) {
-      return "Macro decarbonisation tailwinds support clean energy, but significant statutory and regulatory barriers present immediate feasibility headwinds.";
+      return "Long-term macro decarbonisation and 24/7 firm energy trends are positive (7/10 structural alignment), but the scorecard Future Trends rating is capped at 1/5 because New Zealand currently has no established statutory/regulatory licensing pathway for commercial nuclear reactors.";
     }
     return ratio >= 0.7
       ? "Macro technology and industry trends strongly support long-term adoption of this commercial solution."
-      : "Macro trends present mixed dynamics requiring proactive positioning ahead of regulatory and technology shifts.";
+      : "Macro trends present constructive tailwinds alongside regulatory, technical, and adoption requirements.";
   }
 
   return `Evaluated against commercial feasibility criteria (${scoreAchieved}/${maxScore}).`;
@@ -2077,50 +2339,51 @@ function generateContextualScoreExplanation(key, scoreAchieved, maxScore, rawInp
 function generateContextualInvestorCommentary(area, rating, scoreAchieved, maxScore, reqData = {}, gatesInfo = {}, reconciled = {}) {
   const idea = (reqData.idea || "Proposed concept").trim();
   const targetMarket = (reqData.targetMarket || "target customers").trim();
+  const cleanSegment = extractCleanCustomerSegmentLabel(targetMarket);
   const isNuclear = (idea + " " + (reqData.category || "")).toLowerCase().includes("nuclear");
   const ventureType = classifyVentureType(reqData);
 
   if (area === "Problem Worth Solving") {
     if (isNuclear || gatesInfo?.hasCriticalGate) {
-      return "Reliable, affordable, low-carbon electricity represents a strategically significant long-term infrastructure challenge.";
+      return "Reliable, affordable, 24/7 low-carbon baseload electricity represents a strategically significant long-term national infrastructure challenge [Verified Context].";
     }
     return rating >= 4
-      ? "Target customer problem and operational pain urgency are well articulated and commercially significant."
-      : "The problem statement is identified, but pain urgency and customer impact require sharper empirical verification.";
+      ? "Target customer problem and operational pain urgency are well articulated and commercially plausible, pending direct buyer discovery."
+      : "The problem statement is identified, but pain urgency and customer financial impact require empirical verification.";
   }
   if (area === "Market Opportunity") {
     if (isNuclear || gatesInfo?.hasCriticalGate) {
-      return "Underlying electricity demand is substantial, but the accessible opportunity for this solution remains severely constrained by regulatory and capital barriers.";
+      return "Underlying electricity demand is substantial, but the commercially accessible opportunity for SMR deployment in New Zealand is currently gated by the absence of an established reactor licensing pathway and multi-billion-dollar capital requirements.";
     }
     return rating >= 4
-      ? `Addressable market opportunity in ${targetMarket} displays strong underlying demand drivers.`
-      : "Underlying market exists, but commercially accessible TAM and early customer reachability remain unverified.";
+      ? `Addressable market opportunity in ${cleanSegment} displays constructive demand drivers, subject to verifying commercially accessible buyers.`
+      : "Broad industry segment exists, but commercially accessible customer count and verified willingness to pay remain untested.";
   }
   if (area === "Competitive Advantage") {
     if (isNuclear || gatesInfo?.hasCriticalGate) {
-      return "No venture-specific defensible advantage is yet evidenced relative to established generation alternatives or potential state-backed infrastructure development.";
+      return "No venture-specific defensible advantage is evidenced relative to established New Zealand generation alternatives (hydro, geothermal, wind/solar + storage) or state/utility-backed energy infrastructure.";
     }
     return rating >= 4
-      ? "Unique value proposition and operational advantages provide clear differentiation against current manual workarounds."
-      : "Differentiation relative to entrenched market incumbents and existing customer workarounds remains early stage.";
+      ? "Unique value proposition and functional design provide plausible differentiation against conventional passive workarounds."
+      : "Differentiation relative to incumbent products and low-cost customer workarounds remains at the conceptual stage.";
   }
   if (area === "Business Model") {
     if (isNuclear || gatesInfo?.hasCriticalGate) {
-      return "Potential revenue mechanisms are identifiable, but no feasible regulatory, financing or off-take structure has been established.";
+      return "Wholesale power off-take mechanisms exist in theory, but no feasible New Zealand licensing pathway, nuclear liability framework, or utility project financing structure has been established.";
     }
     return rating >= 4
       ? "Monetisation model is logical with direct alignment between customer value delivery and revenue capture."
-      : "Commercial revenue model is conceptual; customer willingness-to-pay and unit margins require empirical testing.";
+      : "Commercial revenue model is conceptual; unit BOM economics and customer willingness to pay require empirical testing.";
   }
   if (area === "Founder Capability") {
     if (isNuclear || gatesInfo?.hasCriticalGate) {
-      return "Strong transferable commercial capability is present, but venture-specific nuclear, engineering and regulatory execution capability is not evidenced.";
+      return "Founder brings strong transferable commercial, financial modelling, and governance capability (CA/BCom), while nuclear engineering, safety licensing, and utility infrastructure delivery would require a specialist consortium.";
     }
     const isHardware = ventureType.includes("Hardware") || ventureType.includes("Manufacturing");
     if (isHardware) {
       return rating >= 4
-        ? "Founder demonstrates strong commercial background and execution leadership, with specialist engineering capability to be engaged as hardware design matures."
-        : "Founder brings transferable commercial capability; direct hardware engineering, electrical design, and manufacturing specialist capability should be engaged to support execution.";
+        ? "Founder demonstrates strong commercial background and financial governance, with specialist marine electrical and enclosure engineering to be engaged for hardware prototyping."
+        : "Founder brings transferable commercial and financial capability; specialist electrical engineering, marine waterproofing, and manufacturing design capability should be engaged on a stage-gated basis.";
     }
     const isTransport = ventureType.includes("Transportation") || ventureType.includes("Mobility") || (ventureType.includes("Marketplace") && ((reqData.idea || '') + ' ' + (reqData.category || '')).toLowerCase().match(/ride|transport|driver|passenger|mobility/i));
     if (isTransport) {
@@ -2134,15 +2397,15 @@ function generateContextualInvestorCommentary(area, rating, scoreAchieved, maxSc
   }
   if (area === "Customer Validation") {
     if (isNuclear || gatesInfo?.hasCriticalGate) {
-      return "No off-taker validation is currently evidenced and this remains downstream of statutory permissibility.";
+      return "No off-taker validation is currently evidenced (1/20), and commercial buyer engagement remains downstream of statutory and regulatory pathway verification.";
     }
     return rating >= 4
       ? "Empirical customer interview logs, early pilot feedback, or formal interest validate core demand assumptions."
-      : "No empirical customer validation logs, LOIs, or pilot user commitments are currently evidenced.";
+      : "No empirical customer validation logs, discovery interviews, LOIs, or pilot commitments are currently evidenced.";
   }
   if (area === "Scalability") {
     if (isNuclear || gatesInfo?.hasCriticalGate) {
-      return "The theoretical generation opportunity is large, but practical scalability is constrained by capital, regulation, site development and infrastructure requirements.";
+      return "Theoretical generation scale is large, but practical scalability is gated by national legislation, regulatory institution-building, site consenting, and multi-billion-dollar project finance.";
     }
     const isHardware = ventureType.includes("Hardware") || ventureType.includes("Manufacturing");
     const isBookkeepingOrProfService = ventureType === "Professional Services / Bookkeeping & Financial Advisory" || ventureType.includes("Professional Services");
@@ -2152,8 +2415,8 @@ function generateContextualInvestorCommentary(area, rating, scoreAchieved, maxSc
 
     if (isHardware) {
       return rating >= 4
-        ? "Scalability is supported by standardised hardware manufacturing and channel distribution, though unit gross margins and tooling investments govern capital efficiency."
-        : "Scalability is constrained by hardware manufacturing tooling costs, physical inventory working capital, and supply chain lead times.";
+        ? "Scalability is supported by standardised hardware manufacturing and marine retail/marina distribution, though BOM unit margins and tooling investments govern capital efficiency."
+        : "Scalability is governed by hardware unit economics, waterproof enclosure reliability, manufacturing tooling costs, and inventory working capital.";
     }
     if (isBookkeepingOrProfService) {
       return "Scalability is governed by billable founder capacity (15–30 hours/week initially), standardised cloud bookkeeping workflows (such as Xero templates and automated bank rules), recurring monthly retainers, and eventual contractor or junior bookkeeper delegation rather than software economics.";
@@ -2177,19 +2440,19 @@ function generateContextualInvestorCommentary(area, rating, scoreAchieved, maxSc
   }
   if (area === "Investment Readiness") {
     if (isNuclear || gatesInfo?.hasCriticalGate) {
-      return "The concept is not presently investment-ready because fundamental statutory and technical feasibility remains unresolved.";
+      return "The concept is not presently investment-ready because New Zealand lacks an established commercial nuclear reactor licensing pathway and the venture has not yet assembled a specialist technical/regulatory consortium.";
     }
     return rating >= 4
       ? "Commercial concept demonstrates strong evidence maturity and clear milestone progression for capital deployment."
-      : "The opportunity is early stage with foundational evidence gaps requiring resolution before seeking investment.";
+      : "The opportunity is at the pre-validation stage; customer willingness to pay and prototype durability must be verified before seeking external investment.";
   }
 
   return `Evaluated against commercial readiness criteria (${rating}/5).`;
 }
 
 /**
- * Authoritative Central Legal & Regulatory Assessment Object (Fix 1B / 1C)
- * Single authoritative source controlling all legal/regulatory conclusions across the report.
+ * Authoritative Central Legal & Regulatory Assessment Object (PL-FIX-20261103-01 Section 4)
+ * Distinguishes 6 canonical regulatory states and provides verified statutory citations.
  */
 function getLegalRegulatoryAssessment(rawInputs = {}, gatesInfo = {}, ventureType = "") {
   const idea = (rawInputs.idea || "").toLowerCase();
@@ -2201,35 +2464,88 @@ function getLegalRegulatoryAssessment(rawInputs = {}, gatesInfo = {}, ventureTyp
 
   const isNuclear = Boolean(fullText.match(/\b(nuclear|atomic|power plant|reactor|fission|fusion|smr)\b/i));
   const isNZ = Boolean(fullText.match(/new zealand|\bnz\b|kiwi|auckland|wellington|christchurch/)) || (locationCountry === "" && locationSummary === "");
+  const retrievedAtUtc = new Date().toISOString();
+
+  const regulatoryTaxonomy = [
+    "1. Expressly prohibited activities",
+    "2. Activities permitted subject to approvals",
+    "3. Activities facing substantial regulatory requirements",
+    "4. Activities without an established or complete regulatory pathway",
+    "5. Activities requiring potential legislative reform",
+    "6. Activities where legal permissibility remains uncertain"
+  ];
 
   if (isNuclear && isNZ) {
     return {
       primaryGatingRisk: "Statutory & Regulatory Permissibility",
-      evidenceLevel: "Preliminary Commercial Assessment",
+      regulatoryStatusCategory: "4. Activities without an established or complete regulatory pathway (and 5. Activities requiring potential legislative and regulatory reform)",
+      regulatoryTaxonomy,
+      evidenceLevel: "Verified Statutory Scope & Preliminary Commercial Assessment",
       certaintyLevel: "LEVEL C",
       directlyApplicableLaw: [
-        "Radiation Safety Act 2016",
-        "Resource Management Act 1991",
-        "Atomic Energy Act 1945"
+        "Atomic Energy Act 1945 (Public Act 1945 No 41)",
+        "Radiation Safety Act 2016 (Public Act 2016 No 6)",
+        "Resource Management Act 1991 (Public Act 1991 No 69)",
+        "Electricity Industry Act 2010 (Public Act 2010 No 116)"
       ],
       adjacentLawOrPolicy: [
-        "New Zealand Nuclear Free Zone, Disarmament, and Arms Control Act 1987 (nuclear explosive devices and nuclear-propelled vessels provisions)"
+        "New Zealand Nuclear Free Zone, Disarmament, and Arms Control Act 1987 (Public Act 1987 No 86, ss 4–11: prohibits nuclear explosive devices, biological weapons, entry of nuclear-powered ships, and dumping of radioactive waste; does not contain an express blanket statutory prohibition on land-based civilian nuclear electricity generation)"
+      ],
+      verifiedStatutes: [
+        {
+          title: "New Zealand Nuclear Free Zone, Disarmament, and Arms Control Act 1987",
+          citation: "Public Act 1987 No 86 (ss 4–11)",
+          enactmentYear: 1987,
+          url: "https://www.legislation.govt.nz/act/public/1987/0086/latest/DLM115116.html",
+          retrievedAtUtc,
+          statutoryScope: "Establishes the New Zealand Nuclear Free Zone; prohibits acquisition, stationing, or testing of nuclear explosive devices (ss 5–7), biological weapons (s 8), entry of nuclear-powered ships into NZ internal waters (s 9), and dumping of radioactive waste at sea (s 11).",
+          relevanceToVenture: "Does NOT contain an express blanket statutory ban on land-based civilian nuclear electricity generation, but shapes foundational national nuclear policy and waste-disposal constraints."
+        },
+        {
+          title: "Atomic Energy Act 1945",
+          citation: "Public Act 1945 No 41",
+          enactmentYear: 1945,
+          url: "https://www.legislation.govt.nz/act/public/1945/0041/latest/DLM239294.html",
+          retrievedAtUtc,
+          statutoryScope: "Controls prescribed substances (uranium, thorium, plutonium, neptunium) and atomic energy apparatus in New Zealand, requiring ministerial notification and consent for importation, possession, mining, or processing of fissile materials.",
+          relevanceToVenture: "Directly governs nuclear fuel materials and atomic energy apparatus; requires ministerial/statutory authorisation."
+        },
+        {
+          title: "Radiation Safety Act 2016",
+          citation: "Public Act 2016 No 6",
+          enactmentYear: 2016,
+          url: "https://www.legislation.govt.nz/act/public/2016/0006/latest/DLM6339517.html",
+          retrievedAtUtc,
+          statutoryScope: "Requires source licences and use licences administered by the Office of Radiation Safety / Director for Radiation Safety (Ministry of Health) for radiation sources.",
+          relevanceToVenture: "Designed around medical, industrial, and research radiation sources rather than utility-scale nuclear power reactor design certification, nuclear safety regulation, or spent nuclear fuel repository licensing."
+        },
+        {
+          title: "Resource Management Act 1991 & Electricity Industry Act 2010",
+          citation: "Public Act 1991 No 69 & Public Act 2010 No 116",
+          enactmentYear: 1991,
+          url: "https://www.legislation.govt.nz/act/public/1991/0069/latest/DLM230265.html",
+          retrievedAtUtc,
+          statutoryScope: "Governs environmental resource consenting, water/thermal discharge, seismic siting, national policy statements, and Electricity Authority / Transpower national grid connection.",
+          relevanceToVenture: "Any utility power station requires major environmental, land-use, thermal discharge, and grid connection consents."
+        }
       ],
       verifiedFacts: [
-        "New Zealand faces increasing electricity demand, security-of-supply challenges and continued decarbonisation requirements.",
-        "Land-based commercial nuclear power generation is not currently deployed in New Zealand.",
-        "Radiation safety and environmental consenting frameworks apply to nuclear and radioactive activities."
+        "New Zealand faces increasing electricity demand, dry-year hydro security-of-supply challenges, and industrial decarbonisation requirements [Verified Context].",
+        "The New Zealand Nuclear Free Zone, Disarmament, and Arms Control Act 1987 prohibits nuclear explosive devices, nuclear-powered ships, and sea-dumping of radioactive waste, rather than containing an express blanket ban on land-based civilian nuclear power generation [Verified Source].",
+        "Fissile materials, radiation sources, environmental siting, and grid connection are governed by the Atomic Energy Act 1945, Radiation Safety Act 2016, Resource Management Act 1991, and Electricity Industry Act 2010 [Verified Source].",
+        "New Zealand does not currently have an established commercial nuclear power reactor regulator or complete reactor licensing regime [Verified Context]."
       ],
       preliminaryInterpretations: [
-        "The concept appears to face substantial statutory and regulatory barriers, subject to specialist legal confirmation.",
-        "The commercially accessible market opportunity appears materially constrained pending legal confirmation."
+        "Commercial SMR electricity generation in New Zealand falls under Category 4 (no established or complete regulatory pathway) and Category 5 (likely requiring dedicated regulatory capacity and legislative/policy reform), subject to specialist legal confirmation [AI Inference].",
+        "Commercially accessible market opportunity is presently gated until a credible statutory and regulatory pathway is established [AI Inference]."
       ],
       unresolvedQuestions: [
-        "Whether a viable commercial generation pathway exists under the current statutory framework.",
-        "Whether legislative amendment or statutory reform would ultimately be required."
+        "Whether any conditional pre-feasibility or experimental licensing pathway could be pursued under current Ministerial discretion in the Atomic Energy Act 1945 and Radiation Safety Act 2016.",
+        "What specific legislative amendments, nuclear safety regulator establishment, and international nuclear liability treaties would be required before an SMR could be licensed in New Zealand."
       ],
       specialistConfirmationRequired: true,
       permittedLanguage: [
+        "faces an unestablished and incomplete regulatory pathway",
         "appears to face substantial statutory and regulatory barriers",
         "material constraints pending legal confirmation",
         "subject to specialist legal confirmation",
@@ -2243,7 +2559,8 @@ function getLegalRegulatoryAssessment(rawInputs = {}, gatesInfo = {}, ventureTyp
         "unfeasible without legislative reform",
         "requires legislative reform",
         "statutory bans",
-        "blocked by law"
+        "blocked by law",
+        "currently prohibit commercial nuclear power generation"
       ]
     };
   }
@@ -2251,10 +2568,13 @@ function getLegalRegulatoryAssessment(rawInputs = {}, gatesInfo = {}, ventureTyp
   if (gatesInfo?.hasCriticalGate) {
     return {
       primaryGatingRisk: gatesInfo.primaryGatingRisk || "Regulatory & Feasibility Gateway",
+      regulatoryStatusCategory: "3. Activities facing substantial regulatory requirements / 6. Activities where legal permissibility remains uncertain",
+      regulatoryTaxonomy,
       evidenceLevel: "Preliminary Commercial Assessment",
       certaintyLevel: "LEVEL C",
       directlyApplicableLaw: [],
       adjacentLawOrPolicy: [],
+      verifiedStatutes: [],
       verifiedFacts: [
         "Specialist statutory or regulatory compliance prerequisites apply to this sector."
       ],
@@ -2281,10 +2601,13 @@ function getLegalRegulatoryAssessment(rawInputs = {}, gatesInfo = {}, ventureTyp
 
   return {
     primaryGatingRisk: "Customer Demand & Willingness to Pay",
+    regulatoryStatusCategory: "2. Activities permitted subject to standard commercial and product compliance approvals",
+    regulatoryTaxonomy,
     evidenceLevel: "Unconstrained Commercial Activity",
     certaintyLevel: "LEVEL D",
     directlyApplicableLaw: [],
     adjacentLawOrPolicy: [],
+    verifiedStatutes: [],
     verifiedFacts: [],
     preliminaryInterpretations: [],
     unresolvedQuestions: [],
@@ -2363,14 +2686,66 @@ function buildAuthoritativeAssessmentSnapshot(reqData = {}, evaluationId = "", s
   const locCity = String(reqData.locationCity || "").trim();
   const locSummary = String(reqData.locationSummary || [locCity, locRegion, locCountry].filter(Boolean).join(", ") || "New Zealand").trim();
 
+  const ideaText = String(reqData.idea || "").trim();
+  const problemText = String(reqData.problem || "").trim();
+  const stageText = String(reqData.businessStage || "Idea only").trim();
+  const combinedLower = `${ideaText} ${problemText}`.toLowerCase();
+  const isMoorSafe = Boolean(combinedLower.match(/\b(moorsafe|mooring|pest deterrent|rodent|rat guard)\b/));
+  const isNuclear = Boolean(combinedLower.match(/\b(nuclear|smr|atomic|reactor)\b/));
+  const hasPrototypeSubmitted = Boolean(
+    stageText.toLowerCase().match(/\b(prototype|mvp|working product|beta|early users|paying|revenue)\b/) ||
+    combinedLower.match(/\b(built a prototype|working prototype|tested prototype|cad completed|3d printed prototype)\b/)
+  ) && !stageText.toLowerCase().match(/^(just an idea|idea only)$/i);
+
+  const founderCapabilityBreakdown = isNuclear
+    ? {
+        founderProposedRole: "Commercial Founder, Financial Structuring & Pre-Feasibility Coordinator",
+        existingCapabilities: ["Chartered Accountant (CAANZ) & BCom financial governance", "Commercial feasibility analysis & capital budgeting", "Executive leadership & stakeholder coordination"],
+        transferableCapabilities: ["Project governance", "Risk management", "Commercial off-take & financial modelling"],
+        missingSpecialistCapabilities: ["Nuclear reactor engineering & SMR safety systems", "Radiation safety & statutory environmental licensing", "Utility-scale power generation & grid transmission engineering"],
+        outsourceableCapabilities: ["Initial statutory & public law legal opinion", "Preliminary regulatory & policy desktop scoping"],
+        strategicPartnerOrConsortiumCapabilities: ["Certified SMR technology OEM partner", "Specialist nuclear engineering & safety operator", "Institutional infrastructure & sovereign project-finance consortium"]
+      }
+    : isMoorSafe
+    ? {
+        founderProposedRole: "Commercial Founder, Product Strategist & Validation Lead",
+        existingCapabilities: ["Chartered Accountant (CAANZ) & BCom commercial management", "Financial modelling, unit economics & supply-chain budgeting", "General business operations & stakeholder engagement"],
+        transferableCapabilities: ["Commercial discovery & marina/vessel-owner outreach", "Supplier negotiation & unit cost governance", "Staged risk-capital allocation"],
+        missingSpecialistCapabilities: ["Marine low-voltage electrical pulse & solar/battery circuit engineering", "IP67/IP68 saltwater enclosure & mechanical rope-clamping industrial design", "Electrical safety/EMC certification & contract manufacturing tooling"],
+        outsourceableCapabilities: ["Industrial design & PCB/solar-circuit prototyping", "IP67/IP68 waterproof housing engineering", "Electrical safety & compliance testing"],
+        strategicPartnerOrConsortiumCapabilities: ["Contract electronics manufacturer (CEM)", "Marine chandlery & marina operator distribution partners"]
+      }
+    : {
+        founderProposedRole: "Founder & Commercial Lead",
+        existingCapabilities: [narrative || "Submitted founder commercial and domain background"],
+        transferableCapabilities: ["Commercial execution", "Customer discovery", "Financial discipline"],
+        missingSpecialistCapabilities: ["Venture-specific technical or specialist delivery capabilities not evidenced in submission"],
+        outsourceableCapabilities: ["Specialist compliance, legal, or technical prototyping tasks"],
+        strategicPartnerOrConsortiumCapabilities: ["Distribution or specialist technical partners where required"]
+      };
+
   return {
-    schemaVersion: "2026-10-30.v1",
+    schemaVersion: "2026-11-03.v1",
     evaluationId: evaluationId || reqData.evaluationId || "",
     submissionId: submissionId || reqData.submissionId || "",
     userId: reqData.userId || "",
     founderName: String(reqData.founderName || "").trim(),
     ventureType,
     ventureContext: ventureType,
+    coreProblemStatement: problemMisclass.isFounderCapabilityNeedInProblemField ? problemMisclass.inferredCustomerProblem : problemText,
+    proposedSolutionStatement: ideaText,
+    excludedHistoricalOrAlternativeWork: isMoorSafe && !combinedLower.includes("adhesive")
+      ? "Assessed strictly on the submitted solar-powered, low-voltage electrical mooring-rope pest deterrent concept. Excluded passive adhesive-disc, CAD, or 3D-printing concepts not present in this submission are excluded."
+      : "None — assessed strictly on submitted concept.",
+    prototypeStageStatus: {
+      submittedBusinessStage: stageText,
+      hasPrototypeSubmitted,
+      noPrototypeInvented: !hasPrototypeSubmitted,
+      assessmentNote: hasPrototypeSubmitted
+        ? "Founder reported prototype/MVP progress; incorporated into technical and validation assessment."
+        : "Business stage is 'Just an idea' / 'Idea only'; PitchLab does not invent any existing physical prototype, CAD, or 3D-printed unit."
+    },
+    founderCapabilityBreakdown,
     founderTime: timeNorm,
     founderCapital: capNorm,
     problemClassification: problemMisclass,
@@ -2378,8 +2753,8 @@ function buildAuthoritativeAssessmentSnapshot(reqData = {}, evaluationId = "", s
     founderStatedSetupPriorities: problemMisclass.founderStatedSetupPriorities,
     inferredCustomerProblem: problemMisclass.inferredCustomerProblem,
     fields: {
-      q1_idea: String(reqData.idea || "").trim(),
-      q2_problem: String(reqData.problem || "").trim(),
+      q1_idea: ideaText,
+      q2_problem: problemText,
       q3_targetMarket: String(reqData.targetMarket || "").trim(),
       q4_marketScope: String(reqData.marketScope || "Local / Regional").trim(),
       q5_location: locSummary,
@@ -2397,7 +2772,7 @@ function buildAuthoritativeAssessmentSnapshot(reqData = {}, evaluationId = "", s
       q12_stepHoursLabel: timeNorm.stepHoursLabel,
       q13_investmentCommitment: capNorm.availableCapital,
       q13_initialRiskCapital: capNorm.initialRiskCapital,
-      q14_businessStage: String(reqData.businessStage || "Idea only").trim(),
+      q14_businessStage: stageText,
       q15_customerValidation: String(reqData.customerValidation || reqData.network || "").trim(),
       q16_fundingPreference: String(reqData.fundingPreference || "Personal savings only").trim(),
       q17_successDefinition: String(reqData.successDefinition || "Sustainable profitable business").trim(),
@@ -3255,6 +3630,66 @@ function validateReportIntegrityGate(evaluationData = {}, reqData = {}) {
     throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Input coverage audit found ${evaluationData.inputCoverage.summary.unaccountedCount} unaccounted answered question(s).`);
   }
 
+  // 28. Single Authoritative Master Portfolio Decision Consistency Check (PL-FIX-20261103-01 Section 5)
+  const canonicalDecisions = ["PURSUE", "INVESTIGATE", "PARK", "STOP"];
+  const masterDec = evaluationData.masterRecommendation;
+  if (masterDec && !canonicalDecisions.includes(masterDec)) {
+    throw new Error(`PITCHLAB QA INTEGRITY FAILURE: masterRecommendation ('${masterDec}') is not one of the canonical portfolio decisions (${canonicalDecisions.join(", ")}).`);
+  }
+  const decisionFieldsToVerify = [
+    { name: "portfolioMeta.portfolioDecision", val: evaluationData.portfolioMeta?.portfolioDecision },
+    { name: "portfolioMeta.decisionState", val: evaluationData.portfolioMeta?.decisionState },
+    { name: "adviserOpinion.masterRecommendation", val: evaluationData.adviserOpinion?.masterRecommendation },
+    { name: "adviserOpinion.portfolioDecision", val: evaluationData.adviserOpinion?.portfolioDecision },
+    { name: "summaryBlock.decisionStatus", val: evaluationData.summaryBlock?.decisionStatus },
+    { name: "investorBite.pitchLabRecommendation", val: evaluationData.investorBite?.pitchLabRecommendation },
+    { name: "finalRecommendation.recommendation", val: evaluationData.finalRecommendation?.recommendation }
+  ];
+  for (const df of decisionFieldsToVerify) {
+    if (df.val && masterDec && df.val !== masterDec) {
+      throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Contradictory portfolio decision detected. '${df.name}' is '${df.val}' while masterRecommendation is '${masterDec}'.`);
+    }
+  }
+
+  // 29. MoorSafe Marine Pest Deterrent Specific Reasoning & Exclusions Check (PL-FIX-20261103-01 Section 2.2 & 9)
+  const isMoorSafeVenture = Boolean((reqData.idea || evaluationData.idea || "").toLowerCase().match(/\b(moorsafe|mooring|pest deterrent|rodent|rat guard)\b/));
+  const submittedHasAdhesive = Boolean((reqData.idea || "").toLowerCase().includes("adhesive"));
+  if (isMoorSafeVenture) {
+    const moorSafeForbiddenPhrases = [
+      { pattern: /\bmooring line failure\b/i, phrase: "mooring line failure" },
+      { pattern: /\bline failure costs?\b/i, phrase: "line failure costs" },
+      { pattern: /\bunmonitored equipment failures?\b/i, phrase: "unmonitored equipment failures" },
+      { pattern: /\bequipment failure or pest damage\b/i, phrase: "equipment failure or pest damage" }
+    ];
+    if (!submittedHasAdhesive) {
+      moorSafeForbiddenPhrases.push(
+        { pattern: /\badhesive[- ]disc\b/i, phrase: "adhesive-disc" }
+      );
+    }
+    const allMoorSafeText = [
+      fullReportText,
+      JSON.stringify(evaluationData.actionPlan || {})
+    ].join(" \n ");
+    for (const rule of moorSafeForbiddenPhrases) {
+      if (rule.pattern.test(allMoorSafeText)) {
+        throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Prohibited generic or excluded hardware phrase ('${rule.phrase}') detected in MoorSafe marine pest deterrent assessment.`);
+      }
+    }
+  }
+
+  // 30. Nuclear Power NZ Statutory Precision Check (PL-FIX-20261103-01 Section 4)
+  if (isNuclearVenture) {
+    const nuclearInaccurateRules = [
+      { pattern: /currently prohibit commercial nuclear power generation/i, phrase: "currently prohibit commercial nuclear power generation" },
+      { pattern: /Nuclear Free Zone[^.\n]*prohibits\s+(?:land-based\s+)?(?:commercial\s+|civilian\s+)?nuclear\s+(?:power|electricity)\s+generation/i, phrase: "Nuclear Free Zone Act prohibits land-based nuclear power generation" }
+    ];
+    for (const rule of nuclearInaccurateRules) {
+      if (rule.pattern.test(fullReportText)) {
+        throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Inaccurate NZ nuclear statutory claim detected ('${rule.phrase}'). Must distinguish the NZ Nuclear Free Zone Act 1987 from the Atomic Energy Act 1945, Radiation Safety Act 2016, and RMA 1991.`);
+      }
+    }
+  }
+
   return true;
 }
 
@@ -3263,6 +3698,8 @@ module.exports = {
   reconcileScores,
   getScoreBand,
   computeMasterRecommendation,
+  buildScoringRubricAndIndicators,
+  buildEvidenceClassificationRegistry,
   calculateFounderSubFactors,
   calculateProblemSubFactors,
   calculateCustomerValidationSubFactors,

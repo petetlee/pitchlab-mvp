@@ -801,96 +801,116 @@ function generateActionSourceOfTruth(reqData = {}, reconciled = {}, ventureType 
   const stepHoursLabel = timeNorm.stepHoursLabel;
 
   if (isNuclear) {
-    const immediate7DayAction = `Identify qualified legal specialists in ${targetJurisdiction} and schedule an initial consultation to map statutory frameworks.`;
+    const capNorm = normalizeFounderCapital(reqData);
+    const riskBudgetLabel = capNorm.initialRiskCapital || "$0–$500 NZD";
+    const immediate7DayAction = `Conduct a zero-cost desktop statutory review of the Atomic Energy Act 1945, Radiation Safety Act 2016, Resource Management Act 1991, and New Zealand Nuclear Free Zone Act 1987, and send a brief written inquiry to 2–3 New Zealand energy/public law specialists (${stepHoursLabel}, within ${riskBudgetLabel}).`;
     const threePriorityActions = [
       {
-        heading: "1. Verify Statutory & Legal Permissibility.",
-        explanation: `Identify qualified legal and regulatory specialists in ${targetJurisdiction} and obtain an initial consultation to map statutory frameworks before committing development capital.`,
-        outcome: "Initial specialist discussion & indicative regulatory pathway / scope and fee."
+        heading: "1. Stage Gate 1: Desktop Statutory & Regulatory Pathway Review.",
+        explanation: `Review the statutory scope of the Atomic Energy Act 1945, Radiation Safety Act 2016, and RMA 1991 (distinguishing them from the Nuclear Free Zone Act 1987) and request an initial scope/indicative view from NZ public/energy law specialists (${hoursBand}, ${riskBudgetLabel}).`,
+        outcome: "Written Stage Gate 1 statutory pathway memo & legal specialist scope/fee."
       },
       {
-        heading: "2. Specialist Technical & Regulatory Pre-Feasibility Scoping.",
-        explanation: "Identify qualified energy infrastructure engineers and environmental regulatory consultants to map preliminary safety, site, grid connection, and statutory prerequisites.",
-        outcome: "Preliminary technical prerequisite & capability-gap scoping note."
+        heading: "2. Stage Gate 2 (Conditional on Gate 1): Technical & Consortium Scoping.",
+        explanation: "Only if Stage Gate 1 identifies a credible regulatory pathway, map SMR technology OEM partners, nuclear safety regulator prerequisites, and seismic/grid siting criteria.",
+        outcome: "Conditional technical & consortium prerequisite matrix (deferred if Gate 1 is not met)."
       },
       {
-        heading: "3. Capital Scale & Policy Assessment.",
-        explanation: "Perform preliminary desktop analysis of multi-billion-dollar project capital scale requirements, sovereign risk factors, and national energy policy alignment.",
-        outcome: "Indicative capital-scale & stakeholder/policy map."
+        heading: "3. Stage Gate 3 (Conditional on Gate 2): Capital & Policy Alignment.",
+        explanation: "Only if Gates 1 and 2 pass, evaluate sovereign policy alignment, multi-billion-dollar utility project finance structures, and industrial off-taker PPA requirements.",
+        outcome: "Conditional institutional consortium & policy roadmap (or formal PARK memo)."
       }
     ];
     const topFivePriorities = [
-      { priority: "Statutory & Legal Scoping", action: `Identify qualified legal specialists and obtain an initial consultation to map statutory frameworks under ${targetJurisdiction} legislation.`, metric: "Initial specialist consultation & scope/fee" },
-      { priority: "Specialist Technical Outreach", action: "Identify qualified power/nuclear engineers and regulatory consultants to map preliminary safety and grid prerequisites.", metric: "Preliminary specialist advisory scoping note" },
-      { priority: "Engineering & Site Prerequisite Mapping", action: "Perform desktop research to map site requirements, grid connection logistics, and environmental consenting prerequisites.", metric: "Desktop technical prerequisite memo" },
-      { priority: "Founder Risk Gateway Decision", action: "Review preliminary legal and technical scoping notes against founder resource reality before committing further investment.", metric: "Pre-Feasibility Go / Reframe / Stop Decision" },
-      { priority: "Commercial Off-Taker Alignment", action: "Track long-term energy market dynamics, PPA structures, and industrial off-taker decarbonisation requirements.", metric: "Preliminary PPA structure & off-taker alignment note" }
+      { priority: "Stage Gate 1: Statutory Scope Verification", action: `Map the exact licensing gaps across the Atomic Energy Act 1945, Radiation Safety Act 2016, RMA 1991, and Electricity Industry Act 2010 in ${targetJurisdiction}.`, metric: "Desktop statutory matrix & specialist legal inquiry" },
+      { priority: "Regulatory & Policy Feasibility Check", action: `Obtain an initial indicative view or fee scope from specialist energy/public law counsel within ${riskBudgetLabel}.`, metric: "Written specialist regulatory pathway response" },
+      { priority: "Mandatory Gate 1 Go / Park Decision", action: "Apply Stage Gate 1 pass/fail criteria: if no credible near-term licensing pathway exists, PARK the commercial SMR concept and do not proceed to technical spend.", metric: "Documented Gate 1 Pass / Park Decision" },
+      { priority: "Conditional Technical & Consortium Mapping (Gate 2)", action: "Conditional on passing Gate 1: identify international SMR OEMs, nuclear safety engineering capabilities, and grid connection requirements.", metric: "Conditional consortium prerequisite note" },
+      { priority: "Long-Term Energy Policy Monitoring", action: "Preserve the national baseload decarbonisation problem thesis and monitor NZ energy policy or OECD SMR licensing reforms at zero capital cost.", metric: "Quarterly policy & regulatory watch log" }
     ];
     const thirtyDayPlan = {
-      week1: { objective: "Legal & Regulatory Feasibility Assessment", tasks: ["Obtain specialist legal advice on statutory framework, local legislation and legal prohibitions", "Identify required regulatory approval bodies and compliance mandates"], expectedResult: "Comprehensive assessment of legal permissibility and statutory barriers" },
-      week2: { objective: "Specialist Technical & Domain Expert Consultation", tasks: ["Consult independent domain engineers, regulatory specialists or industry advisers", "Map required technical qualifications and specialist team gaps"], expectedResult: "Expert feedback on technical, safety, and operational feasibility" },
-      week3: { objective: "Technical & Infrastructure Feasibility Study", tasks: ["Assess grid, site, environmental, and infrastructure prerequisites", "Evaluate technology readiness level and deployment dependencies"], expectedResult: "High-level technical and site feasibility assessment report" },
-      week4: { objective: "Pre-Feasibility Decision (Proceed / Pivot / Stop)", tasks: ["Model indicative project economics, CAPEX/OPEX, and capital requirements", "Present pre-feasibility findings to make a disciplined Go / Pivot / Stop decision"], expectedResult: "Formal Pre-Feasibility Recommendation & Risk Gateway Report" }
+      week1: { objective: "Desktop Statutory & Legislative Review (Gate 1A)", tasks: ["Review the NZ Nuclear Free Zone Act 1987 (ss 4–11), Atomic Energy Act 1945, Radiation Safety Act 2016, and RMA 1991", "Document why land-based SMR generation faces an unestablished licensing pathway rather than a simple warship/weapons ban"], expectedResult: "Structured NZ nuclear statutory scope summary ($0 cost)" },
+      week2: { objective: "Regulatory & Public Law Specialist Inquiry (Gate 1B)", tasks: ["Identify 2–3 NZ energy/public law specialists and Office of Radiation Safety contacts", "Send a concise inquiry requesting an indicative view or fee quote on reactor licensing pathways"], expectedResult: "Initial regulatory specialist response within $0–$500 NZD budget" },
+      week3: { objective: "Comparative Generation & Policy Context Review", tasks: ["Benchmark SMR economics and timelines against NZ domestic firming alternatives (geothermal, hydro, wind + storage, demand response)", "Review current central government energy strategy statements"], expectedResult: "Comparative NZ baseload & firming alternatives brief" },
+      week4: { objective: "Stage Gate 1 Decision (Pass vs. Park)", tasks: ["Evaluate statutory and policy findings against Gate 1 pass/fail criteria", "If no credible regulatory pathway exists, formally PARK active SMR expenditure and preserve the energy-security problem thesis"], expectedResult: "Formal Stage Gate 1 Decision Memo (PARK or Conditional Proceed)" }
     };
     const ninetyDayPhases = [
       {
         phaseNumber: "Phase 1",
         daysRange: "Days 1–30",
-        title: "Problem & Statutory Scoping",
-        name: "Phase 1: Days 1–30 — Problem & Statutory Scoping",
-        objective: `Verify statutory permissibility and map legislative barriers under ${targetJurisdiction} law before deploying private risk capital.`,
+        title: "Stage Gate 1: Statutory & Regulatory Feasibility Gateway",
+        name: "Phase 1: Days 1–30 — Stage Gate 1: Statutory & Regulatory Feasibility Gateway",
+        objective: `Determine within ${hoursBand} and ${riskBudgetLabel} whether any credible statutory or regulatory pathway exists for land-based commercial SMR electricity generation under ${targetJurisdiction} law before any technical or commercial expenditure.`,
+        estimatedFounderTime: `${hoursBand} (${stepHoursLabel} across Days 1–30)`,
+        indicativeCost: riskBudgetLabel,
         activities: [
-          `Identify qualified legal counsel in ${targetJurisdiction} specializing in radiation safety, energy statutes, and environmental law.`,
-          "Obtain an initial specialist legal scoping consultation on the Radiation Safety Act 2016 and Atomic Energy Act 1945.",
-          "Review public policy positioning, sovereign risk factors, and fast-track consenting frameworks.",
-          "Synthesize legal scoping findings into an indicative regulatory feasibility memorandum."
+          `Conduct desktop statutory analysis of the Atomic Energy Act 1945, Radiation Safety Act 2016, Resource Management Act 1991, and Electricity Industry Act 2010 alongside the NZ Nuclear Free Zone Act 1987.`,
+          "Submit a targeted preliminary inquiry to 2–3 qualified NZ public/energy law specialists or regulatory agencies regarding commercial reactor licensing pathways.",
+          "Review central government energy policy and national grid firming alternatives (hydro, geothermal, wind+storage, demand response).",
+          "Synthesize findings into a Stage Gate 1 Regulatory Feasibility Memorandum."
         ],
-        successCriteria: "Specialist confirmation of whether a credible statutory pathway exists or if state-level legislative reform is required.",
-        deliverables: "Statutory Permissibility Memorandum & Legal Scoping Scope/Fee Document.",
-        decisionMilestone: "Statutory Gateway: If no viable statutory pathway exists without legislative reform, STOP or PARK private capital expenditure."
+        evidenceRequired: "Written statutory analysis and initial specialist legal/regulatory feedback confirming whether an actionable licensing pathway exists under current NZ law.",
+        decisionCriteria: "Existence of a lawful, practically accessible regulatory and policy pathway that can be explored within the founder's resources.",
+        passFailConditions: "PASS: Specialist legal/regulatory feedback identifies a viable statutory pathway or formal government regulatory sandbox. FAIL: Confirmation that no commercial nuclear power reactor licensing regime exists and legislative/institutional reform is required.",
+        ifNotMetAction: "PARK the commercial SMR execution concept immediately. Do NOT proceed to Phase 2 technical scoping or Phase 3 commercial expenditure; monitor national energy policy at zero cost.",
+        successCriteria: "Clear verification of statutory status and regulatory pathway constraints within $0–$500 NZD.",
+        deliverables: "Stage Gate 1 Statutory & Regulatory Feasibility Memorandum.",
+        decisionMilestone: "Mandatory Gate 1 Decision: If no established regulatory pathway exists, PARK the venture and halt downstream spend."
       },
       {
         phaseNumber: "Phase 2",
         daysRange: "Days 31–60",
-        title: "Solution & Technical Pre-Feasibility",
-        name: "Phase 2: Days 31–60 — Solution & Technical Pre-Feasibility",
-        objective: "Map technical prerequisites, Small Modular Reactor (SMR) technology options, grid integration, and safety requirements.",
+        title: "Stage Gate 2 (Conditional on Passing Gate 1): Technical & Consortium Pre-Feasibility",
+        name: "Phase 2: Days 31–60 — Stage Gate 2 (Conditional): Technical & Consortium Pre-Feasibility",
+        objective: "CONDITIONAL ON PASSING GATE 1 ONLY: Map technical SMR prerequisites, specialist nuclear engineering consortium requirements, seismic siting criteria, and grid integration.",
+        estimatedFounderTime: `${hoursBand} (Conditional — 0 hrs/wk if Gate 1 results in PARK)`,
+        indicativeCost: "Conditional external institutional/grant budget required ($0 private founder spend until Gate 1 passes)",
         activities: [
-          "Consult independent power engineers regarding SMR technology readiness levels and deployment timelines.",
-          "Perform desktop assessment of grid connection logistics, seismic site screening, and cooling water access.",
-          "Review international regulatory precedent (e.g. NRC, CNSC) applicable to candidate reactor designs.",
-          "Map technical team qualifications, specialist capability gaps, and pre-feasibility budget required."
+          "Conditional on Gate 1 Pass: Consult independent nuclear/power engineers regarding international SMR licensing precedent (NRC, CNSC, ONR) and TRL maturity.",
+          "Conditional on Gate 1 Pass: Map minimum operating consortium capabilities (nuclear engineering, safety licensing, waste management, utility operations).",
+          "Conditional on Gate 1 Pass: Perform desktop screening of seismic siting, thermal cooling, and Transpower national grid connection requirements.",
+          "Estimate the institutional budget required for a formal engineering pre-feasibility study."
         ],
-        successCriteria: "Clear identification of fundamental technical prerequisites, siting criteria, and minimum consortium capabilities.",
-        deliverables: "Technical Pre-Feasibility Scoping Note & Infrastructure Prerequisite Matrix.",
-        decisionMilestone: "Technical Gateway: Confirm whether prerequisites are within private venture feasibility or necessitate a sovereign utility consortium."
+        evidenceRequired: "Documented technical prerequisite matrix and confirmation of specialist OEM/engineering partner interest.",
+        decisionCriteria: "Willingness of credentialed energy/nuclear engineering partners or institutional sponsors to co-develop pre-feasibility scoping.",
+        passFailConditions: "PASS: Credible technical/consortium partner alignment and feasible siting parameters identified. FAIL: Inability to secure specialist technical partners or prohibitive infrastructure constraints.",
+        ifNotMetAction: "PARK or STOP the venture. Do not commit personal capital to engineering studies.",
+        successCriteria: "Conditional identification of technical prerequisites and consortium partner requirements.",
+        deliverables: "Conditional Technical & Consortium Prerequisite Matrix.",
+        decisionMilestone: "Mandatory Gate 2 Decision: Proceed to Phase 3 only if both statutory pathway (Gate 1) and specialist consortium alignment (Gate 2) are confirmed."
       },
       {
         phaseNumber: "Phase 3",
         daysRange: "Days 61–90",
-        title: "Commercial Structure & Policy Alignment Decision",
-        name: "Phase 3: Days 61–90 — Commercial Structure & Policy Alignment Decision",
-        objective: "Model multi-billion-dollar CAPEX realities, off-taker demand, public policy engagement pathways, and final gateway governance.",
+        title: "Stage Gate 3 (Conditional on Passing Gate 2): Commercial, Off-Take & Capital Structure",
+        name: "Phase 3: Days 61–90 — Stage Gate 3 (Conditional): Commercial, Off-Take & Capital Structure",
+        objective: "CONDITIONAL ON PASSING GATES 1 & 2 ONLY: Model multi-billion-dollar utility CAPEX structures, sovereign risk-sharing, and industrial off-taker Power Purchase Agreement (PPA) frameworks.",
+        estimatedFounderTime: `${hoursBand} (Conditional — 0 hrs/wk if parked at Gate 1 or Gate 2)`,
+        indicativeCost: "Conditional institutional consortium funding ($0 founder personal capital at risk)",
         activities: [
-          "Draft preliminary capital structure model evaluating public-private partnership (PPP) and sovereign underwriting models.",
-          "Map prospective industrial off-takers and long-term Power Purchase Agreement (PPA) interest for firm baseload power.",
-          "Engage relevant government and industry energy policy working groups to monitor statutory reform debate.",
-          "Synthesize legal, technical, and capital findings into an executive pre-feasibility review."
+          "Conditional on Gate 2 Pass: Model indicative LCOE, multi-billion-dollar CAPEX financing, and sovereign guarantee / PPP requirements.",
+          "Conditional on Gate 2 Pass: Conduct preliminary briefings with major industrial energy off-takers and energy policy working groups.",
+          "Conditional on Gate 2 Pass: Define the founder's commercial/financial coordination role within a broader institutional consortium.",
+          "Complete the 90-Day Stage-Gated Portfolio Decision (Park, Reframe to adjacent clean-energy advisory, or Institutional Hand-off)."
         ],
-        successCriteria: "Quantified capital scale model and stakeholder policy alignment assessment.",
-        deliverables: "Comprehensive Pre-Feasibility Synthesis & Capital Scale Framework.",
-        decisionMilestone: "Final 90-Day Gateway: Disciplined Go / Pivot / Stop / Park decision regarding future institutional consortium formation."
+        evidenceRequired: "Institutional consortium backing, policy alignment, and indicative industrial off-taker interest.",
+        decisionCriteria: "Viable sovereign/institutional capital pathway and competitive LCOE relative to NZ geothermal, hydro, and wind+storage alternatives.",
+        passFailConditions: "PASS: Institutional sponsor commitment and viable regulatory/off-take structure. FAIL: Absence of sovereign policy backing or uncompetitive economics against domestic renewables.",
+        ifNotMetAction: "Maintain in PARK status or reframe founder commercial/CA skills toward permitted NZ energy transition opportunities.",
+        successCriteria: "Disciplined stage-gated governance protecting founder time and capital.",
+        deliverables: "Conditional Capital & Policy Synthesis / Portfolio Park Review.",
+        decisionMilestone: "Final 90-Day Gateway: Confirm long-term PARK status or institutional consortium transition."
       }
     ];
     const ninetyDayRoadmap = {
       phases: ninetyDayPhases,
       steps: [
-        { week: 'W 1-2', objective: 'Legal & Statutory Scoping', tasks: 'Identify applicable legislation and engage appropriate specialist legal/regulatory expertise.', hours: stepHoursLabel, evidence: 'Preliminary legal-framework map' },
-        { week: 'W 3-4', objective: 'Regulatory Pathway Assessment', tasks: 'Determine whether any credible statutory pathway exists for commercial nuclear generation.', hours: stepHoursLabel, evidence: 'Regulatory pathway scoping note / specialist scope' },
-        { week: 'W 5-6', objective: 'Technical Pre-Feasibility', tasks: 'Engage nuclear/energy infrastructure specialists to identify fundamental technical prerequisites.', hours: stepHoursLabel, evidence: 'Technical prerequisite and capability-gap memo' },
-        { week: 'W 7-8', objective: 'Policy & Stakeholder Mapping', tasks: 'Identify relevant government, regulatory and energy infrastructure stakeholders.', hours: stepHoursLabel, evidence: 'Stakeholder map' },
-        { week: 'W 9-10', objective: 'Capital & Delivery Reality', tasks: 'Establish indicative project capital scale, financing structure and consortium requirements.', hours: stepHoursLabel, evidence: 'Indicative capital-scale model' },
-        { week: 'W 11-12', objective: 'Evidence Gateway Decision', tasks: 'STOP / PARK / PIVOT / CONTINUE based on statutory and pre-feasibility evidence obtained.', hours: stepHoursLabel, evidence: 'Evidence Gateway Decision' }
+        { week: 'W 1-2', objective: 'Gate 1A: Statutory Scope Review', tasks: 'Desktop review of Atomic Energy Act 1945, Radiation Safety Act 2016, RMA 1991, and Nuclear Free Zone Act 1987.', hours: stepHoursLabel, evidence: 'Statutory scope matrix ($0 cost)' },
+        { week: 'W 3-4', objective: 'Gate 1B: Specialist Inquiry & Gate 1 Decision', tasks: 'Request initial regulatory pathway view within $0–$500 budget; if no pathway exists, PARK immediately.', hours: stepHoursLabel, evidence: 'Gate 1 Pass / Park Decision Memo' },
+        { week: 'W 5-6', objective: 'Gate 2A (Conditional): Technical Prerequisites', tasks: 'Conditional on Gate 1 Pass: map SMR technology maturity, safety licensing, and grid prerequisites.', hours: stepHoursLabel, evidence: 'Conditional technical prerequisite memo' },
+        { week: 'W 7-8', objective: 'Gate 2B (Conditional): Consortium & Policy Map', tasks: 'Conditional on Gate 1 Pass: map required nuclear engineering, regulatory, and utility consortium partners.', hours: stepHoursLabel, evidence: 'Conditional consortium & stakeholder map' },
+        { week: 'W 9-10', objective: 'Gate 3A (Conditional): Capital & LCOE Reality', tasks: 'Conditional on Gate 2 Pass: benchmark SMR CAPEX/LCOE against NZ hydro, geothermal, and wind+storage.', hours: stepHoursLabel, evidence: 'Comparative LCOE & capital-scale model' },
+        { week: 'W 11-12', objective: 'Gate 3B: Final Portfolio Governance Decision', tasks: 'Confirm PARK status (monitoring policy at zero cost) or reframe toward permitted clean-energy advisory.', hours: stepHoursLabel, evidence: 'Documented Portfolio Governance Decision' }
       ]
     };
     return {
@@ -900,9 +920,9 @@ function generateActionSourceOfTruth(reqData = {}, reconciled = {}, ventureType 
       thirtyDayPlan,
       ninetyDayPhases,
       ninetyDayRoadmap,
-      doThisBeforeBuilding: `Identify an appropriately qualified legal and regulatory specialist in ${targetJurisdiction} and obtain an initial discussion, indicative view or scope and fee for determining the applicable statutory pathway.`,
-      nextEvidenceGateway: `Confirm indicative statutory permissibility pathway under ${targetJurisdiction} legislation before deploying pre-feasibility risk capital.`,
-      reassessmentTrigger: "Receipt of specialist legal feedback confirming statutory feasibility."
+      doThisBeforeBuilding: `Complete Stage Gate 1 first: verify the statutory and regulatory position under the Atomic Energy Act 1945, Radiation Safety Act 2016, and RMA 1991 within ${riskBudgetLabel} and ${hoursBand} before any technical or commercial expenditure.`,
+      nextEvidenceGateway: `Stage Gate 1 confirmation of whether any credible statutory or regulatory licensing pathway exists for land-based SMR generation in ${targetJurisdiction}.`,
+      reassessmentTrigger: "Enactment of a national commercial nuclear power regulatory regime, material central government policy reform, or verified specialist legal confirmation of a licensing pathway."
     };
   }
 
@@ -1121,96 +1141,117 @@ function generateActionSourceOfTruth(reqData = {}, reconciled = {}, ventureType 
   }
 
   if (isHw) {
-    const immediate7DayAction = "Reach out to 10 vessel owners or marina operators to schedule 5 initial problem discovery interviews.";
+    const capNorm = normalizeFounderCapital(reqData);
+    const riskBudgetLabel = capNorm.initialRiskCapital || "$0–$500 NZD";
+    const availCapLabel = capNorm.availableCapital || "$10,000–$50,000 NZD";
+    const immediate7DayAction = `Contact 10 recreational boat owners, liveaboards, or marina managers in ${targetJurisdiction} to schedule 5 structured discovery interviews on rodent and insect boarding via mooring lines (${stepHoursLabel}, $0 cost).`;
     const threePriorityActions = [
       {
-        heading: "1. Phase 1 Problem Discovery Interviews.",
-        explanation: "Interview 5–10 target vessel owners or commercial operators to quantify pest infestation frequency, existing workaround costs, and problem severity before committing capital to prototypes.",
-        outcome: "5–10 completed problem discovery interviews and severity log."
+        heading: "1. Stage Gate 1: Marine Pest Problem & Willingness-to-Pay Discovery.",
+        explanation: `Interview 10–15 vessel owners, liveaboards, and marina operators (${hoursBand}, within ${riskBudgetLabel}) to verify rodent/insect boarding frequency via mooring ropes, dissatisfaction with conventional plastic/metal rat guards, and willingness to pay before building hardware.`,
+        outcome: "10–15 completed vessel-owner discovery logs & verified price sensitivity."
       },
       {
-        heading: "2. Benchtop Proof of Concept & Power Testing.",
-        explanation: "Develop a benchtop proof of concept to validate the deterrent mechanism and power draw in a controlled environment before tooling.",
-        outcome: "Benchtop proof-of-concept test log and power efficiency data."
+        heading: "2. Stage Gate 2 (Conditional on Gate 1): Solar & Low-Voltage Deterrent Proof-of-Concept.",
+        explanation: "Conditional on Gate 1 confirming customer willingness to pay: engage electrical/enclosure design support to bench-test a solar-powered, low-voltage electrical deterrent on wet marine mooring ropes.",
+        outcome: "Benchtop & saltwater mooring-rope proof-of-concept test log."
       },
       {
-        heading: "3. Unit Economics & Willingness to Pay.",
-        explanation: "Present concept specifications and indicative pricing to 5 prospects to test purchase intent and gross margins.",
-        outcome: "Validated preliminary BOM model and 2 written pilot commitments."
+        heading: "3. Stage Gate 3 (Conditional on Gate 2): BOM Unit Economics & Pilot Pre-Orders.",
+        explanation: "Conditional on Gate 2 technical viability: obtain 100/500-unit BOM quotes, confirm electrical/marine safety compliance, and secure paid pilot pre-orders before committing tooling capital.",
+        outcome: "Validated supplier BOM model & 2–3 paid pilot deposits."
       }
     ];
     const topFivePriorities = [
-      { priority: "Customer Problem Discovery", action: "Interview 5–10 target vessel owners and commercial operators to quantify pest frequency and workaround costs.", metric: "5–10 completed interview logs" },
-      { priority: "Benchtop Proof of Concept", action: "Develop a benchtop proof of concept to validate the deterrent mechanism and power draw.", metric: "Benchtop test log" },
-      { priority: "Willingness to Pay & Unit Economics", action: "Present product concept and target price points to 5 prospects to test purchase intent.", metric: "Validated BOM model & 2 written pilot commitments" },
-      { priority: "Controlled Field Pilot", action: "Deploy 2–3 benchtop units with cooperative boat owners to assess environmental durability.", metric: "Pilot feedback reports" },
-      { priority: "Execution Cadence", action: `Allocate ${hoursBand} dedicated strictly to customer interviews and prototype validation.`, metric: "Weekly execution log" }
+      { priority: "Stage Gate 1: Vessel-Owner & Marina Discovery", action: "Interview 10–15 boat owners, liveaboards, and marina operators to quantify rodent/insect intrusion via mooring ropes and current rat-guard workarounds.", metric: "10–15 completed interview logs" },
+      { priority: "Willingness-to-Pay & Price Testing", action: "Test whether boat owners actually spend heavily on pest prevention and would pay $150–$450 NZD per MoorSafe unit.", metric: "Quantified price-sensitivity & spend log" },
+      { priority: "Stage Gate 2: Low-Voltage & Solar Benchtop PoC", action: "Conditional on Gate 1 Pass: build and test a solar-powered low-voltage electrical pulse proof-of-concept on wet mooring lines.", metric: "Saltwater & power-budget PoC test log" },
+      { priority: "Marine Enclosure & Rope-Fit Validation", action: "Verify IP67/IP68 waterproof sealing, salt-spray corrosion resistance, and secure clamping across common mooring rope diameters (12mm–32mm).", metric: "Marina berth field-trial log" },
+      { priority: "Stage Gate 3: BOM & Pre-Order Gate", action: `Validate unit BOM margins and secure paid pilot pre-orders before deploying broader startup capital (${availCapLabel}).`, metric: "2 supplier BOM quotes & 3 paid pre-orders" }
     ];
     const thirtyDayPlan = {
-      week1: { objective: "Outreach & Interview Scheduling", tasks: ["Contact 15 marina contacts or vessel owners", "Schedule 5 Phase 1 discovery interviews"], expectedResult: "5 confirmed interview sessions" },
-      week2: { objective: "Phase 1 Discovery Interviews (5–10 Users)", tasks: ["Execute 5–10 interviews on pest intrusion frequency and workaround costs", "Log dissatisfaction with current methods"], expectedResult: "Completed interview synthesis & pain severity log" },
-      week3: { objective: "Benchtop Mechanism Test & Pricing Feedback", tasks: ["Test core deterrent mechanism on benchtop setup", "Present pricing terms to 5 marina/boat owners for feedback"], expectedResult: "Benchtop mechanism validation log & pricing feedback" },
-      week4: { objective: "Field Pilot Specification & Milestone Decision", tasks: ["Define protocol for marine field pilot testing", "Make disciplined Go / Pivot decision based on customer pain and BOM viability (targeting 20–30 cumulative interviews across 90 days)"], expectedResult: "Field Pilot Specification & Milestone Decision" }
+      week1: { objective: "Marina & Vessel-Owner Outreach (Gate 1A)", tasks: ["Contact 15 recreational boat owners, liveaboards, yacht clubs, and marina managers", "Schedule 8–10 structured discovery interviews on mooring-line pest boarding"], expectedResult: "8–10 confirmed discovery interviews ($0 cost)" },
+      week2: { objective: "Customer Problem & Rat-Guard Workaround Interviews (Gate 1B)", tasks: ["Conduct interviews on rodent/cockroach/ant boarding via mooring ropes and failure modes of conventional conical plastic/metal rat guards", "Test founder assumption regarding annual maintenance/pest-protection spend"], expectedResult: "Quantified pest-intrusion & workaround dissatisfaction log" },
+      week3: { objective: "Willingness-to-Pay & Technical Specification Scoping", tasks: ["Test indicative unit pricing ($150–$450 NZD) and multi-line vessel bundle pricing with interviewed boat owners", "Define functional requirements for solar harvesting, battery autonomy, low-voltage pulse safety, and rope-diameter clamping"], expectedResult: "Validated price range & functional specification sheet" },
+      week4: { objective: "Stage Gate 1 Decision (Pass / Pivot / Stop)", tasks: ["Evaluate discovery findings against Stage Gate 1 pass/fail criteria", "Decide whether customer demand justifies proceeding to Stage Gate 2 solar/low-voltage proof-of-concept prototyping"], expectedResult: "Formal Stage Gate 1 Decision & PoC Brief" }
     };
     const ninetyDayPhases = [
       {
         phaseNumber: "Phase 1",
         daysRange: "Days 1–30",
-        title: "Problem Validation",
-        name: "Phase 1: Days 1–30 — Problem Validation",
-        objective: "Verify the frequency, severity, and economic cost of equipment failure or pest damage with marine harbor operators and vessel owners.",
+        title: "Stage Gate 1: Marine Pest Problem & Willingness-to-Pay Validation",
+        name: "Phase 1: Days 1–30 — Stage Gate 1: Marine Pest Problem & Willingness-to-Pay Validation",
+        objective: "Verify the frequency and severity of rodent and insect boarding via vessel mooring ropes, dissatisfaction with conventional plastic/metal rat guards, and actual willingness to pay among boat owners and marina operators.",
+        estimatedFounderTime: `${hoursBand} (${stepHoursLabel} across Days 1–30)`,
+        indicativeCost: riskBudgetLabel,
         activities: [
-          "Outreach to 15 marina managers, commercial harbor masters, and private vessel owners.",
-          "Conduct 8–10 structured discovery interviews focusing on current manual workarounds and line failure costs.",
-          "Quantify the direct financial and insurance pain caused by unmonitored equipment failures.",
-          "Synthesize problem severity criteria to establish baseline physical product specifications."
+          "Outreach to 15–20 recreational boat owners, liveaboards, commercial vessel operators, and marina managers.",
+          "Conduct 10–15 structured discovery interviews focusing on rodent/insect boarding via mooring ropes and limitations of conventional conical rat guards.",
+          "Test the founder's untested assumption that vessel owners already spend heavily on pest protection and are willing to pay for an active solar-powered electrical deterrent.",
+          "Document required mooring-rope diameter ranges (e.g., 12mm–32mm), handling ergonomics, and marina rules."
         ],
-        successCriteria: "At least 70% of interviewed operators confirm that current manual methods are inadequate and impose recurring operational pain.",
-        deliverables: "Problem Discovery Synthesis & Customer Pain Severity Log (8–10 interview transcripts).",
-        decisionMilestone: "Problem Gate: If fewer than 50% confirm severe pain or willingness to adopt physical alternatives, reconsider target use case or pivot."
+        evidenceRequired: "10–15 completed customer discovery logs quantifying pest intrusion frequency, current rat-guard spend, and price acceptance.",
+        decisionCriteria: "At least 60% of interviewed vessel/marina operators confirm that mooring-line pest boarding is a recurring problem and indicate willingness to pay at a price point supporting >50% gross margin.",
+        passFailConditions: "PASS: >=60% confirm recurring mooring-line pest pain and acceptable price point ($150–$450 NZD). FAIL: Boat owners view cheap passive plastic cones ($25–$60) as 'good enough' and decline to pay for an active electronic unit.",
+        ifNotMetAction: "STOP or PIVOT to commercial high-biosecurity vessels/island sanctuary operators before spending capital on hardware prototyping.",
+        successCriteria: "Verified customer problem urgency and price acceptance among target vessel owners and marinas.",
+        deliverables: "Customer Discovery Synthesis, Rat-Guard Workaround Audit & Price-Sensitivity Log (10–15 interviews).",
+        decisionMilestone: "Mandatory Gate 1 Decision: Proceed to Phase 2 hardware prototyping only if customer willingness to pay is empirically confirmed."
       },
       {
         phaseNumber: "Phase 2",
         daysRange: "Days 31–60",
-        title: "Solution Validation",
-        name: "Phase 2: Days 31–60 — Solution Validation",
-        objective: "Fabricate benchtop proof-of-concept prototype to validate deterrent mechanism, power budget, and solar harvesting in marine conditions.",
+        title: "Stage Gate 2 (Conditional on Gate 1): Solar & Low-Voltage Deterrent Proof-of-Concept",
+        name: "Phase 2: Days 31–60 — Stage Gate 2 (Conditional): Solar & Low-Voltage Deterrent Proof-of-Concept",
+        objective: "CONDITIONAL ON PASSING GATE 1: Build and test a functional benchtop and mooring-line proof-of-concept to validate low-voltage electrical pest deterrence, solar charging autonomy, and saltwater durability.",
+        estimatedFounderTime: `${hoursBand} (${stepHoursLabel} across Days 31–60)`,
+        indicativeCost: "$1,500–$5,000 NZD (allocated from available startup capital only after Gate 1 passes)",
         activities: [
-          "Develop mechanical CAD component models and preliminary electrical schematic for low-power solar/battery subsystem.",
-          "Assemble benchtop physical prototype using off-the-shelf components to verify mechanism functionality.",
-          "Perform benchtop endurance and power consumption stress testing under simulated weather conditions.",
-          "Present physical prototype demonstration and technical spec sheet to 5 prospective buyers for direct feedback."
+          "Engage a contract electronics/industrial design specialist to assemble a solar-powered, low-voltage pulse proof-of-concept unit.",
+          "Test electrical pulse delivery and short-circuit protection on wet, salt-crusted marine mooring ropes.",
+          "Verify solar panel charging recovery, battery life across multi-day overcast conditions, and IP67/IP68 waterproof sealing.",
+          "Demonstrate the working proof-of-concept on marina mooring lines with 5 interviewed boat owners for ergonomic and clamping feedback."
         ],
-        successCriteria: "Demonstrated mechanism reliability and positive user feedback on physical form factor from at least 4 of 5 operators.",
-        deliverables: "Benchtop Functional Prototype, Engineering Spec Sheet & Mechanism Validation Log.",
-        decisionMilestone: "Solution Gate: Confirm mechanism functions reliably without high failure rates before investing in production tooling."
+        evidenceRequired: "Working low-voltage solar proof-of-concept unit, wet-rope electrical test log, and field usability feedback from 5 vessel owners.",
+        decisionCriteria: "Reliable low-voltage pulse operation on wet salt-laden ropes without battery drain, false shorting, or human safety hazards.",
+        passFailConditions: "PASS: PoC operates reliably for 14+ days in marine conditions and 4 of 5 boat owners approve rope clamping/handling. FAIL: Wet saltwater ropes short-circuit the low-voltage barrier or enclosure fails marine ingress testing.",
+        ifNotMetAction: "Halt production tooling; redesign electrode/insulation geometry or STOP if wet-rope electrical shorting cannot be solved economically.",
+        successCriteria: "Demonstrated electrical and mechanical viability on wet mooring ropes and positive user handling feedback.",
+        deliverables: "Functional Low-Voltage Solar PoC Unit, Saltwater Endurance Log & Engineering Specification Sheet.",
+        decisionMilestone: "Mandatory Gate 2 Decision: Confirm technical reliability in wet marine conditions before seeking manufacturing tooling quotes."
       },
       {
         phaseNumber: "Phase 3",
         daysRange: "Days 61–90",
-        title: "Commercial Validation & Decision",
-        name: "Phase 3: Days 61–90 — Commercial Validation & Decision",
-        objective: "Validate Bill of Materials (BOM) unit economics, secure commercial pre-orders or pilot site deposits, and decide on tooling investment.",
+        title: "Stage Gate 3 (Conditional on Gate 2): BOM Economics, Compliance & Pilot Pre-Orders",
+        name: "Phase 3: Days 61–90 — Stage Gate 3 (Conditional): BOM Economics, Compliance & Pilot Pre-Orders",
+        objective: "CONDITIONAL ON PASSING GATE 2: Validate Bill of Materials (BOM) unit economics at 100/500-unit volumes, confirm electrical/EMC safety compliance, and secure paid pilot pre-orders.",
+        estimatedFounderTime: `${hoursBand} (${stepHoursLabel} across Days 61–90)`,
+        indicativeCost: "$2,000–$5,000 NZD (within available startup capital, prior to major injection-mould tooling)",
         activities: [
-          "Obtain component quotes from at least 2 manufacturing suppliers to establish unit manufacturing costs at 100-unit and 500-unit volumes.",
-          "Formulate gross margin and pricing model (hardware sale plus optional recurring maintenance support).",
-          "Present formal pilot trial terms (with deposit or signed LOI) to 5 marina operators or fleet owners.",
-          "Evaluate capital requirements and manufacturing timeline against founder resource commitments."
+          "Obtain formal BOM and assembly quotes from 2–3 contract electronics manufacturers at 100-unit and 500-unit batch volumes.",
+          "Confirm New Zealand/Australian electrical safety (RCM), EMC, and marine battery transport compliance requirements.",
+          "Present tested pilot units and commercial pre-order terms to 5–10 boat owners, chandleries, or marina operators.",
+          "Reconcile landed unit cost, retail/direct pricing, and tooling investment against the founder's available capital."
         ],
-        successCriteria: "Secured at least 2 signed pilot commitments / deposit letters of intent with projected gross margins exceeding 50%.",
-        deliverables: "Supplier BOM Cost Model, 2 Written Pilot Trial Commitments, and Tooling Investment Decision Memo.",
-        decisionMilestone: "Commercial Gateway: Decide whether to proceed with commercial batch tooling, seek hardware angel funding, or refine design."
+        evidenceRequired: "2 written manufacturer BOM quotes, compliance checklist, and at least 3 paid pilot deposits or binding pre-orders.",
+        decisionCriteria: "Landed unit BOM cost supports >=50% gross margin at validated retail price and customers commit real deposits.",
+        passFailConditions: "PASS: >=50% gross margin confirmed and 3+ paid pilot pre-orders secured. FAIL: Unit manufacturing cost exceeds customer willingness to pay or zero binding orders achieved.",
+        ifNotMetAction: "PARK or STOP before committing injection-moulding or batch inventory capital.",
+        successCriteria: "Secured paid pilot commitments and verified >50% unit gross margin.",
+        deliverables: "Supplier BOM Cost Model, Compliance Scope, and Paid Pilot Pre-Order Agreements.",
+        decisionMilestone: "Final 90-Day Gateway: Proceed to initial production batch only if Gate 1 (Demand), Gate 2 (Wet-Rope PoC), and Gate 3 (BOM & Pre-Orders) are all met."
       }
     ];
     const ninetyDayRoadmap = {
       phases: ninetyDayPhases,
       steps: [
-        { week: 'W 1-2', objective: 'User Problem Discovery', tasks: 'Interview 10 target operators on current equipment issues & costs.', hours: stepHoursLabel, evidence: 'Interview transcript log' },
-        { week: 'W 3-4', objective: 'Technical CAD & Specs', tasks: 'Draft initial mechanical CAD model & electronic component specs.', hours: stepHoursLabel, evidence: 'CAD spec sheet' },
-        { week: 'W 5-6', objective: 'Physical Prototype Build', tasks: 'Fabricate benchtop physical prototype for initial mechanism testing.', hours: stepHoursLabel, evidence: 'Benchtop prototype' },
-        { week: 'W 7-8', objective: 'Field & Durability Testing', tasks: 'Test prototype in real operating environment under stress conditions.', hours: stepHoursLabel, evidence: 'Field test log' },
-        { week: 'W 9-10', objective: 'Unit Economics & Sourcing', tasks: 'Obtain quotes from 2 manufacturers for bill of materials & batch assembly.', hours: stepHoursLabel, evidence: 'Supplier quote comparison' },
-        { week: 'W 11-12', objective: 'Commercial Pre-Orders', tasks: 'Present tested prototype to 5 prospective buyers to secure pre-orders.', hours: stepHoursLabel, evidence: '2 pilot deposits / pre-orders' }
+        { week: 'W 1-2', objective: 'Gate 1A: Boat-Owner & Marina Discovery', tasks: 'Interview 10–15 vessel owners & marina managers on mooring-line rodent/insect boarding and current rat-guard workarounds.', hours: stepHoursLabel, evidence: '10–15 discovery interview logs' },
+        { week: 'W 3-4', objective: 'Gate 1B: Willingness-to-Pay & Gate 1 Decision', tasks: 'Test $150–$450 NZD price sensitivity and annual pest-prevention spend; pass/fail Gate 1 before hardware spend.', hours: stepHoursLabel, evidence: 'Validated price log & Gate 1 Decision' },
+        { week: 'W 5-6', objective: 'Gate 2A (Conditional): Solar & Low-Voltage PoC', tasks: 'Conditional on Gate 1 Pass: build benchtop solar-powered low-voltage deterrent circuit and rope-clamp housing.', hours: stepHoursLabel, evidence: 'Working benchtop PoC unit' },
+        { week: 'W 7-8', objective: 'Gate 2B (Conditional): Wet-Rope & Marine Testing', tasks: 'Test low-voltage pulse reliability, waterproofing, and solar autonomy on wet salt-laden mooring ropes.', hours: stepHoursLabel, evidence: 'Wet-rope & salt-spray test log' },
+        { week: 'W 9-10', objective: 'Gate 3A (Conditional): BOM & Safety Compliance', tasks: 'Obtain 2 manufacturer BOM quotes (100/500 units) and verify electrical/EMC safety compliance.', hours: stepHoursLabel, evidence: '2 supplier BOM quotes & compliance memo' },
+        { week: 'W 11-12', objective: 'Gate 3B (Conditional): Paid Pilot Pre-Orders', tasks: 'Present tested PoC to boat owners and marinas to secure 3+ paid pilot deposits before tooling.', hours: stepHoursLabel, evidence: '3+ paid pilot deposits / pre-orders' }
       ]
     };
     return {
@@ -1220,9 +1261,9 @@ function generateActionSourceOfTruth(reqData = {}, reconciled = {}, ventureType 
       thirtyDayPlan,
       ninetyDayPhases,
       ninetyDayRoadmap,
-      doThisBeforeBuilding: "Conduct 5–10 structured customer discovery interviews to confirm problem frequency and willingness to pay before building physical prototypes.",
-      nextEvidenceGateway: "Complete 10 discovery interviews and 2 benchtop prototype tests confirming mechanical viability before tooling.",
-      reassessmentTrigger: "Completion of 10 discovery interviews or validated benchtop test log."
+      doThisBeforeBuilding: "Complete Stage Gate 1 first: conduct 10–15 structured discovery interviews with boat owners, liveaboards, and marina operators within your $0–$500 initial validation budget to verify mooring-line pest frequency and willingness to pay before building hardware prototypes.",
+      nextEvidenceGateway: "Stage Gate 1 verification of customer willingness to pay (10–15 vessel/marina interviews), followed by Stage Gate 2 wet-rope low-voltage proof-of-concept testing.",
+      reassessmentTrigger: "Completion of 10–15 customer discovery interviews and a verified wet-rope low-voltage proof-of-concept test log."
     };
   }
 
@@ -1663,15 +1704,26 @@ function generateCoherentExecutiveSummary(reqData = {}, reconciled = {}, venture
   const problem = (reqData.problem || "").trim();
   const targetMarket = (reqData.targetMarket || "").trim();
   const isNuclear = (idea + " " + (reqData.category || "")).toLowerCase().includes("nuclear") || reconciled.gatesInfo?.hasCriticalGate;
+  const isMoorSafe = Boolean((idea + " " + problem).toLowerCase().match(/\b(moorsafe|mooring|pest deterrent|rodent|rat guard)\b/));
   const isBookkeepingOrProfService = ventureType === "Professional Services / Bookkeeping & Financial Advisory" || ventureType.includes("Professional Services");
   const isCommunityOrNfp = ventureType === "Community / Not-for-Profit / Social Enterprise";
   const probAudit = detectProblemStatementMisclassification(reqData);
+  const timeNorm = normalizeFounderTimeCommitment(reqData);
+  const capNorm = normalizeFounderCapital(reqData);
 
   if (isNuclear) {
     return [
-      `The concept proposes using small modular reactor (SMR) technology to supply low-carbon firm electricity into ${targetJurisdiction}'s national grid. It addresses a strategic long-term challenge involving electricity reliability, rising industrial power demand, and national decarbonisation goals.`,
-      `Current commercial evidence remains at the preliminary concept stage. While structural electricity demand is well established, the venture does not yet possess dedicated technical feasibility models, nuclear engineering leadership, or formal off-taker agreements. The strongest assumption—that an SMR plant can be commercially deployed—remains constrained by current statutory prohibitions.`,
-      `The primary gating risk centers on statutory and regulatory feasibility under ${targetJurisdiction} legislation, alongside multi-billion-dollar infrastructure capital scale requirements. The recommended next commercial step is obtaining specialist legal and regulatory confirmation before committing development capital.`
+      `The concept proposes deploying commercial Small Modular Reactor (SMR) technology to supply 24/7 low-carbon firm baseload electricity into ${targetJurisdiction}'s national grid [Founder Input]. It addresses a strategically important national problem involving long-term electricity reliability, dry-year hydro security, and industrial decarbonisation (scored 14/14 on Problem & Customer Clarity) [Verified Context].`,
+      `Current commercial evidence remains at the pre-feasibility concept stage (Customer Validation 1/20, Overall Score ${reconciled.overallScore || 27}/100 — Master Portfolio Decision: ${reconciled.masterRecommendation || "PARK"}). While the New Zealand Nuclear Free Zone, Disarmament, and Arms Control Act 1987 (ss 4–11) prohibits nuclear explosive devices, nuclear-powered ships, and sea-dumping of radioactive waste rather than containing an express blanket ban on land-based civilian power reactors, ${targetJurisdiction} currently has no established commercial nuclear reactor regulator or complete licensing pathway under the Atomic Energy Act 1945, Radiation Safety Act 2016, Resource Management Act 1991, and Electricity Industry Act 2010 [Verified Source / AI Inference].`,
+      `The founder brings strong transferable commercial, financial modelling, and governance capability as a Chartered Accountant (CAANZ / BCom) [Founder Input], whereas nuclear engineering, reactor safety licensing, and multi-billion-dollar utility delivery would require a specialist consortium [AI Inference]. In alignment with the founder's submitted ${timeNorm.normalizedBand} availability and ${capNorm.initialRiskCapital} initial risk budget, the concept is placed in ${reconciled.masterRecommendation || "PARK"} status: Phase 1 is strictly limited to a low-cost statutory and regulatory feasibility gateway, and Phase 2/3 technical or commercial expenditure should not proceed unless a credible regulatory pathway is confirmed.`
+    ].join("\n\n");
+  }
+
+  if (isMoorSafe) {
+    return [
+      `MoorSafe Premium is a proposed solar-powered, low-voltage electrical pest deterrent designed to mount on vessel mooring ropes and prevent rodents (rats, mice) and insects (cockroaches, ants) from boarding boats from docks, marinas, and shorelines [Founder Input]. The assessment evaluates this submitted active solar-electric concept strictly on its own merits (excluding any unsubmitted passive adhesive-disc or 3D-printing concepts) and notes that the venture is currently at the '${reqData.businessStage || "Just an idea"}' stage with no physical prototype built yet.`,
+      `The concept scores ${reconciled.overallScore || 58}/100 (Master Portfolio Decision: ${reconciled.masterRecommendation || "INVESTIGATE"}). The founder brings strong commercial, financial, and governance capability (Chartered Accountant / BCom) [Founder Input] well suited to leading commercial validation and supplier economics, while marine low-voltage electronics and IP67/IP68 saltwater enclosure engineering can be outsourced or partnered [AI Inference]. Crucially, the founder's assertions that existing plastic rat guards are unreliable and that boat owners already spend heavily on pest protection—indicating willingness to pay—are classified as untested hypotheses requiring empirical verification (Customer Validation ${reconciled.categoryScores?.customerValidation?.scoreAchieved ?? 3}/20) [Untested Assumption].`,
+      `Within the founder's submitted ${timeNorm.normalizedBand} weekly availability, ${capNorm.initialRiskCapital} initial validation risk budget, and ${capNorm.availableCapital} broader available capital, execution is structured into conditional stage gates: Stage Gate 1 (Days 1–30) requires 10–15 discovery interviews with boat owners, liveaboards, and marina operators to verify mooring-line pest frequency and price acceptance ($150–$450 NZD) before committing capital to Stage Gate 2 wet-rope low-voltage proof-of-concept prototyping or Stage Gate 3 manufacturing BOM and pre-order validation.`
     ].join("\n\n");
   }
 
@@ -1733,7 +1785,6 @@ function generateCoherentExecutiveSummary(reqData = {}, reconciled = {}, venture
 
   // Paragraph 3: Primary gating risk, recommended next commercial step
   const primaryRisk = reconciled.gatesInfo?.primaryGatingRisk || "Customer Demand & Willingness to Pay";
-  const timeNorm = normalizeFounderTimeCommitment(reqData);
   let p3;
   if (isBookkeepingOrProfService) {
     p3 = `The primary gating risk centers on ${primaryRisk.toLowerCase()}, alongside completing Xero proficiency training and initial practice setup. Within the founder's stated ${timeNorm.normalizedBand} availability, the recommended immediate step is completing Xero Advisor certification and conducting 8 to 10 structured discovery conversations with target small business owners and community treasurers to secure 2 to 3 paying pilot retainer clients.`;
@@ -1747,8 +1798,8 @@ function generateCoherentExecutiveSummary(reqData = {}, reconciled = {}, venture
 }
 
 /**
- * PL-FIX-20261006-SMARTTAX-01 / PL-FIX-20261030-01: Idea-Specific Market Insights Engine
- * Prevents generic filler and cross-industry contamination across all 7 dimensions.
+ * PL-FIX-20261006-SMARTTAX-01 / PL-FIX-20261030-01 / PL-FIX-20261103-01: Idea-Specific Market Insights Engine
+ * Prevents generic filler and cross-industry contamination across all 7 dimensions and adds structured competitor & market funnel analysis.
  */
 function generateIdeaSpecificMarketInsights(reqData = {}, reconciled = {}, ventureType = "", targetJurisdiction = "New Zealand") {
   const idea = (reqData.idea || "").trim();
@@ -1760,13 +1811,27 @@ function generateIdeaSpecificMarketInsights(reqData = {}, reconciled = {}, ventu
 
   if (isNuclear) {
     return {
-      marketLandscape: `The broader market operates within a heavily structured statutory and regulatory environment. While underlying national demand for baseload power and grid reliability is significant, sector entry is strictly governed by national legislation, public policy mandates, and multi-billion-dollar infrastructure capital scale requirements.`,
-      demandDrivers: `Primary demand drivers include rising electricity demand, decarbonisation targets, dry-year hydro risk, and peak demand volatility. However, commercial adoption is strictly constrained by statutory and regulatory approval pathways that dictate market access.`,
-      competitionAlternatives: `The proposed solution would compete with established state-backed hydro, geothermal, and wind generation incumbents, as well as alternative grid stability solutions integrated into national energy networks.`,
-      commercialReality: `A critical distinction exists between large national electricity demand and the commercially accessible opportunity for this specific solution. The commercially accessible opportunity appears materially constrained under the current assessed regulatory environment, with the extent of those constraints subject to specialist legal confirmation.`,
-      localBusinessNews: `Local energy market news highlights rising electricity demand, dry-year hydro volatility, wholesale power price spikes, and policy debates surrounding ${targetJurisdiction} energy security.`,
-      customerReviewTrends: `Published energy-sector reporting and published industry commentary indicate demand for firm low-carbon baseload power, but direct customer/off-taker validation has not yet been established by the venture.`,
-      governmentPolicyInfluence: `${targetJurisdiction} statutory policy and legislative frameworks govern power generation, environmental protection, fast-track consenting, and nuclear-related statutory requirements and restrictions requiring specialist interpretation for the proposed commercial generation model.`
+      marketLandscape: `The national electricity generation market in ${targetJurisdiction} operates within a tightly regulated statutory and infrastructure environment. While national demand for 24/7 low-carbon firm baseload power is growing due to industrial electrification, data centres, and dry-year hydro risk [Verified Context], commercial SMR entry faces an unestablished licensing pathway under the Atomic Energy Act 1945, Radiation Safety Act 2016, Resource Management Act 1991, and Electricity Industry Act 2010 [Verified Source].`,
+      demandDrivers: `Primary macro demand drivers include rising winter peak electricity demand, industrial heat and transport electrification, dry-year hydro reservoir vulnerability, and national net-zero 2050 decarbonisation targets [Verified Context]. However, commercial demand accessibility for nuclear generation is gated by the absence of a domestic nuclear power licensing framework.`,
+      competitionAlternatives: `Direct Competitors: None currently licensed in ${targetJurisdiction} (international SMR OEMs such as NuScale, GE Hitachi, and Rolls-Royce SMR operate in overseas jurisdictions). Indirect Competitors & Domestic Firming Substitutes: Established ${targetJurisdiction} gentailers (Meridian, Contact, Mercury, Genesis) deploying geothermal baseload, hydro storage, wind/solar paired with grid-scale battery storage (BESS), biomass firming, and industrial demand-response agreements [Verified Context / AI Inference].`,
+      commercialReality: `Market Sizing Funnel — (1) Broad Industry Size: ${targetJurisdiction}'s ~42–44 TWh/year national electricity grid; (2) Relevant Segment: 24/7 firm baseload and industrial off-take capacity; (3) Commercially Accessible Customers Today: Zero under current unestablished domestic reactor licensing pathways; (4) Verified Problem Customers: High national policy and industrial recognition of dry-year firming risk, but zero direct venture interviews completed; (5) Plausible Willingness to Pay: Unverified until statutory pathway, LCOE competitiveness against geothermal/hydro, and sovereign risk-sharing are established.`,
+      localBusinessNews: `New Zealand energy sector reporting highlights wholesale electricity price spikes during low-hydro / low-wind periods, industrial load curtailment pressures, and ongoing public policy debate regarding long-term firm generation capacity in ${targetJurisdiction} [Verified Context].`,
+      customerReviewTrends: `Published energy-sector commentary confirms acute industrial concern over wholesale power price volatility and dry-year security of supply [Verified Context], though zero direct commercial off-taker interviews or LOIs have been conducted for this concept [Founder Input].`,
+      governmentPolicyInfluence: `While the New Zealand Nuclear Free Zone, Disarmament, and Arms Control Act 1987 (Public Act 1987 No 86, ss 4–11) prohibits nuclear explosive devices, nuclear-powered ships, and sea-dumping of radioactive waste rather than containing an express blanket ban on land-based civilian nuclear electricity generation, commercial SMR deployment requires statutory authorisation and regulatory frameworks across the Atomic Energy Act 1945, Radiation Safety Act 2016, Resource Management Act 1991, and Electricity Industry Act 2010 [Verified Source].`,
+      competitorBreakdown: {
+        directCompetitors: "No domestic nuclear generators in New Zealand; international SMR developers (e.g., NuScale, GE Hitachi BWRX-300, Rolls-Royce SMR) in OECD markets.",
+        indirectCompetitors: "Major NZ gentailers (Meridian, Contact, Mercury, Genesis) and independent renewable power producers.",
+        existingWorkarounds: "Thermal peaking backup (Huntly coal/gas/biomass), industrial demand response, and wholesale hedging contracts.",
+        substituteTechnologies: "Geothermal baseload expansion, pumped/stored hydro, wind and solar paired with grid-scale BESS, and grid-scale biomass."
+      },
+      marketSizingFunnel: {
+        broadIndustrySize: "New Zealand national electricity market (~42–44 TWh annual generation)",
+        relevantCustomerSegment: "Grid-scale baseload off-takers, gentailers, and energy-intensive industrial users (data centres, process heat)",
+        commerciallyAccessibleCustomers: "Currently 0 accessible commercial off-takers in NZ pending an established statutory/regulatory licensing pathway",
+        verifiedProblemCustomers: "0 off-takers interviewed by founder (national dry-year firming challenge is publicly documented)",
+        plausibleWillingnessToPayCustomers: "Unverified — depends on regulatory pathway, sovereign underwriting, and SMR LCOE vs NZ geothermal/hydro",
+        evidenceGap: "Requires Stage Gate 1 statutory pathway confirmation before any commercial market sizing can be treated as accessible."
+      }
     };
   }
 
@@ -1800,13 +1865,27 @@ function generateIdeaSpecificMarketInsights(reqData = {}, reconciled = {}, ventu
 
   if (isHw) {
     return {
-      marketLandscape: `The broader marine equipment and asset protection market is driven by vessel maintenance requirements, port biosecurity standards, and environmental durability demands across regional marinas and moorings in ${targetJurisdiction}.`,
-      demandDrivers: `Demand is primarily driven by asset protection, pest infestation damage prevention, mooring line safety, and reduced manual maintenance overhead for boat owners and marina operators.`,
-      competitionAlternatives: `The proposed solution would compete with traditional passive mooring cones, chemical deterrents, manual inspection routines, and improvised physical barriers. Customer reliance on simple workarounds represents a key adoption barrier.`,
-      commercialReality: `A critical distinction exists between total boat ownership numbers and the commercially accessible market of vessel owners experiencing active pest problems who are willing to pay for an automated physical deterrent.`,
-      localBusinessNews: `Local marine sector news highlights biosecurity initiatives to prevent rodent migration onto predator-free islands, marina environmental guidelines, and rising vessel maintenance costs across regional ports in ${targetJurisdiction}.`,
-      customerReviewTrends: `Customer feedback across existing physical deterrents reveals frustration with short product lifespan in saltwater conditions, UV degradation, mechanical dislodgement during storms, and ineffective pest barrier coverage.`,
-      governmentPolicyInfluence: `Regional marina management bylaws, maritime environmental biosecurity regulations, and electrical product safety standards govern vessel mooring attachments and dockside equipment in ${targetJurisdiction}.`
+      marketLandscape: `The marine vessel pest-prevention market in ${targetJurisdiction} and international boating regions spans recreational keelboats/launches, liveaboard vessels, commercial charter/fishing boats, and marinas/ports. Rodents (rats, mice) and insects (cockroaches, ants) boarding vessels via mooring lines cause upholstery/wiring damage, hygiene hazards, and island biosecurity risks [Verified Context].`,
+      demandDrivers: `Demand is driven by vessel owners seeking to prevent costly onboard rodent damage (chewed marine wiring, hoses, and upholstery) and insect infestations, alongside strict maritime biosecurity requirements when visiting predator-free islands and regional marinas in ${targetJurisdiction} [Verified Context / AI Inference].`,
+      competitionAlternatives: `Direct Competitors: Conventional passive conical/disc plastic and sheet-metal rat guards ($25–$80 NZD) fitted to mooring lines. Indirect Competitors & Workarounds: Onboard snap traps, bait stations, sticky mats, chemical insect sprays on dock lines, and leaving lines slack/greased. Substitute Technologies: Battery/mains ultrasonic pest repellers and commercial marina dock-side baiting programmes [AI Inference]. Note: The founder's claim that existing plastic guards are unreliable and ineffective against smaller pests is plausible but must be empirically quantified across target boat owners [Untested Assumption].`,
+      commercialReality: `Market Sizing Funnel — (1) Broad Industry Size: Global and ${targetJurisdiction} recreational and commercial moored vessel fleet; (2) Relevant Customer Segment: Boat owners, liveaboards, and commercial vessels berthed in marinas or coastal moorings exposed to dockside rodents and insects; (3) Commercially Accessible Customers: Vessel owners reachable through NZ marinas, yacht clubs, marine chandleries, and direct online channels; (4) Customers with Verified Problem: 0 directly interviewed by the venture to date; (5) Customers with Plausible Willingness to Pay: Untested—founder's assertion that boat owners 'already spend heavily on maintenance and protection, indicating willingness to pay' is an untested hypothesis requiring Stage Gate 1 price-sensitivity validation against $25–$80 passive cones [Untested Assumption].`,
+      localBusinessNews: `Maritime biosecurity initiatives across ${targetJurisdiction} (such as Hauraki Gulf / Pest Free Warrant expectations and marina biosecurity guidelines) emphasise preventing rodents and invasive pests from stowing away on recreational and commercial vessels [Verified Context].`,
+      customerReviewTrends: `Boating community commentary notes that conventional split-cone plastic rat guards can spin, slip on narrow ropes, split in UV/wind, or leave gaps along braided mooring lines, though whether boat owners will pay a premium for an active solar-powered electrical unit remains unverified [AI Inference / Untested Assumption].`,
+      governmentPolicyInfluence: `Regional council navigation/marina bylaws, Department of Conservation / MPI island biosecurity pest-free expectations, and New Zealand electrical safety (RCM), EMC, and IP67/IP68 marine enclosure standards govern product compliance in ${targetJurisdiction} [Verified Context].`,
+      competitorBreakdown: {
+        directCompetitors: "Conventional passive plastic and galvanised/stainless metal conical rat guards ($25–$80 NZD per guard).",
+        indirectCompetitors: "Marine chandlery pest products, commercial marina pest-control contractors, and onboard baiting systems.",
+        existingWorkarounds: "DIY plastic bottles/discs on ropes, onboard rat traps/poison bait boxes, chemical insect spray on mooring lines.",
+        substituteTechnologies: "Ultrasonic onboard pest repellers and marina-wide dock baiting/monitoring stations."
+      },
+      marketSizingFunnel: {
+        broadIndustrySize: "Global & NZ recreational and commercial moored vessel market",
+        relevantCustomerSegment: "Marinas, liveaboards, cruising yachts,launches, and commercial vessels moored in dock/shoreline environments",
+        commerciallyAccessibleCustomers: "NZ marina berth holders, yacht club members, and chandlery buyers accessible during initial validation",
+        verifiedProblemCustomers: "0 customers interviewed to date (requires 10–15 Stage Gate 1 discovery interviews)",
+        plausibleWillingnessToPayCustomers: "Untested assumption — must verify how many boat owners will pay $150–$450 NZD for an active solar-electrical unit vs $25–$80 passive cones",
+        evidenceGap: "Founder claim that boat owners 'already spend heavily on maintenance and protection, indicating willingness to pay' is unverified and must be tested in Stage Gate 1."
+      }
     };
   }
 
@@ -2634,6 +2713,8 @@ exports.pitchLabEvaluation = onCall({
     evaluationData.fullVersionString = VERSION_INFO.fullVersionString;
     evaluationData.buildId = VERSION_INFO.buildId;
     evaluationData.changeId = VERSION_INFO.changeId;
+    evaluationData.aiEngineVersion = VERSION_INFO.aiEngineVersion;
+    evaluationData.buildCreatedAt = VERSION_INFO.buildCreatedAt;
     evaluationData.deployedAt = VERSION_INFO.deployedAt;
     evaluationData.deployedAtFormatted = VERSION_INFO.deployedAtFormatted;
     evaluationData.assessmentGeneratedAt = new Date().toISOString();
@@ -2643,6 +2724,12 @@ exports.pitchLabEvaluation = onCall({
     evaluationData.overallScore = reconciled.overallScore;
     evaluationData.scoreBand = reconciled.scoreBand;
     evaluationData.masterRecommendation = reconciled.masterRecommendation;
+    evaluationData.portfolioDecision = reconciled.masterRecommendation;
+    evaluationData.opportunityPotential = reconciled.opportunityPotential;
+    evaluationData.evidenceConfidence = reconciled.evidenceConfidence;
+    evaluationData.executionReadinessIndicator = reconciled.executionReadinessIndicator;
+    evaluationData.scoringRubric = reconciled.scoringRubric;
+    evaluationData.evidenceClassification = reconciled.evidenceClassification;
     evaluationData.scorecard = reconciled.categoryScores;
     evaluationData.scores = reconciled.categoryScores;
 
@@ -3192,9 +3279,16 @@ exports.pitchLabEvaluation = onCall({
     };
     evaluationData.founderReadinessIndex = sumCategoryScores;
 
-    // PL-FIX-20261030-01: Build Authoritative Assessment Snapshot & Input Coverage Audit
+    // PL-FIX-20261030-01 & PL-FIX-20261103-01: Build Authoritative Assessment Snapshot & Input Coverage Audit
     evaluationData.authoritativeSnapshot = buildAuthoritativeAssessmentSnapshot(reqData, evaluationData.id || submissionId || `eval_${Date.now()}`, submissionId);
     evaluationData.inputCoverage = computeInputCoverageAudit(reqData, evaluationData, evaluationData.authoritativeSnapshot);
+    evaluationData.founderCapabilityBreakdown = evaluationData.authoritativeSnapshot.founderCapabilityBreakdown;
+    evaluationData.coreProblemStatement = evaluationData.authoritativeSnapshot.coreProblemStatement;
+    evaluationData.proposedSolutionStatement = evaluationData.authoritativeSnapshot.proposedSolutionStatement;
+    evaluationData.excludedHistoricalOrAlternativeWork = evaluationData.authoritativeSnapshot.excludedHistoricalOrAlternativeWork;
+    evaluationData.prototypeStageStatus = evaluationData.authoritativeSnapshot.prototypeStageStatus;
+    evaluationData.founderCapabilityExplanation = evaluationData.founderCapabilityExplanation || {};
+    evaluationData.founderCapabilityExplanation.founderCapabilityBreakdown = evaluationData.authoritativeSnapshot.founderCapabilityBreakdown;
 
     // Apply Cross-Section Legal Certainty & Evidence Provenance Integrity Gate (Fix 10 & Fix 1D & PL-FIX-20261030-01)
     validateReportIntegrityGate(evaluationData, reqData);
@@ -3458,12 +3552,16 @@ function getMockResult(reqData = {}) {
   const nowIso = new Date().toISOString();
   const founderDisplayName = reqData.founderName || reqData.userName || "Founder (Name not supplied)";
 
+  const authSnapshot = buildAuthoritativeAssessmentSnapshot(reqData, `eval_${Date.now()}`, `sub_${Date.now()}`);
+
   const mockData = {
     output: {
       appVersion: VERSION_INFO.appVersion,
       fullVersionString: VERSION_INFO.fullVersionString,
       buildId: VERSION_INFO.buildId,
       changeId: VERSION_INFO.changeId,
+      aiEngineVersion: VERSION_INFO.aiEngineVersion,
+      buildCreatedAt: VERSION_INFO.buildCreatedAt,
       deployedAt: VERSION_INFO.deployedAt,
       deployedAtFormatted: VERSION_INFO.deployedAtFormatted,
       assessmentId: `eval_${Date.now()}`,
@@ -3478,8 +3576,21 @@ function getMockResult(reqData = {}) {
         founderRegion: reqData.locationSummary || reqData.locationCountry || targetJurisdiction
       },
       masterRecommendation: reconciled.masterRecommendation,
+      portfolioDecision: reconciled.masterRecommendation,
       overallScore: reconciled.overallScore,
       scoreBand: reconciled.scoreBand,
+      opportunityPotential: reconciled.opportunityPotential,
+      evidenceConfidence: reconciled.evidenceConfidence,
+      executionReadinessIndicator: reconciled.executionReadinessIndicator,
+      scoringRubric: reconciled.scoringRubric,
+      evidenceClassification: reconciled.evidenceClassification,
+      legalRegulatoryAssessment: reconciled.legalRegulatoryAssessment,
+      authoritativeSnapshot: authSnapshot,
+      founderCapabilityBreakdown: authSnapshot.founderCapabilityBreakdown,
+      coreProblemStatement: authSnapshot.coreProblemStatement,
+      proposedSolutionStatement: authSnapshot.proposedSolutionStatement,
+      excludedHistoricalOrAlternativeWork: authSnapshot.excludedHistoricalOrAlternativeWork,
+      prototypeStageStatus: authSnapshot.prototypeStageStatus,
       scores: reconciled.categoryScores,
       categoryScores: reconciled.categoryScores,
       executiveSummary: execSummary,
@@ -4001,13 +4112,18 @@ function cleanNarrativeText(text = "", isHardware = false) {
   s = s.replace(/Synthesized founder credentials/gi, "Extracted founder credentials");
   s = s.replace(/Based on Founder professional experience and background\./gi, "Based on the founder's professional background and credentials,");
 
-  // Qualified legal statement replacement (Section 6)
+  // Qualified legal statement replacement (Section 6 & PL-FIX-20261103-01)
   s = s.replace(/this business is illegal\.?/gi, "A potentially fundamental legal or regulatory barrier has been identified. This requires verification with appropriately qualified legal and regulatory specialists before further investment.");
   s = s.replace(/this venture is illegal\.?/gi, "A potentially fundamental legal or regulatory barrier has been identified. This requires verification with appropriately qualified legal and regulatory specialists before further investment.");
   s = s.replace(/is illegal\.?/gi, "presents a fundamental legal or regulatory restriction requiring specialist verification.");
+  s = s.replace(/currently prohibit commercial nuclear power generation/gi, "presents an unestablished regulatory licensing pathway under current New Zealand law");
 
   // FIX 1: Dynamic non-software/hardware wording adaptation
   if (isHardware) {
+    s = s.replace(/line failure costs/gi, "pest damage and workaround costs");
+    s = s.replace(/mooring line failure/gi, "pest boarding via mooring lines");
+    s = s.replace(/unmonitored equipment failures/gi, "unmonitored pest intrusion");
+    s = s.replace(/equipment failure or pest damage/gi, "pest damage or infestation");
     s = s.replace(/Design simple manual service before writing code\./gi, "Develop a basic functional prototype and test the core deterrent mechanism in a controlled marine environment.");
     s = s.replace(/Design a simple manual service test before investing in software development\./gi, "Develop a simple functional prototype and field test the core concept before investing significantly in product development, prototyping, tooling or manufacturing.");
     s = s.replace(/before writing code/gi, "before investing significantly in product development, prototyping, tooling or manufacturing");

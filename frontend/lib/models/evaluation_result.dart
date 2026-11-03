@@ -26,18 +26,18 @@ class EvaluationResult {
   String get founderName => _str(raw['founderName'] ?? raw['meta']?['founderName'] ?? raw['authoritativeSnapshot']?['founderName'], fallback: 'Founder (Name not supplied)');
   String get founderRegion => _str(raw['meta']?['founderRegion'], fallback: 'Global');
   // Version Control & Deployment Metadata
-  String get appVersion => _str(raw['appVersion'], fallback: 'v0.12.4');
-  String get fullVersionString => _str(raw['fullVersionString'], fallback: 'PitchLab MVP v0.12.4');
-  String get buildId => _str(raw['buildId'], fallback: 'sr20261030a');
-  String get changeId => _str(raw['changeId'], fallback: 'PL-FIX-20261030-01');
+  String get appVersion => _str(raw['appVersion'], fallback: 'v0.12.5');
+  String get fullVersionString => _str(raw['fullVersionString'], fallback: 'PitchLab MVP v0.12.5');
+  String get buildId => _str(raw['buildId'], fallback: 'sr20261103a');
+  String get changeId => _str(raw['changeId'], fallback: 'PL-FIX-20261103-01');
   String get assessmentGeneratedAtFormatted {
-    final val = _str(raw['assessmentGeneratedAtFormatted'], fallback: '2026-10-30 10:30 GMT (UTC+00:00)');
+    final val = _str(raw['assessmentGeneratedAtFormatted'], fallback: '2026-11-03 00:05 GMT (UTC+00:00)');
     if (val.endsWith(' NZST')) {
       return '${val.substring(0, val.length - 5)} GMT (UTC+00:00)';
     }
     return val;
   }
-  String get assessmentDate => _str(raw['assessmentDate'] ?? raw['assessmentGeneratedAtFormatted'] ?? raw['meta']?['date'], fallback: '2026-10-30 10:30 GMT (UTC+00:00)');
+  String get assessmentDate => _str(raw['assessmentDate'] ?? raw['assessmentGeneratedAtFormatted'] ?? raw['meta']?['date'], fallback: '2026-11-03 00:05 GMT (UTC+00:00)');
   String get versionMarker => '$fullVersionString • Build $buildId • $changeId';
 
   // Summary Block
@@ -1181,11 +1181,14 @@ class EvaluationResult {
 
   // P.A.R.A.-Inspired Idea Portfolio & Decision System
   Map<String, dynamic> get portfolioMeta => (raw['portfolioMeta'] as Map<String, dynamic>?) ?? {};
-  String get portfolioDecision => _str(
-    portfolioMeta['portfolioDecision'],
-    fallback: isNuclear ? 'PARK' : (overallScore >= 55 ? 'INVESTIGATE' : (overallScore >= 40 ? 'PIVOT' : 'PARK'))
-  );
-  String get decisionState => _str(portfolioMeta['decisionState'], fallback: masterRecommendation);
+  String get portfolioDecision {
+    final metaDecision = portfolioMeta['portfolioDecision'] ?? raw['portfolioDecision'];
+    if (metaDecision is String && metaDecision.trim().isNotEmpty) {
+      return metaDecision.trim();
+    }
+    return masterRecommendation;
+  }
+  String get decisionState => _str(portfolioMeta['decisionState'] ?? raw['decisionState'], fallback: masterRecommendation);
   String get ventureStage => _str(portfolioMeta['ventureStage'], fallback: scoreBandName);
 
   Map<String, dynamic> get problemVsSolution => (portfolioMeta['problemVsSolution'] as Map<String, dynamic>?) ?? {};
@@ -1582,50 +1585,50 @@ class EvaluationResult {
         {
           'phaseNumber': 'Phase 1',
           'daysRange': 'Days 1–30',
-          'title': 'Problem Validation',
-          'name': 'Phase 1: Days 1–30 — Problem Validation',
-          'objective': 'Verify the frequency, severity, and economic cost of equipment failure or pest damage with marine harbor operators and vessel owners.',
+          'title': 'Problem & Willingness-to-Pay Validation',
+          'name': 'Phase 1: Days 1–30 — Problem & Willingness-to-Pay Validation',
+          'objective': 'Verify the frequency and severity of rodent and insect boarding via vessel mooring lines, dissatisfaction with conventional plastic/metal rat guards, and customer willingness to pay.',
           'activities': [
-            'Outreach to 15 marina managers, commercial harbor masters, and private vessel owners.',
-            'Conduct 8–10 structured discovery interviews focusing on current manual workarounds and line failure costs.',
-            'Quantify the direct financial and insurance pain caused by unmonitored equipment failures.',
-            'Synthesize problem severity criteria to establish baseline physical product specifications.'
+            'Outreach to 15–20 recreational boat owners, liveaboards, commercial vessel operators, and marina managers.',
+            'Conduct 10–15 structured discovery interviews focusing on pest boarding via mooring lines and conventional rat-guard workarounds.',
+            'Test the founder assumption regarding annual pest-prevention spend and price sensitivity (\$150–\$450 NZD).',
+            'Document required mooring-line diameter ranges (12mm–32mm) and marina compliance rules.'
           ],
-          'successCriteria': 'At least 70% of interviewed operators confirm that current manual methods are inadequate and impose recurring operational pain.',
-          'deliverables': 'Problem Discovery Synthesis & Customer Pain Severity Log (8–10 interview transcripts).',
-          'decisionMilestone': 'Problem Gate: If fewer than 50% confirm severe pain or willingness to adopt physical alternatives, reconsider target use case or pivot.'
+          'successCriteria': 'At least 60% of interviewed operators confirm recurring mooring-line pest problems and acceptable pricing.',
+          'deliverables': 'Customer Discovery Synthesis, Rat-Guard Workaround Audit & Price-Sensitivity Log (10–15 interviews).',
+          'decisionMilestone': 'Problem Gate: Proceed to Stage Gate 2 prototyping only if customer willingness to pay is empirically confirmed.'
         },
         {
           'phaseNumber': 'Phase 2',
           'daysRange': 'Days 31–60',
-          'title': 'Solution Validation',
-          'name': 'Phase 2: Days 31–60 — Solution Validation',
-          'objective': 'Fabricate benchtop proof-of-concept prototype to validate deterrent mechanism, power budget, and solar harvesting in marine conditions.',
+          'title': 'Solar & Low-Voltage Deterrent Proof-of-Concept',
+          'name': 'Phase 2: Days 31–60 — Solar & Low-Voltage Deterrent Proof-of-Concept',
+          'objective': 'Build and bench-test a functional solar-powered low-voltage deterrent prototype to validate electrical pulse safety, solar harvesting, and saltwater rope durability.',
           'activities': [
-            'Develop mechanical CAD component models and preliminary electrical schematic for low-power solar/battery subsystem.',
-            'Assemble benchtop physical prototype using off-the-shelf components to verify mechanism functionality.',
-            'Perform benchtop endurance and power consumption stress testing under simulated weather conditions.',
-            'Present physical prototype demonstration and technical spec sheet to 5 prospective buyers for direct feedback.'
+            'Assemble low-power solar charging and low-voltage pulse circuit prototype with off-the-shelf electronics.',
+            'Test electrical pulse delivery and short-circuit protection on wet salt-crusted marine mooring lines.',
+            'Perform endurance and waterproofing stress testing under simulated marine weather conditions.',
+            'Present working prototype and technical specification sheet to 5 prospective buyers for direct feedback.'
           ],
-          'successCriteria': 'Demonstrated mechanism reliability and positive user feedback on physical form factor from at least 4 of 5 operators.',
-          'deliverables': 'Benchtop Functional Prototype, Engineering Spec Sheet & Mechanism Validation Log.',
-          'decisionMilestone': 'Solution Gate: Confirm mechanism functions reliably without high failure rates before investing in production tooling.'
+          'successCriteria': 'Reliable low-voltage operation on wet marine ropes and positive usability feedback from at least 4 of 5 boat owners.',
+          'deliverables': 'Functional Low-Voltage Solar PoC Unit, Saltwater Endurance Log & Engineering Spec Sheet.',
+          'decisionMilestone': 'Solution Gate: Confirm deterrent functions reliably in wet marine conditions before investing in production tooling.'
         },
         {
           'phaseNumber': 'Phase 3',
           'daysRange': 'Days 61–90',
-          'title': 'Commercial Validation & Decision',
-          'name': 'Phase 3: Days 61–90 — Commercial Validation & Decision',
-          'objective': 'Validate Bill of Materials (BOM) unit economics, secure commercial pre-orders or pilot site deposits, and decide on tooling investment.',
+          'title': 'BOM Economics & Pilot Pre-Orders',
+          'name': 'Phase 3: Days 61–90 — BOM Economics & Pilot Pre-Orders',
+          'objective': 'Validate Bill of Materials (BOM) unit economics at 100/500-unit batch volumes, confirm electrical safety compliance, and secure paid pilot pre-orders.',
           'activities': [
-            'Obtain component quotes from at least 2 manufacturing suppliers to establish unit manufacturing costs at 100-unit and 500-unit volumes.',
-            'Formulate gross margin and pricing model (hardware sale plus optional recurring maintenance support).',
-            'Present formal pilot trial terms (with deposit or signed LOI) to 5 marina operators or fleet owners.',
-            'Evaluate capital requirements and manufacturing timeline against founder resource commitments.'
+            'Obtain component and assembly quotes from 2 manufacturing suppliers to establish unit manufacturing costs at 100-unit and 500-unit volumes.',
+            'Formulate gross margin and pricing model (>50% target gross margin) including replacement electrode or accessory revenue.',
+            'Present formal pilot trial terms (with deposit or signed pre-order) to 5 marina operators or fleet owners.',
+            'Evaluate capital requirements and tooling timeline against the founder available startup capital.'
           ],
-          'successCriteria': 'Secured at least 2 signed pilot commitments / deposit letters of intent with projected gross margins exceeding 50%.',
-          'deliverables': 'Supplier BOM Cost Model, 2 Written Pilot Trial Commitments, and Tooling Investment Decision Memo.',
-          'decisionMilestone': 'Commercial Gateway: Decide whether to proceed with commercial batch tooling, seek hardware angel funding, or refine design.'
+          'successCriteria': 'Secured at least 2–3 signed pilot commitments / deposit letters of intent with projected gross margins exceeding 50%.',
+          'deliverables': 'Supplier BOM Cost Model, 2–3 Written Pilot Trial Commitments, and Tooling Investment Decision Memo.',
+          'decisionMilestone': 'Commercial Gateway: Decide whether to proceed with commercial batch tooling or refine design based on pre-order traction.'
         }
       ];
     }
@@ -1959,45 +1962,45 @@ class EvaluationResult {
       return [
         {
           'week': 'W 1-2',
-          'objective': 'User Problem Discovery',
-          'tasks': 'Interview 10 target operators on current equipment issues & costs.',
+          'objective': 'Boat-Owner & Marina Discovery',
+          'tasks': 'Interview 10–15 vessel owners & marina managers on mooring-line pest boarding and rat-guard workarounds.',
           'hours': hrsLabel,
-          'evidence': 'Interview transcript log'
+          'evidence': '10–15 discovery interview logs'
         },
         {
           'week': 'W 3-4',
-          'objective': 'Technical CAD & Specs',
-          'tasks': 'Draft initial mechanical CAD model & electronic component specs.',
+          'objective': 'Willingness to Pay & Gate 1 Decision',
+          'tasks': 'Test \$150–\$450 NZD price sensitivity and pass/fail Gate 1 before hardware spend.',
           'hours': hrsLabel,
-          'evidence': 'CAD spec sheet'
+          'evidence': 'Price validation log & Gate 1 Decision'
         },
         {
           'week': 'W 5-6',
-          'objective': 'Physical Prototype Build',
-          'tasks': 'Fabricate benchtop physical prototype for initial mechanism testing.',
+          'objective': 'Solar & Low-Voltage PoC Build',
+          'tasks': 'Fabricate benchtop solar-powered low-voltage deterrent prototype and rope-clamp housing.',
           'hours': hrsLabel,
-          'evidence': 'Benchtop prototype'
+          'evidence': 'Working benchtop PoC unit'
         },
         {
           'week': 'W 7-8',
-          'objective': 'Field & Durability Testing',
-          'tasks': 'Test prototype in real operating environment under stress conditions.',
+          'objective': 'Wet-Rope & Marine Testing',
+          'tasks': 'Test pulse delivery, waterproofing, and solar charging on wet salt-crusted mooring lines.',
           'hours': hrsLabel,
-          'evidence': 'Field test log'
+          'evidence': 'Wet-rope endurance test log'
         },
         {
           'week': 'W 9-10',
-          'objective': 'Unit Economics & Sourcing',
-          'tasks': 'Obtain quotes from 2 manufacturers for bill of materials & batch assembly.',
+          'objective': 'Unit Economics & BOM Quotes',
+          'tasks': 'Obtain quotes from 2 manufacturers for bill of materials and batch assembly.',
           'hours': hrsLabel,
           'evidence': 'Supplier quote comparison'
         },
         {
           'week': 'W 11-12',
-          'objective': 'Commercial Pre-Orders',
-          'tasks': 'Present tested prototype to 5 prospective buyers to secure pre-orders.',
+          'objective': 'Paid Pilot Pre-Orders',
+          'tasks': 'Present tested prototype to boat owners and marinas to secure 3+ paid pre-orders.',
           'hours': hrsLabel,
-          'evidence': '2 pilot deposits / pre-orders'
+          'evidence': '3+ paid pilot deposits / pre-orders'
         },
       ];
     }
@@ -2357,6 +2360,10 @@ class EvaluationResult {
       s = s.replaceAll(RegExp(r'Concierge MVP', caseSensitive: false), 'Field Test Prototype');
       s = s.replaceAll(RegExp(r'concierge pilot', caseSensitive: false), 'controlled field pilot');
       s = s.replaceAll(RegExp(r'writing code', caseSensitive: false), 'investing in product development & manufacturing');
+      s = s.replaceAll(RegExp(r'line failure costs', caseSensitive: false), 'pest damage and workaround costs');
+      s = s.replaceAll(RegExp(r'mooring line failure', caseSensitive: false), 'pest boarding via mooring lines');
+      s = s.replaceAll(RegExp(r'unmonitored equipment failures', caseSensitive: false), 'unmonitored pest intrusion');
+      s = s.replaceAll(RegExp(r'equipment failure or pest damage', caseSensitive: false), 'pest damage or infestation');
       s = s.replaceAll(RegExp(r'software or operational leverage without proportional linear costs', caseSensitive: false), 'standardised hardware manufacturing and channel distribution, governed by tooling and inventory working capital');
       s = s.replaceAll(RegExp(r'marginal cost of software delivery', caseSensitive: false), 'unit manufacturing and assembly costs');
       s = s.replaceAll(RegExp(r'changing customer requirements and regional market dynamics', caseSensitive: false), 'vessel asset protection needs and marine environmental conditions');
@@ -2417,6 +2424,7 @@ class EvaluationResult {
     s = s.replaceAll(RegExp(r'\benergy sector feedback\b', caseSensitive: false), 'published energy-sector reporting');
     s = s.replaceAll(RegExp(r'Recruit a highly specialised co-founder or an executive team[^\.]*\.', caseSensitive: false), 'Identify and begin engaging appropriately credentialled specialists for preliminary advice, scoping and potential future involvement.');
     s = s.replaceAll(RegExp(r'The foundational legal and regulatory barriers in New Zealand make this venture currently non-viable', caseSensitive: false), 'The unresolved legal and regulatory barriers mean the venture is not currently commercially actionable');
+    s = s.replaceAll(RegExp(r'currently prohibit commercial nuclear power generation', caseSensitive: false), 'presents an unestablished regulatory licensing pathway under current New Zealand law');
     s = s.replaceAll(RegExp(r'make this venture currently non-viable', caseSensitive: false), 'mean the venture is not currently commercially actionable');
     s = s.replaceAll(RegExp(r'\bextraordinary statutory\b', caseSensitive: false), 'substantial statutory');
     s = s.replaceAll(RegExp(r'\bscope the requirements\b'), 'Scope the requirements');

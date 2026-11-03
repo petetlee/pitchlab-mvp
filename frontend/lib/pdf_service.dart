@@ -38,7 +38,7 @@ class PdfService {
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
                 pw.Text(_cleanPdfText('Confidential  |  ${res.founderName}'), style: const pw.TextStyle(fontSize: 6.5, color: PdfColors.grey600)),
-                pw.Text(_cleanPdfText('PitchLab MVP ${res.appVersion} • Build ${res.buildId} • ${res.changeId} • Generated ${res.assessmentGeneratedAtFormatted}'), style: const pw.TextStyle(fontSize: 6.5, color: PdfColors.grey600)),
+                pw.Text(_cleanPdfText('PitchLab MVP ${res.appVersion} | Build ${res.buildId} | Task ${res.changeId} | Generated ${res.assessmentGeneratedAtFormatted}'), style: const pw.TextStyle(fontSize: 6.5, color: PdfColors.grey600)),
                 pw.Text(_cleanPdfText('Page ${context.pageNumber} of ${context.pagesCount}'), style: const pw.TextStyle(fontSize: 6.5, color: PdfColors.grey600)),
               ],
             ),
@@ -1435,6 +1435,33 @@ class PdfService {
         lowerAllPdf.contains('food and ho.') ||
         lowerAllPdf.contains('cleaning a.')) {
       throw Exception('PITCHLAB PRE-PDF INTEGRITY FAILURE: Broken template interpolation or mid-word truncation detected in report text. Export blocked.');
+    }
+
+    // 10. PL-FIX-20261103-01: MASTER DECISION & HARDWARE/NUCLEAR INTEGRITY GATES
+    final masterRec = res.masterRecommendation;
+    final portDec = res.portfolioDecision;
+    if (masterRec.isNotEmpty && portDec.isNotEmpty && masterRec != portDec) {
+      throw Exception('PITCHLAB PRE-PDF INTEGRITY FAILURE: Master decision contradiction detected (masterRecommendation: "$masterRec" vs portfolioDecision: "$portDec"). Export blocked.');
+    }
+
+    if (res.isHardware) {
+      final hwForbidden = [
+        'mooring line failure',
+        'line failure costs',
+        'unmonitored equipment failures',
+        'equipment failure or pest damage'
+      ];
+      for (final term in hwForbidden) {
+        if (lowerAllPdf.contains(term)) {
+          throw Exception('PITCHLAB PRE-PDF INTEGRITY FAILURE: Prohibited hardware failure phrase ("$term") detected in hardware assessment. Export blocked.');
+        }
+      }
+    }
+
+    if (res.isNuclear) {
+      if (lowerAllPdf.contains('currently prohibit commercial nuclear power generation')) {
+        throw Exception('PITCHLAB PRE-PDF INTEGRITY FAILURE: Inaccurate statutory claim detected in nuclear assessment. Export blocked.');
+      }
     }
 
     final catSum = res.scorecardCategories.fold<int>(0, (prev, c) => prev + c.scoreAchieved);

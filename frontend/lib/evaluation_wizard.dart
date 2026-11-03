@@ -396,13 +396,26 @@ class _EvaluationWizardState extends State<EvaluationWizard> {
         if (doc.exists && mounted) {
           final data = doc.data()!;
           setState(() {
-            _formData['founderExperience'] = data['founderExperience'] ?? '';
-            _formData['industryExperience'] = data['industryExperience'] ?? '';
-            _formData['timeCommitment'] = data['timeCommitment'] ?? '';
-            
-            _formData['locationCountry'] = data['locationCountry'] ?? '';
-            _formData['locationRegion'] = data['locationRegion'] ?? '';
-            _formData['locationCity'] = data['locationCity'] ?? '';
+            // Only populate profile defaults if field is currently empty in form data
+            // (prevents overwriting draft or user's active selections)
+            if ((_formData['founderExperience'] ?? '').toString().trim().isEmpty) {
+              _formData['founderExperience'] = data['founderExperience'] ?? '';
+            }
+            if ((_formData['industryExperience'] ?? '').toString().trim().isEmpty) {
+              _formData['industryExperience'] = data['industryExperience'] ?? '';
+            }
+            if ((_formData['timeCommitment'] ?? '').toString().trim().isEmpty) {
+              _formData['timeCommitment'] = data['timeCommitment'] ?? '';
+            }
+            if ((_formData['locationCountry'] ?? '').toString().trim().isEmpty) {
+              _formData['locationCountry'] = data['locationCountry'] ?? '';
+            }
+            if ((_formData['locationRegion'] ?? '').toString().trim().isEmpty) {
+              _formData['locationRegion'] = data['locationRegion'] ?? '';
+            }
+            if ((_formData['locationCity'] ?? '').toString().trim().isEmpty) {
+              _formData['locationCity'] = data['locationCity'] ?? '';
+            }
           });
         }
       }
