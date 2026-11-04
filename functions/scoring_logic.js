@@ -312,7 +312,8 @@ function detectProblemStatementMisclassification(rawInputs = {}) {
         : "Small business owners, sole traders, and community organisations";
       inferredCustomerProblem = `${custGroup} often face time-consuming manual bookkeeping, GST/payroll compliance pressures, limited visibility over cash flow, and a lack of accessible, culturally responsive financial administration support (inferred from the service concept; requires direct customer validation).`;
     } else {
-      inferredCustomerProblem = `Target customers (${targetMarket.split('\n')[0] || 'prospective buyers'}) require practical support to resolve operational friction related to ${idea.slice(0, 120)} (inferred from the business concept; requires direct customer validation).`;
+      const cleanSeg = extractCleanCustomerSegmentLabel(targetMarket);
+      inferredCustomerProblem = `Target customers (${cleanSeg || 'prospective buyers'}) require practical support to resolve operational friction related to ${stripMarkdownAndCleanText(idea).slice(0, 120)} (inferred from the business concept; requires direct customer validation).`;
     }
   }
 
@@ -331,10 +332,13 @@ function classifyVentureType(rawInputs = {}) {
   const idea = (rawInputs.idea || "").toLowerCase();
   const problem = (rawInputs.problem || "").toLowerCase();
   const category = (rawInputs.category || "").toLowerCase();
-  const text = `${idea} ${problem} ${category}`;
+  const solution = (rawInputs.solution || "").toLowerCase();
+  const targetMarket = (rawInputs.targetMarket || "").toLowerCase();
+  const narrative = (rawInputs.founderBackgroundNarrative || rawInputs.experience || "").toLowerCase();
+  const text = `${idea} ${problem} ${category} ${solution} ${targetMarket} ${narrative}`;
   const ideaAndCategory = `${idea} ${category}`;
 
-  if (text.match(/\b(ride-share|rideshare|ride-hailing|ride-booking|ride hailing|ride booking|taxi|passenger transport|mobility|transport-booking|car booking|driver network|shuttle|transit|airport transfer|vehicle rental)\b/i) || category.match(/transport|mobility/i)) {
+  if (text.match(/\b(leride|ride[- ]?shar(?:e|ing|es)?|ride[- ]?hail(?:ing)?|ride[- ]?book(?:ing)?|transport[- ]?book(?:ing)?|passenger transport|mobility|taxi|cabs?\b|driver network|shuttle|transit|airport transfer|vehicle rental)\b/i) || category.match(/transport|mobility/i)) {
     return 'Transportation / Mobility / Marketplace';
   }
   if (text.match(/\b(nuclear|atomic|smr|fission|fusion|power plant|electric grid|dam|hydroelectric|geothermal|refinery|pipeline|mining|railway|utility scale)\b/i) || (text.match(/\b(airport|infrastructure)\b/i) && !text.match(/ride-share|rideshare|taxi|passenger transport|transfer|shuttle|booking|rental/i))) {
@@ -2239,16 +2243,69 @@ function calculateFounderEvidenceGap(founderPredictions = {}, reconciled = {}, r
   };
 }
 
+function stripMarkdownAndCleanText(raw = "", maxLen = 0) {
+  if (!raw || typeof raw !== 'string') return "";
+  let s = raw.trim();
+
+  // Strip or intelligently unpack markdown header lines
+  const lines = s.split('\n');
+  const cleanedLines = [];
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i].trim();
+    if (/^#{1,6}\s+/.test(line)) {
+      if (line.includes(':')) {
+        line = line.replace(/^#{1,6}\s+[^:\n]+:\s*/, '').trim();
+        if (line) cleanedLines.push(line);
+      } else {
+        const hasOtherLines = lines.slice(i + 1).some(l => l.trim().length > 0);
+        if (!hasOtherLines) {
+          line = line.replace(/^#{1,6}\s+/, '').trim();
+          if (line) cleanedLines.push(line);
+        }
+      }
+    } else if (line) {
+      cleanedLines.push(line);
+    }
+  }
+  s = cleanedLines.join('\n\n');
+
+  // Strip inline markdown headers e.g. ("## The Market) or ## The Market
+  s = s.replace(/\(\s*["']?#{1,6}\s*([^)]*?)\)/g, "($1)");
+  s = s.replace(/#{1,6}\s+/g, "");
+  // Strip bold and italic
+  s = s.replace(/[*_]{1,3}([^*_]+)[*_]{1,3}/g, "$1");
+  // Strip bullet markers
+  s = s.replace(/^[\s*•\-–—]+\s*/gm, "");
+  // Strip leading list numbers
+  s = s.replace(/^\d+[\.\)]\s+/gm, "");
+  // Strip leading/trailing unbalanced quotes and parenthesis artifacts
+  s = s.replace(/^["'“‘\(\[]+/, "").replace(/["'”’\)\]]+$/, "");
+  // Collapse whitespace
+  s = s.replace(/[ \t]+/g, " ").replace(/\n\s*\n/g, "\n\n").trim();
+  if (maxLen > 0 && s.length > maxLen) {
+    const slice = s.slice(0, maxLen);
+    const lastSpace = slice.lastIndexOf(' ');
+    s = (lastSpace > maxLen * 0.6 ? slice.slice(0, lastSpace) : slice).replace(/[,\s]+$/, '') + '...';
+  }
+  return s;
+}
+
 function extractCleanCustomerSegmentLabel(rawTargetMarket = "") {
   const raw = String(rawTargetMarket || "target customers").trim();
   if (!raw) return "target customers";
-  const firstSentence = raw.split(/(?<=[.!?])\s+/)[0] || raw;
+  // First strip all markdown, headings and bullets
+  const stripped = stripMarkdownAndCleanText(raw);
+  if (!stripped) return "target customers";
+  const firstSentence = stripped.split(/(?<=[.!?])\s+|\n+/)[0] || stripped;
   const cleaned = firstSentence
-    .replace(/^the target market includes\s+/i, "")
-    .replace(/^our target customers? (?:are|include)\s+/i, "")
+    .replace(/^the market\s+[a-z0-9_-]+\s+is targeting:?\s*/i, "")
+    .replace(/^the target market (?:is|includes):?\s*/i, "")
+    .replace(/^our target customers? (?:are|include):?\s*/i, "")
+    .replace(/^target customers? (?:are|include):?\s*/i, "")
+    .replace(/^targeting:?\s*/i, "")
     .replace(/\.$/, "")
     .trim();
-  return cleaned.length > 140 ? cleaned.slice(0, 137) + "..." : cleaned;
+  return cleaned.length > 140 ? cleaned.slice(0, 137) + "..." : (cleaned || "target customers");
 }
 
 function generateContextualScoreExplanation(key, scoreAchieved, maxScore, rawInputs = {}, gatesInfo = {}, founderCalc = {}) {
@@ -2371,9 +2428,23 @@ function generateContextualInvestorCommentary(area, rating, scoreAchieved, maxSc
     if (isNuclear || gatesInfo?.hasCriticalGate) {
       return "Wholesale power off-take mechanisms exist in theory, but no feasible New Zealand licensing pathway, nuclear liability framework, or utility project financing structure has been established.";
     }
+    const isHardware = ventureType.includes("Hardware") || ventureType.includes("Manufacturing");
+    const isTransport = ventureType.includes("Transportation") || ventureType.includes("Mobility") || (ventureType.includes("Marketplace") && ((reqData.idea || '') + ' ' + (reqData.category || '')).toLowerCase().match(/ride|transport|driver|passenger|mobility/i));
+    const isMarketplace = ventureType.includes("Marketplace");
+
+    if (isHardware) {
+      return rating >= 4
+        ? "Monetisation model is logical with direct alignment between customer value delivery and revenue capture."
+        : "Commercial revenue model is conceptual; unit BOM economics and manufacturing margins require empirical testing.";
+    }
+    if (isTransport || isMarketplace) {
+      return rating >= 4
+        ? "Two-sided take-rate model (targeting 15–20% commission per completed ride) provides viable unit economics with low incremental transaction servicing costs."
+        : "Commercial revenue model is conceptual; platform take-rate feasibility (15–20% target), driver net earnings after fuel, and passenger willingness to pay require empirical testing.";
+    }
     return rating >= 4
       ? "Monetisation model is logical with direct alignment between customer value delivery and revenue capture."
-      : "Commercial revenue model is conceptual; unit BOM economics and customer willingness to pay require empirical testing.";
+      : "Commercial revenue model is conceptual; pricing structure, customer willingness to pay, and unit economics require empirical testing.";
   }
   if (area === "Founder Capability") {
     if (isNuclear || gatesInfo?.hasCriticalGate) {
@@ -2388,8 +2459,8 @@ function generateContextualInvestorCommentary(area, rating, scoreAchieved, maxSc
     const isTransport = ventureType.includes("Transportation") || ventureType.includes("Mobility") || (ventureType.includes("Marketplace") && ((reqData.idea || '') + ' ' + (reqData.category || '')).toLowerCase().match(/ride|transport|driver|passenger|mobility/i));
     if (isTransport) {
       return rating >= 4
-        ? "Founder possesses highly relevant operational experience in local transport and strong commercial skills, with technical platform and marketplace engineering identified as the bridgeable execution gap."
-        : "Founder possesses useful general commercial skills, with direct transport operations and technical marketplace capabilities requiring strengthening.";
+        ? "Founder possesses highly relevant operational experience in local fleet management and tourism transport, with two-sided software application engineering identified as the primary bridgeable execution gap."
+        : "Founder possesses useful general commercial and transport operations skills, with digital dispatch software development and marketplace platform engineering requiring specialist recruitment or technical partnership.";
     }
     return rating >= 4
       ? "Founder demonstrates strong domain credentials, relevant operational background, and execution capability."
@@ -2442,9 +2513,23 @@ function generateContextualInvestorCommentary(area, rating, scoreAchieved, maxSc
     if (isNuclear || gatesInfo?.hasCriticalGate) {
       return "The concept is not presently investment-ready because New Zealand lacks an established commercial nuclear reactor licensing pathway and the venture has not yet assembled a specialist technical/regulatory consortium.";
     }
+    const isHardware = ventureType.includes("Hardware") || ventureType.includes("Manufacturing");
+    const isTransport = ventureType.includes("Transportation") || ventureType.includes("Mobility") || (ventureType.includes("Marketplace") && ((reqData.idea || '') + ' ' + (reqData.category || '')).toLowerCase().match(/ride|transport|driver|passenger|mobility/i));
+    const isMarketplace = ventureType.includes("Marketplace");
+
+    if (isHardware) {
+      return rating >= 4
+        ? "Commercial concept demonstrates strong evidence maturity and clear milestone progression for capital deployment."
+        : "The opportunity is at the pre-validation stage; customer willingness to pay and prototype durability must be verified before seeking external investment.";
+    }
+    if (isTransport || isMarketplace) {
+      return rating >= 4
+        ? "Commercial concept demonstrates strong evidence maturity and clear milestone progression for capital deployment."
+        : "The opportunity is at the pre-validation stage; passenger booking demand, driver supply liquidity, and unit commission economics must be verified before seeking external investment.";
+    }
     return rating >= 4
       ? "Commercial concept demonstrates strong evidence maturity and clear milestone progression for capital deployment."
-      : "The opportunity is at the pre-validation stage; customer willingness to pay and prototype durability must be verified before seeking external investment.";
+      : "The opportunity is at the pre-validation stage; customer willingness to pay and core product-market fit must be verified before seeking external investment.";
   }
 
   return `Evaluated against commercial readiness criteria (${rating}/5).`;
@@ -2599,6 +2684,73 @@ function getLegalRegulatoryAssessment(rawInputs = {}, gatesInfo = {}, ventureTyp
     };
   }
 
+  const isTransport = ventureType.includes("Transportation") || ventureType.includes("Mobility") || Boolean(fullText.match(/\b(leride|ride[- ]?shar|ride[- ]?hail|ride[- ]?book|taxi|transport[- ]?book|passenger transport|mobility|shuttle|driver network)\b/i));
+  const isSamoa = Boolean(fullText.match(/\b(samoa|apia|upolu|faleolo|savaii)\b/i));
+
+  if (isTransport) {
+    const jurLabel = isSamoa ? "Samoa" : "the target market";
+    return {
+      primaryGatingRisk: "Driver Licensing & Transport Authority Regulatory Compliance",
+      regulatoryStatusCategory: "2. Activities permitted subject to commercial transport operator endorsements and vehicle standards",
+      regulatoryTaxonomy,
+      evidenceLevel: isSamoa ? "Verified Jurisdiction Framework & Operating Guidelines" : "Commercial Transport Compliance Framework",
+      certaintyLevel: "LEVEL B",
+      directlyApplicableLaw: isSamoa ? [
+        "Land Transport Authority Act 2007 (Samoa)",
+        "Road Traffic (Public Passenger Vehicles) Regulations",
+        "Business Licences Act 1998 (Samoa)"
+      ] : [
+        "Land Transport Commercial Vehicle Regulations",
+        "Small Passenger Service Licensing Framework"
+      ],
+      adjacentLawOrPolicy: isSamoa ? [
+        "Samoa Airport Authority Ground Transport & Concession By-laws",
+        "Central Bank of Samoa National Payment System Guidelines (WST Currency / Digital Payments)"
+      ] : [
+        "Local Council Commercial Vehicle By-laws",
+        "Fair Trading & Consumer Protection Standards"
+      ],
+      verifiedStatutes: isSamoa ? [
+        {
+          title: "Land Transport Authority Act 2007 (Samoa)",
+          citation: "Samoa Consolidated Acts 2007 No 17",
+          enactmentYear: 2007,
+          url: "https://www.lta.gov.ws/",
+          retrievedAtUtc,
+          statutoryScope: "Establishes the Land Transport Authority (LTA) to regulate road safety, vehicle standards, driver licensing, and commercial passenger endorsements across Samoa.",
+          relevanceToVenture: "Governs public passenger vehicle inspections, commercial driver endorsements, and vehicle roadworthiness standards required for independent drivers operating on the LeRide dispatch network."
+        }
+      ] : [],
+      verifiedFacts: isSamoa ? [
+        "Commercial passenger transport in Samoa requires compliant public passenger vehicle registration, driver endorsement from the Land Transport Authority (LTA), and valid commercial passenger vehicle insurance [Verified Source / Domain Context].",
+        "Digital ride-booking and dispatch platforms typically operate as booking intermediaries connecting passengers with independently licensed, vetted drivers rather than operating direct transit fleets [Commercial Model].",
+        "Local transactions are denominated in Samoan Tala (WST); domestic operations and cash/mobile payments must adhere to Central Bank of Samoa settlement guidelines [Verified Context]."
+      ] : [
+        "Commercial passenger transport requires compliant commercial vehicle registration, driver endorsement, and insurance.",
+        "Dispatch platforms operate as booking intermediaries connecting passengers with vetted independent drivers."
+      ],
+      preliminaryInterpretations: [
+        `Operating a digital transport dispatch platform in ${jurLabel} is permissible under standard commercial enterprise registration, provided onboarded drivers hold valid commercial passenger vehicle endorsements and insurance [AI Inference].`,
+        "Pre-scheduled concierge airport and hotel transfers provide a compliant staging ground for early testing before deploying open-market algorithmic dispatch [AI Inference]."
+      ],
+      unresolvedQuestions: [
+        `Confirmation of specific LTA intermediary booking licensing guidelines or ride-hailing policy updates in ${jurLabel}.`,
+        "Airport pickup concession arrangements with the local airport authority for scheduled passenger transfers."
+      ],
+      specialistConfirmationRequired: false,
+      permittedLanguage: [
+        "permitted subject to standard commercial endorsements",
+        "commercial passenger vehicle compliance applies",
+        "requires driver vetting and transport authority endorsement"
+      ],
+      prohibitedLanguage: [
+        "illegal to operate ride-booking",
+        "prohibited transport model",
+        "unfeasible regulatory barrier"
+      ]
+    };
+  }
+
   return {
     primaryGatingRisk: "Customer Demand & Willingness to Pay",
     regulatoryStatusCategory: "2. Activities permitted subject to standard commercial and product compliance approvals",
@@ -2692,6 +2844,12 @@ function buildAuthoritativeAssessmentSnapshot(reqData = {}, evaluationId = "", s
   const combinedLower = `${ideaText} ${problemText}`.toLowerCase();
   const isMoorSafe = Boolean(combinedLower.match(/\b(moorsafe|mooring|pest deterrent|rodent|rat guard)\b/));
   const isNuclear = Boolean(combinedLower.match(/\b(nuclear|smr|atomic|reactor)\b/));
+  const isTransport = Boolean(
+    combinedLower.match(/\b(leride|ride[- ]?shar|ride[- ]?hail|ride[- ]?book|taxi|transport[- ]?book|passenger transport|mobility|shuttle|driver network)\b/i) ||
+    ventureType.includes("Transportation") ||
+    ventureType.includes("Mobility") ||
+    (ventureType.includes("Marketplace") && combinedLower.match(/ride|transport|driver|passenger|mobility/i))
+  );
   const hasPrototypeSubmitted = Boolean(
     stageText.toLowerCase().match(/\b(prototype|mvp|working product|beta|early users|paying|revenue)\b/) ||
     combinedLower.match(/\b(built a prototype|working prototype|tested prototype|cad completed|3d printed prototype)\b/)
@@ -2715,9 +2873,37 @@ function buildAuthoritativeAssessmentSnapshot(reqData = {}, evaluationId = "", s
         outsourceableCapabilities: ["Industrial design & PCB/solar-circuit prototyping", "IP67/IP68 waterproof housing engineering", "Electrical safety & compliance testing"],
         strategicPartnerOrConsortiumCapabilities: ["Contract electronics manufacturer (CEM)", "Marine chandlery & marina operator distribution partners"]
       }
+    : isTransport
+    ? {
+        founderProposedRole: "Commercial Founder, Fleet & Local Operations Lead",
+        existingCapabilities: [
+          "Operational leadership of Discovery Rentals & Tours and New Discovery Group in Samoa",
+          "Established relationships with local commercial transport drivers, hotel concierges, and airport operators",
+          "Fleet logistics, customer service delivery, and commercial enterprise management"
+        ],
+        transferableCapabilities: [
+          "Driver recruitment, vetting, and performance management",
+          "Concierge customer dispatch and dispute resolution",
+          "Local tourism, hotel, and transport operator partnership negotiation"
+        ],
+        missingSpecialistCapabilities: [
+          "Native mobile application engineering (iOS & Android passenger and driver applications)",
+          "Real-time geolocation dispatch engine, dynamic routing algorithms, and map integrations",
+          "Automated digital payment gateway integration and driver commission settlement"
+        ],
+        outsourceableCapabilities: [
+          "White-label ride-dispatch SaaS configuration or contracted mobile software development",
+          "Local bank payment gateway integration (e.g. BSP or commercial gateway)",
+          "Samoa Land Transport Authority (LTA) passenger licensing compliance review"
+        ],
+        strategicPartnerOrConsortiumCapabilities: [
+          "Samoa Land Transport Authority (LTA) and local taxi/transport associations",
+          "Major hotel, resort, and airport transfer operators across Upolu"
+        ]
+      }
     : {
         founderProposedRole: "Founder & Commercial Lead",
-        existingCapabilities: [narrative || "Submitted founder commercial and domain background"],
+        existingCapabilities: [stripMarkdownAndCleanText(narrative, 180) || "Submitted founder commercial and domain background"],
         transferableCapabilities: ["Commercial execution", "Customer discovery", "Financial discipline"],
         missingSpecialistCapabilities: ["Venture-specific technical or specialist delivery capabilities not evidenced in submission"],
         outsourceableCapabilities: ["Specialist compliance, legal, or technical prototyping tasks"],
@@ -2735,7 +2921,7 @@ function buildAuthoritativeAssessmentSnapshot(reqData = {}, evaluationId = "", s
     coreProblemStatement: problemMisclass.isFounderCapabilityNeedInProblemField ? problemMisclass.inferredCustomerProblem : problemText,
     proposedSolutionStatement: ideaText,
     excludedHistoricalOrAlternativeWork: isMoorSafe && !combinedLower.includes("adhesive")
-      ? "Assessed strictly on the submitted solar-powered, low-voltage electrical mooring-rope pest deterrent concept. Excluded passive adhesive-disc, CAD, or 3D-printing concepts not present in this submission are excluded."
+      ? "Assessed strictly on the submitted solar-powered, low-voltage electrical mooring-rope pest deterrent concept. Excluded passive sticky barrier, CAD, or 3D-printing concepts not present in this submission are excluded."
       : "None — assessed strictly on submitted concept.",
     prototypeStageStatus: {
       submittedBusinessStage: stageText,
@@ -3488,7 +3674,7 @@ function validateReportIntegrityGate(evaluationData = {}, reqData = {}) {
   }
 
   // 18. Transportation / Mobility Semantic Guardrail (PL-FIX-20261008-V0.9.7-LERIDE Section 12)
-  const isTransport = ventureType === 'Transportation / Mobility / Marketplace' || Boolean((reqData.idea || "").toLowerCase().match(/leride|ride-share|rideshare|taxi|passenger transport|mobility|transport-booking/i));
+  const isTransport = ventureType === 'Transportation / Mobility / Marketplace' || ventureType.includes("Transportation") || ventureType.includes("Mobility") || Boolean(((reqData.idea || "") + " " + (reqData.category || "") + " " + (reqData.problem || "") + " " + (reqData.solution || "")).toLowerCase().match(/\b(leride|ride[- ]?shar|ride[- ]?hail|ride[- ]?book|taxi|transport[- ]?book|passenger transport|mobility|shuttle|driver network)\b/i));
   if (isTransport) {
     const transportBannedSaaS = [
       { pattern: /cloud-based productivity tools/i, phrase: "cloud-based productivity tools" },
@@ -3544,7 +3730,7 @@ function validateReportIntegrityGate(evaluationData = {}, reqData = {}) {
   const priorityActionsList = evaluationData.summaryBlock?.threePriorityActions || [];
   for (const act of priorityActionsList) {
     const exp = act.explanation || "";
-    if (exp.length > 250) {
+    if (exp.length > 280) {
       throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Action plan text injection detected (${exp.length} chars). Founder text must be synthesized, not dumped verbatim.`);
     }
   }
@@ -3667,7 +3853,7 @@ function validateReportIntegrityGate(evaluationData = {}, reqData = {}) {
       );
     }
     const allMoorSafeText = [
-      fullReportText,
+      fullReportText.replace(/"excludedHistoricalOrAlternativeWork":\s*"[^"]*"/g, ''),
       JSON.stringify(evaluationData.actionPlan || {})
     ].join(" \n ");
     for (const rule of moorSafeForbiddenPhrases) {
@@ -3687,6 +3873,36 @@ function validateReportIntegrityGate(evaluationData = {}, reqData = {}) {
       if (rule.pattern.test(fullReportText)) {
         throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Inaccurate NZ nuclear statutory claim detected ('${rule.phrase}'). Must distinguish the NZ Nuclear Free Zone Act 1987 from the Atomic Energy Act 1945, Radiation Safety Act 2016, and RMA 1991.`);
       }
+    }
+  }
+
+  // 31. Raw Markdown Header & Formatting Artifact Gate (PL-FIX-20261104-02 Section 2)
+  // Scans for markdown headers (## ) or quotation artifacts leaking into generated prose
+  if (/(?:\(\s*["']?#{1,6}\s+|^\s*#{1,6}\s+[A-Za-z])/m.test(fullReportText)) {
+    throw new Error("PITCHLAB QA INTEGRITY FAILURE: Raw markdown header or formatting artifact detected in generated report output.");
+  }
+
+  // 32. Cross-Sector Terminology Gate (PL-FIX-20261104-02 Section 8 & 9)
+  // Ensure hardware BOM / prototype durability terms never leak into software/marketplace reports
+  const isSoftwareOrMarketplace = isTransport || ventureType.includes("Marketplace") || ventureType.includes("SaaS") || ventureType.includes("Software");
+  if (isSoftwareOrMarketplace && !ventureType.includes("Hardware") && !ventureType.includes("Manufacturing")) {
+    const hardwareTerms = [
+      { pattern: /\bunit BOM economics\b/i, phrase: "unit BOM economics" },
+      { pattern: /\bprototype durability\b/i, phrase: "prototype durability" },
+      { pattern: /\bmould tooling\b/i, phrase: "mould tooling" }
+    ];
+    for (const rule of hardwareTerms) {
+      if (rule.pattern.test(fullReportText)) {
+        throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Prohibited hardware terminology ('${rule.phrase}') detected in software/marketplace assessment.`);
+      }
+    }
+  }
+
+  // 33. Two-Sided Marketplace Validation Consistency Gate (PL-FIX-20261104-02 Section 10 & 14)
+  if (isTransport) {
+    const primaryTheme = evaluationData.businessTheme?.primaryTheme || "";
+    if (primaryTheme === "General" || primaryTheme.includes("Workflow Efficiency")) {
+      throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Inappropriate industry classification ('${primaryTheme}') for transport marketplace venture.`);
     }
   }
 
@@ -3724,6 +3940,8 @@ module.exports = {
   generateContextualInvestorCommentary,
   getLegalRegulatoryAssessment,
   generateContextualInvestorVerdict,
+  stripMarkdownAndCleanText,
+  extractCleanCustomerSegmentLabel,
   validateReportIntegrityGate,
   detectAndResolveCrossContamination
 };

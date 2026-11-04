@@ -933,12 +933,11 @@ class EvaluationResult {
       return 'The founder brings relevant industry context and background experience to support early concept validation.';
     }
     final String cleanFitReason = whyThisScoreWasAwarded.isNotEmpty ? whyThisScoreWasAwarded : 'relevant domain background and professional context to lead product validation.';
-    final String cleanEvidence = evidenceReliedOn.isNotEmpty ? evidenceReliedOn : 'submitted founder experience and background credentials.';
 
     if (founderCapabilityScore <= 6) {
-      return _cleanNarrativeText('Advisor Insight: Based on $cleanEvidence, $cleanFitReason While the founder possesses valuable transferable commercial capability, direct venture-specific domain experience and technical capability remain key gaps to address.');
+      return _cleanNarrativeText('Advisor Insight: $cleanFitReason While the founder possesses valuable transferable commercial capability, direct venture-specific domain experience and technical capability remain key gaps to address.');
     }
-    return _cleanNarrativeText('Advisor Insight: Based on $cleanEvidence, $cleanFitReason This provides relevant commercial authority, operational insight, and customer reach to support concept validation.');
+    return _cleanNarrativeText('Advisor Insight: $cleanFitReason This provides relevant commercial authority, operational insight, and customer reach to support concept validation.');
   }
   Map<String, dynamic> get founderCapabilityExplanation => (raw['founderCapabilityExplanation'] as Map<String, dynamic>?) ?? {};
   String get evidenceReliedOn {
