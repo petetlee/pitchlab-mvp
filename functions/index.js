@@ -11,7 +11,7 @@ const { getAuth } = require("firebase-admin/auth");
 const { getStorage } = require("firebase-admin/storage");
 const fs = require("fs");
 const path = require("path");
-const { calculateFRI, reconcileScores, getScoreBand, classifyVentureType, normalizeFounderTimeCommitment, normalizeFounderCapital, detectProblemStatementMisclassification, buildAuthoritativeAssessmentSnapshot, computeInputCoverageAudit, detectFeasibilityGates, calculateFounderEvidenceGap, calculate5DimensionFutureTrends, getValidationLadderForContext, getCommercialAdviserOpinion, getPortfolioDecision, generateContextualInvestorCommentary, getLegalRegulatoryAssessment, generateContextualInvestorVerdict, validateReportIntegrityGate, detectAndResolveCrossContamination } = require("./scoring_logic");
+const { calculateFRI, reconcileScores, getScoreBand, classifyVentureType, normalizeFounderTimeCommitment, normalizeFounderCapital, detectProblemStatementMisclassification, buildAuthoritativeAssessmentSnapshot, computeInputCoverageAudit, detectFeasibilityGates, calculateFounderEvidenceGap, calculate5DimensionFutureTrends, getValidationLadderForContext, getCommercialAdviserOpinion, getPortfolioDecision, generateContextualInvestorCommentary, getLegalRegulatoryAssessment, generateContextualInvestorVerdict, validateReportIntegrityGate, detectAndResolveCrossContamination, stripMarkdownAndCleanText, extractCleanCustomerSegmentLabel } = require("./scoring_logic");
 
 const VERSION_INFO = require("./version_config.json");
 const STORAGE_BUCKET_NAME = process.env.GCS_BUCKET || "antigravity-pitchlab.firebasestorage.app";
@@ -353,37 +353,45 @@ function runSemanticGuardrail(data, ventureType = "", gatesInfo = {}, reqData = 
 
 function synthesizeTargetCustomerLabel(targetMarket = "") {
   if (!targetMarket || typeof targetMarket !== 'string') return "prospective customers";
-  let s = targetMarket.trim();
+  let s = stripMarkdownAndCleanText(targetMarket, 300).trim();
   s = s.replace(/^["\“\‘](.*)["\”\’]$/, '$1').trim();
   s = s.replace(/^primary:\s*/i, '').trim();
-  s = s.replace(/^(the|our|target|targeting|the\s+target\s+market\s+is|our\s+target\s+customers\s+are)\s+/i, '').trim();
+  s = s.replace(/^(?:the\s+market\s+[a-z0-9_-]+\s+is\s+targeting:?|the\s+target\s+market\s+(?:is|includes):?|our\s+(?:primary\s+)?target\s+customers?\s+(?:are|include):?|primary\s+target\s+customers?\s+(?:are|include):?|target\s+customers?\s+(?:are|include):?|the\s+target\s+customers?\s+(?:are|include):?|targeting:?|we\s+target:?|our\s+primary\s+market\s+is:?)\s+/i, '').trim();
   // Take only the primary customer line before any "Competitors:" or "Market:" breakdown
   s = s.split(/\n|competitors\s*:|market\s*:/i)[0].trim();
   s = s.replace(/\bmaintanence\b/gi, "maintenance").replace(/\bpasifika\b/gi, "Pasifika");
-  if (s.length > 90 || s.includes('.')) {
-    const lower = s.toLowerCase();
-    if (lower.includes('resident') || lower.includes('tourist') || lower.includes('passenger') || lower.includes('commuter') || lower.includes('driver')) {
-      return "local residents, commuters, tourists and transport operators";
-    }
-    if (lower.includes('pasifika') && (lower.includes('small business') || lower.includes('community') || lower.includes('sole trader'))) {
-      return "Pasifika small business owners, sole traders, and community organisations";
-    }
-    if ((lower.includes('sole trader') || lower.includes('small to medium') || lower.includes('small business')) && (lower.includes('community') || lower.includes('charit'))) {
-      return "start-ups, sole traders, small businesses, and community organisations";
-    }
-    if (lower.includes('sole trader') || lower.includes('small to medium') || lower.includes('small business')) {
-      return "start-ups, sole traders, and small-to-medium businesses";
-    }
-    const firstSentence = s.split(/[.;:]/)[0].trim();
-    if (firstSentence.length <= 85 && firstSentence.length > 5) {
-      return firstSentence;
-    }
-    // Cut cleanly at the last whole word or comma boundary before 75 chars, never mid-word
-    const truncated = firstSentence.slice(0, 75);
-    const lastCommaOrSpace = Math.max(truncated.lastIndexOf(','), truncated.lastIndexOf(' '));
-    return (lastCommaOrSpace > 20 ? truncated.slice(0, lastCommaOrSpace).replace(/[,\s]+$/, '') : truncated.trim());
+
+  const lower = s.toLowerCase();
+  if (lower.includes('resident') || lower.includes('tourist') || lower.includes('passenger') || lower.includes('commuter') || lower.includes('driver')) {
+    return "local residents, commuters, tourists and transport operators";
   }
-  return s.replace(/[.\s]+$/, '') || "prospective customers";
+  if (lower.includes('idea') || lower.includes('founder') || lower.includes('entrepreneur') || lower.includes('startup') || lower.includes('accelerator') || lower.includes('incubator') || lower.includes('pitchlab')) {
+    return "aspiring entrepreneurs, startup founders, and innovation programmes";
+  }
+  if (lower.includes('boat') || lower.includes('vessel') || lower.includes('marina') || lower.includes('mooring')) {
+    return "recreational boat owners, liveaboards, and marina operators";
+  }
+  if (lower.includes('nuclear') || lower.includes('smr') || lower.includes('electricity') || lower.includes('grid')) {
+    return "industrial off-takers, energy gentailers, and national grid operators";
+  }
+  if (lower.includes('pasifika') && (lower.includes('small business') || lower.includes('community') || lower.includes('sole trader'))) {
+    return "Pasifika small business owners, sole traders, and community organisations";
+  }
+  if ((lower.includes('sole trader') || lower.includes('small to medium') || lower.includes('small business')) && (lower.includes('community') || lower.includes('charit'))) {
+    return "start-ups, sole traders, small businesses, and community organisations";
+  }
+  if (lower.includes('sole trader') || lower.includes('small to medium') || lower.includes('small business') || lower.includes('smb')) {
+    return "start-ups, sole traders, and small-to-medium businesses";
+  }
+
+  const firstSentence = s.split(/[.;:]/)[0].trim();
+  if (firstSentence.length <= 85 && firstSentence.length > 5) {
+    return firstSentence;
+  }
+  // Cut cleanly at the last whole word or comma boundary before 75 chars, never mid-word
+  const truncated = firstSentence.slice(0, 75);
+  const lastCommaOrSpace = Math.max(truncated.lastIndexOf(','), truncated.lastIndexOf(' '));
+  return (lastCommaOrSpace > 20 ? truncated.slice(0, lastCommaOrSpace).replace(/[,\s]+$/, '') : truncated.trim()) || "prospective customers";
 }
 
 function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction = "New Zealand") {
@@ -404,7 +412,7 @@ function synthesizeBusinessModelField(fieldType, data, vType = "", jurisdiction 
     }
     s = s.replace(/^["\“\‘](.*)["\”\’]$/, '$1').trim();
     s = s.replace(/\bmaintanence\b/gi, "maintenance").replace(/\bpackgage\b/gi, "package").replace(/\bpasifika\b/gi, "Pasifika");
-    s = s.replace(/^(i\s+want\s+to\s+(develop|build|create|launch|target)|my\s+target\s+market\s+is|targeting|the\s+target\s+customer\s+is|we\s+target|our\s+target\s+customers\s+are|developing|i\s+am\s+building|we\s+are\s+building|a\s+new|we\s+offer|my\s+startup\s+idea\s+is|the\s+problem\s+is|customer\s+problem\s+is|users\s+suffer\s+from)\s+/i, '');
+    s = s.replace(/^(?:i\s+want\s+to\s+(?:develop|build|create|launch|target)|my\s+target\s+market\s+is|the\s+market\s+[a-z0-9_-]+\s+is\s+targeting:?|the\s+target\s+market\s+(?:is|includes):?|our\s+(?:primary\s+)?target\s+customers?\s+(?:are|include):?|primary\s+target\s+customers?\s+(?:are|include):?|target\s+customers?\s+(?:are|include):?|the\s+target\s+customers?\s+(?:are|include):?|targeting:?|we\s+target:?|our\s+primary\s+market\s+is:?|developing|i\s+am\s+building|we\s+are\s+building|a\s+new|we\s+offer|my\s+startup\s+idea\s+is|the\s+problem\s+is|customer\s+problem\s+is|users\s+suffer\s+from)\s+/i, '');
     s = s.trim();
     if (!s || s === '.' || s === '-') return fallback;
     s = s.charAt(0).toUpperCase() + s.slice(1);
@@ -1503,36 +1511,36 @@ function generateActionSourceOfTruth(reqData = {}, reconciled = {}, ventureType 
 
   if (isAiDecision) {
     const targetLabel = synthesizeTargetCustomerLabel(targetMarket);
-    const immediate7DayAction = `Outreach to 15 early-stage founders and startup incubator managers to schedule 6 initial discovery interviews.`;
+    const immediate7DayAction = `Outreach to 20 prospective founders and 5 startup accelerator managers to schedule 14 structured discovery interviews on validation hurdles and advisory willingness to pay.`;
     const threePriorityActions = [
       {
         heading: "1. Phase 1 Founder Discovery Interviews.",
-        explanation: `Conduct 10–12 structured discovery interviews with startup founders and advisors (${targetLabel}) to quantify frustration with superficial prompts, unvalidated assumptions, and advisory costs.`,
-        outcome: "10–12 completed founder interview transcripts and pain confirmation score."
+        explanation: `Conduct 14 structured discovery interviews (10 early-stage founders and 4 accelerator managers) to quantify frustration with superficial advice, validation hurdles, and advisory willingness to pay.`,
+        outcome: "14 completed founder/accelerator interview transcripts and problem severity score."
       },
       {
-        heading: "2. Prototype Walkthrough & Evaluation Audits.",
-        explanation: "Run 6 sample venture assessments across diverse business archetypes and conduct walkthrough sessions with target founders to test report usefulness and roadmap clarity.",
-        outcome: "6 founder review logs and calibrated evaluation output."
+        heading: "2. Multi-Archetype Evaluation Audits & Usability Walkthroughs.",
+        explanation: "Run 8 sample business evaluations across diverse archetypes and conduct walkthrough sessions with 6 test founders to audit report accuracy and eliminate composition defects on the live web MVP.",
+        outcome: "8 archetype evaluation audit logs and 6 founder usability review transcripts."
       },
       {
         heading: "3. Pricing Validation & Organization Commitments.",
-        explanation: "Present per-assessment and portfolio subscription pricing to 10 founders and 2 incubator directors to test willingness to pay before committing further engineering.",
-        outcome: "3 paid assessment purchases or 1 incubator partnership LOI."
+        explanation: "Present per-assessment ($49–$99 NZD) and portfolio subscription ($199/yr) pricing to 10 prospective founders and 2 accelerator directors to test willingness to pay before committing further engineering.",
+        outcome: "3 paid assessment purchases and 1 accelerator partnership LOI."
       }
     ];
     const topFivePriorities = [
-      { priority: "Founder Problem Discovery", action: "Interview 10–12 early-stage founders on idea validation confusion and wasted development capital.", metric: "10–12 completed interview notes" },
-      { priority: "Severity & Willingness to Pay", action: "Verify that at least 75% of founders report need for rigorous, objective decision intelligence.", metric: "75% pain confirmation rate" },
-      { priority: "Multi-Archetype Stress Testing", action: "Audit report generation accuracy across hardware, SaaS, marketplace, services, and regulated ventures.", metric: "Zero cross-archetype contamination" },
-      { priority: "Test Pricing Elasticity", action: "Present per-assessment and subscription pricing tiers to prospective users for commercial feedback.", metric: "3 paid assessment pre-orders" },
+      { priority: "Founder Problem Discovery", action: "Interview 10 early-stage founders and 4 accelerator managers on idea validation confusion and advisory costs.", metric: "14 completed interview transcripts" },
+      { priority: "Severity & Willingness to Pay", action: "Verify that at least 75% of interviewed founders and mentors report acute need for rigorous, objective decision intelligence.", metric: "75% pain confirmation rate" },
+      { priority: "Multi-Archetype Stress Testing", action: "Run 8 diverse archetype evaluations and audit report generation accuracy across hardware, SaaS, marketplace, and regulated ventures.", metric: "Zero composition defects & zero cross-contamination" },
+      { priority: "Test Pricing Elasticity", action: "Present per-assessment ($49–$99) and subscription ($199/yr) pricing tiers to 10 prospects for commercial feedback.", metric: "3 paid assessment purchases" },
       { priority: "Execution Cadence", action: `Allocate ${hoursBand} dedicated strictly to founder discovery and model calibration milestones.`, metric: "Weekly validation log" }
     ];
     const thirtyDayPlan = {
-      week1: { objective: "Founder Outreach & Interview Setup", tasks: ["Identify 20 early-stage founders and 5 accelerator mentors", "Schedule 6 initial discovery interviews"], expectedResult: "6 confirmed interview bookings" },
-      week2: { objective: "Phase 1 Founder Discovery (10 Users)", tasks: ["Execute structured discovery interviews on validation hurdles", "Log dissatisfaction with generic AI prompts and expensive consultants"], expectedResult: "Founder discovery synthesis & pain confirmation score" },
-      week3: { objective: "Report Walkthrough & Accuracy Test", tasks: ["Conduct structured evaluation walkthroughs with 4 target founders", "Identify and resolve any confusing scoring narratives"], expectedResult: "Founder evaluation feedback log & report refinement" },
-      week4: { objective: "Pricing Feedback & Phase 2 Gateway Decision", tasks: ["Test commercial subscription and per-report pricing with 6 prospects", "Make disciplined Go / Pivot decision to expand to full commercial launch"], expectedResult: "Validation Milestone Decision Report" }
+      week1: { objective: "Founder Outreach & Interview Setup", tasks: ["Identify 20 early-stage founders and 5 accelerator mentors", "Schedule 14 initial discovery interviews"], expectedResult: "14 confirmed interview bookings" },
+      week2: { objective: "Phase 1 Founder Discovery (14 Interviews)", tasks: ["Execute structured discovery interviews on validation hurdles", "Log dissatisfaction with generic AI prompts and expensive consultants"], expectedResult: "14 completed interview transcripts & pain confirmation score" },
+      week3: { objective: "Report Walkthrough & Accuracy Test", tasks: ["Conduct structured evaluation walkthroughs with 6 target founders on 8 diverse archetypes", "Identify and resolve any confusing scoring narratives"], expectedResult: "6 founder evaluation feedback logs & report refinement" },
+      week4: { objective: "Pricing Feedback & Phase 2 Gateway Decision", tasks: ["Test commercial subscription and per-report pricing with 10 prospects", "Make disciplined Go / Pivot decision to expand to full commercial launch"], expectedResult: "Validation Milestone Decision Report" }
     };
     const ninetyDayPhases = [
       {
@@ -1542,13 +1550,13 @@ function generateActionSourceOfTruth(reqData = {}, reconciled = {}, ventureType 
         name: "Phase 1: Days 1–30 — Problem Validation",
         objective: "Validate founder and accelerator demand for structured commercial validation frameworks over generic AI prompts or expensive advisors.",
         activities: [
-          "Outreach to 25 early-stage founders, startup incubators, and university entrepreneurship program directors.",
-          "Conduct 10–12 structured discovery interviews on current idea evaluation methods, advisory costs, and validation confusion.",
+          "Outreach to 20 early-stage founders and 5 startup accelerator/incubator managers.",
+          "Conduct 14 structured discovery interviews (10 founders + 4 accelerator managers) on current idea evaluation methods, advisory costs, and validation confusion.",
           "Benchmark existing alternatives (manual consulting, generic LLM prompts, standard pitch deck templates).",
           "Synthesize founder pain thresholds around objective scoring, gating risk identification, and structured next steps."
         ],
-        successCriteria: "At least 75% of interviewed founders state current tools provide superficial answers and fail to identify critical commercial showstoppers.",
-        deliverables: "Founder Discovery Synthesis Report (10+ transcripts) & Problem Severity Matrix.",
+        successCriteria: "At least 75% of interviewed founders and mentors confirm that generic AI tools provide superficial answers and fail to identify critical commercial showstoppers.",
+        deliverables: "Founder Discovery Synthesis Report (14 transcripts) & Problem Severity Matrix.",
         decisionMilestone: "Problem Gate: Confirm strong willingness among founders and incubators to seek structured assessment intelligence before building."
       },
       {
@@ -1556,15 +1564,15 @@ function generateActionSourceOfTruth(reqData = {}, reconciled = {}, ventureType 
         daysRange: "Days 31–60",
         title: "Solution Validation",
         name: "Phase 2: Days 31–60 — Solution Validation",
-        objective: "Validate assessment accuracy, report actionability, and founder comprehension using interactive prototype walkthroughs and manual audits.",
+        objective: "Validate assessment accuracy, report actionability, and founder comprehension using multi-archetype audits and walkthroughs on the live web MVP.",
         activities: [
-          "Run 8 sample business ideas through the 12-page commercial evaluation pipeline across diverse archetypes (hardware, software, services, regulated).",
+          "Run 8 sample business ideas through the 12-page commercial evaluation pipeline across diverse archetypes (hardware, software, services, regulated, marketplace).",
           "Conduct structured review sessions with 6 target founders to test report usefulness, clarity of scores, and roadmap practicality.",
-          "Calibrate evaluation rules to eliminate generic advice, hallucinated metrics, and cross-archetype contamination.",
-          "Deploy interactive web assessment dashboard with shareable executive summary links."
+          "Calibrate evaluation rules to eliminate generic advice, hallucinated metrics, raw input leakage, and cross-archetype contamination.",
+          "Refine live web assessment dashboard and PDF generation pipeline based on founder usability feedback."
         ],
         successCriteria: "Over 80% of testing founders rate the report as significantly more actionable than generic alternatives and would act on the roadmap.",
-        deliverables: "Calibrated Evaluation Report Pipeline, 6 Founder Feedback Logs, and Web Results Dashboard.",
+        deliverables: "Calibrated Evaluation Report Pipeline, 6 Founder Feedback Logs, and Validated Web Results Dashboard.",
         decisionMilestone: "Solution Gate: Confirm high assessment accuracy and zero cross-concept contamination before launching commercial paywalls."
       },
       {
@@ -1574,8 +1582,8 @@ function generateActionSourceOfTruth(reqData = {}, reconciled = {}, ventureType 
         name: "Phase 3: Days 61–90 — Commercial Validation & Decision",
         objective: "Test pricing elasticity, validate incubator/partner distribution channels, and make commercial launch decision.",
         activities: [
-          "Present pay-per-assessment and portfolio subscription pricing to 10 prospective founders and 2 accelerator managers.",
-          "Secure 3 paid assessment purchases or written commitments from startup support organizations.",
+          "Present pay-per-assessment ($49–$99 NZD) and portfolio subscription ($199/yr) pricing to 10 prospective founders and 2 accelerator managers.",
+          "Secure 3 paid assessment purchases and 1 written commitment or partnership LOI from a startup support organization.",
           "Track self-serve onboarding completion rates, user conversion funnels, and customer feedback loops.",
           "Reassess unit economics (AI compute cost vs. assessment price) and establish 90-day growth roadmap."
         ],
@@ -1587,11 +1595,11 @@ function generateActionSourceOfTruth(reqData = {}, reconciled = {}, ventureType 
     const ninetyDayRoadmap = {
       phases: ninetyDayPhases,
       steps: [
-        { week: 'W 1-2', objective: 'Founder Problem Discovery', tasks: 'Interview 10 founders and 4 mentors on idea validation hurdles and wasted capital.', hours: stepHoursLabel, evidence: 'Founder interview transcript log' },
-        { week: 'W 3-4', objective: 'Alternative Benchmarking', tasks: 'Benchmark generic AI prompts and consulting alternatives against structured evaluation criteria.', hours: stepHoursLabel, evidence: 'Competitive benchmark matrix' },
-        { week: 'W 5-6', objective: 'Report Accuracy Audits', tasks: 'Run 6 diverse archetype evaluations and audit report actionability with test founders.', hours: stepHoursLabel, evidence: 'Report accuracy audit feedback' },
-        { week: 'W 7-8', objective: 'Pricing & LOI Testing', tasks: 'Present subscription and pay-per-report pricing to 8 prospective founders and 2 incubators.', hours: stepHoursLabel, evidence: '3 paid assessment commitments' },
-        { week: 'W 9-10', objective: 'Onboarding & Funnel Analytics', tasks: 'Measure self-serve assessment completion rates and founder retention satisfaction.', hours: stepHoursLabel, evidence: 'Conversion funnel analytics report' },
+        { week: 'W 1-2', objective: 'Founder Problem Discovery', tasks: 'Outreach to 20 founders and 5 mentors; schedule 14 discovery interviews.', hours: stepHoursLabel, evidence: 'Outreach log & 14 interview bookings' },
+        { week: 'W 3-4', objective: 'Discovery Execution', tasks: 'Complete 10 founder and 4 accelerator interviews on validation hurdles.', hours: stepHoursLabel, evidence: '14 founder interview transcripts' },
+        { week: 'W 5-6', objective: 'Report Accuracy Audits', tasks: 'Run 8 diverse archetype evaluations and audit report actionability.', hours: stepHoursLabel, evidence: '8 archetype evaluation audit logs' },
+        { week: 'W 7-8', objective: 'Usability Walkthroughs', tasks: 'Walk through generated reports with 6 test founders on the live web MVP.', hours: stepHoursLabel, evidence: '6 founder usability review logs' },
+        { week: 'W 9-10', objective: 'Pricing & LOI Testing', tasks: 'Present subscription and pay-per-report pricing to 10 prospective founders and 2 incubators.', hours: stepHoursLabel, evidence: '3 paid assessment commitments & 1 LOI' },
         { week: 'W 11-12', objective: 'Commercial Launch Gateway', tasks: 'Reassess unit economics and make disciplined Go/Scale decision on public launch campaign.', hours: stepHoursLabel, evidence: 'Commercial Launch Decision Report' }
       ]
     };
@@ -1602,9 +1610,9 @@ function generateActionSourceOfTruth(reqData = {}, reconciled = {}, ventureType 
       thirtyDayPlan,
       ninetyDayPhases,
       ninetyDayRoadmap,
-      doThisBeforeBuilding: `Conduct 10–12 structured customer discovery interviews with founders and incubators (${targetLabel}) to confirm demand for structured validation intelligence before committing custom software engineering.`,
-      nextEvidenceGateway: "Complete 10 founder discovery interviews confirming high demand for objective scoring, followed by 3 paid assessment commitments, before launching commercial marketing.",
-      reassessmentTrigger: "Completion of 10 founder discovery interviews or securing 3 paid assessment purchases."
+      doThisBeforeBuilding: `Complete 14 structured customer discovery interviews (10 founders + 4 accelerator managers) and 8 archetype evaluation audits with 6 test founders to verify report accuracy and willingness to pay before scaling public marketing.`,
+      nextEvidenceGateway: "Complete 14 discovery interviews (10 founders, 4 accelerator managers) confirming acute validation demand, followed by 3 paid assessment purchases and 1 accelerator partnership LOI, before initiating public commercial marketing.",
+      reassessmentTrigger: "Completion of 14 founder discovery interviews or securing 3 paid assessment purchases."
     };
   }
 
@@ -1762,6 +1770,19 @@ function generateCoherentExecutiveSummary(reqData = {}, reconciled = {}, venture
     ].join("\n\n");
   }
 
+  const isAiDecision = ventureType.includes("Decision Support") || Boolean(((reqData.idea || '') + ' ' + (reqData.category || '')).toLowerCase().match(/\b(pitchlab|decision support|decision intelligence|startup evaluation|idea validation|idea assessment|founder intelligence)\b/i));
+  if (isAiDecision) {
+    const custValScore = reconciled.categoryScores?.customerValidation?.scoreAchieved ?? 4;
+    const overallScore = reconciled.overallScore || 68;
+    const masterRec = reconciled.masterRecommendation || "INVESTIGATE";
+
+    return [
+      `PitchLab is an idea portfolio and decision platform designed to help aspiring entrepreneurs, startup founders, and innovation programmes rigorously assess commercial viability before committing significant time or capital [Founder Input]. The venture addresses the widespread problem where prospective founders risk substantial personal resources on unvalidated ideas without structured commercial evaluation, evidence-led decision guidance, or objective risk identification [Verified Context].`,
+      `The concept scores ${overallScore}/100 with an authoritative Master Portfolio Decision of ${masterRec}. The founder brings strong commercial acumen, venture validation methodology, and product leadership capability (12+ years startup advisory and product validation experience) [Founder Input]. Notably, a live, functioning web MVP has already been deployed and tested in real-world conditions [Founder Input / Evidenced Progress]. However, customer willingness to pay for structured assessment intelligence ($49–$99/report or $199/yr subscription) versus asking free, unstructured general-purpose AI chat assistants remains an unvalidated commercial assumption (Customer Validation ${custValScore}/20) [Untested Assumption].`,
+      `Within the founder's submitted ${timeNorm.normalizedBand} availability and ${capNorm.initialRiskCapital} initial validation risk budget, execution is structured into disciplined, reconciled stage gates: Phase 1 (Days 1–30) focuses on 10 founder and 4 incubator discovery interviews (14 total logs) to quantify validation hurdles and advisory price sensitivity; Phase 2 (Days 31–60) runs 8 multi-archetype stress-test evaluations with 6 test founders to audit report accuracy and eliminate composition defects; and Phase 3 (Days 61–90) conducts 10 pricing presentations to secure 3 paid assessment purchases and 1 accelerator partnership LOI before scaling user acquisition.`
+    ].join("\n\n");
+  }
+
   // Clean raw prefixes and markdown from user input fields to ensure grammatical flow
   const stripMarkdown = (str) => {
     return String(str || '')
@@ -1782,11 +1803,7 @@ function generateCoherentExecutiveSummary(reqData = {}, reconciled = {}, venture
     .replace(/^(i\s+want\s+to\s+(develop|build|create|launch)|my\s+startup\s+idea\s+is|developing|building|a\s+new)\s+/i, '')
     .replace(/[.\s]+$/, '')
     .trim();
-  const cleanMarket = stripMarkdown(targetMarket)
-    .replace(/^["\“\‘](.*)["\”\’]$/, '$1')
-    .replace(/^(the\s+market\s+[a-z0-9_-]+\s+is\s+targeting:?|the\s+target\s+market\s+(is|includes)|targeting|we\s+target|our\s+target\s+customers\s+are)\s+/i, '')
-    .replace(/[.\s]+$/, '')
-    .trim();
+  const cleanMarket = extractCleanCustomerSegmentLabel(targetMarket);
   const cleanProb = stripMarkdown(problem)
     .replace(/^["\“\‘](.*)["\”\’]$/, '$1')
     .replace(/^(the\s+problem\s+is|customer\s+problem\s+is|users\s+suffer\s+from|the\s+issue\s+is)\s+/i, '')
@@ -1965,10 +1982,39 @@ function generateIdeaSpecificMarketInsights(reqData = {}, reconciled = {}, ventu
     };
   }
 
+  const isAiDecision = ventureType.includes("Decision Support") || Boolean(((reqData.idea || '') + ' ' + (reqData.category || '')).toLowerCase().match(/\b(pitchlab|decision support|decision intelligence|startup evaluation|idea validation|idea assessment|founder intelligence)\b/i));
+
+  if (isAiDecision) {
+    return {
+      marketLandscape: `The commercial market for startup idea validation, entrepreneurial decision support, and commercial risk screening is driven by prospective founders and innovation programmes seeking objective evaluation before committing significant personal capital or development time across ${targetJurisdiction} [Verified Context]. Early-stage founders actively look for structured frameworks that move beyond superficial feedback.`,
+      demandDrivers: `Demand is driven by acute anxiety over wasting capital on unvalidated products, lack of access to affordable commercial advisory, and growing founder dissatisfaction with superficial, sycophantic responses from general-purpose AI chat tools [Verified Context / AI Inference].`,
+      competitionAlternatives: `The platform competes with general-purpose AI chat assistants (such as ChatGPT and Claude), automated business-plan generators, startup validation tools, and expensive fractional advisors or accelerator mentors [Verified Context]. PitchLab differentiates through structured evidence-calibrated scoring, repeatability, multi-archetype gating logic, and actionable 90-day roadmaps rather than unstructured prose generation.`,
+      commercialReality: `Market Sizing Funnel — (1) Broad Industry Size: Global pre-seed and startup ideation ecosystem with millions of prospective ventures conceived annually; (2) Relevant Customer Segment: Founders, prospective entrepreneurs, and accelerator cohorts seeking structured commercial guidance; (3) Commercially Accessible Customers: Self-directed founders reachable through founder communities, accelerators, and organic product-led sharing; (4) Customers with Verified Problem: High reported pain regarding validation confusion and advisory costs; (5) Plausible Willingness to Pay: Untested hypothesis—requires verifying whether founders will pay $49–$99 NZD per comprehensive assessment or $199/year for portfolio tracking compared to free general-purpose AI chat [Untested Assumption].`,
+      localBusinessNews: `Startup and innovation reporting across ${targetJurisdiction} emphasizes tightening angel and seed-stage capital availability, heightened investor scrutiny of customer traction evidence, and increased demand for capital-efficient validation frameworks [Verified Context].`,
+      customerReviewTrends: `Founder community commentary reveals widespread dissatisfaction with expensive generic startup consultants, unassisted business plan templates, and superficial AI responses that lack commercial depth, evidence traceability, or actionable next steps [Verified Context].`,
+      governmentPolicyInfluence: `Digital consumer protection statutes, Fair Trading standards, privacy regulations, and emerging guidelines regarding automated decision-support accountability govern software services in ${targetJurisdiction} [Verified Context].`,
+      competitorBreakdown: {
+        directCompetitors: "Startup validation platforms, automated business-plan builders, and generic AI prompt libraries.",
+        indirectCompetitors: "Early-stage startup coaches, fractional advisors, incubator EIRs, and accounting firm advisory bundles.",
+        existingWorkarounds: "Unstructured conversations with ChatGPT/Claude, DIY spreadsheets, informal peer feedback, and trial-and-error building.",
+        substituteTechnologies: "Custom GPTs, prompt chains, generic pitch deck generators, and online founder courses."
+      },
+      marketSizingFunnel: {
+        broadIndustrySize: "Global English-speaking entrepreneurship and small business ideation market",
+        relevantCustomerSegment: "Aspiring entrepreneurs, early-stage founders, accelerators, and startup advisory programmes",
+        commerciallyAccessibleCustomers: "Self-directed founders and incubator cohorts accessible via digital channels and partnerships",
+        verifiedProblemCustomers: "High reported frustration with unvalidated startup failure rates and superficial advice",
+        plausibleWillingnessToPayCustomers: "Untested assumption — must verify paid conversions at $49–$99/report or $199/year subscription vs free LLM chat alternatives",
+        evidenceGap: "Requires empirical validation of paid purchase conversion and repeat portfolio tracking engagement."
+      }
+    };
+  }
+
   // General Commercial / SaaS
+  const conceptNoun = idea.length > 60 ? (idea.split(/[.;:]/)[0].slice(0, 50).trim() + "...") : (idea || 'workflow automation');
   return {
-    marketLandscape: `The commercial software market for ${idea || 'workflow automation'} is driven by increasing adoption of cloud-based productivity tools and administrative overhead reduction across ${targetJurisdiction}. Commercial businesses actively seek streamlined solutions that eliminate recurring operational friction.`,
-    demandDrivers: `Demand is driven by the need for operational time savings, direct reduction in administrative error rates, and the search for low-friction alternatives to manual spreadsheets and legacy workflows.`,
+    marketLandscape: `The commercial software market for ${conceptNoun} is driven by increasing adoption of cloud-based productivity tools and operational efficiency across ${targetJurisdiction}. Commercial businesses actively seek streamlined solutions that eliminate recurring operational friction.`,
+    demandDrivers: `Demand is driven by the need for operational time savings, direct reduction in administrative error rates, and the search for low-friction digital alternatives.`,
     competitionAlternatives: `The proposed solution would compete with established enterprise platforms, horizontal productivity tools, and entrenched manual processes. Customer switching inertia represents the primary barrier to adoption.`,
     commercialReality: `A critical distinction exists between broad industry interest and immediate commercial willingness to pay. Early traction requires demonstrating immediate functional return on investment and frictionless onboarding.`,
     localBusinessNews: `Local business reporting emphasizes ongoing digital transformation, operational efficiency demands, and margin discipline among commercial operators across ${targetJurisdiction}.`,

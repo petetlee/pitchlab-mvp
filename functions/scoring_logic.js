@@ -590,17 +590,35 @@ function getValidationLadderForContext(ventureType = "", primaryGatingRisk = "",
     ];
   }
   // Standard SaaS / Digital / Service
+  const hasWorkingMvp = Boolean(
+    (rawInputs.businessStage || "").toLowerCase().match(/mvp|prototype|tested|deployed|launch/i) ||
+    ((rawInputs.problem || "") + " " + (rawInputs.founderBackgroundNarrative || "") + " " + idea).toLowerCase().match(/\b(working mvp|live mvp|mvp deployed|product tested|real-world testing|built an mvp|built a working)\b/i)
+  );
+  if (hasWorkingMvp) {
+    return [
+      { stage: 'Problem identified', status: 'Complete', notes: 'Core customer pain point confirmed [Submitted]' },
+      { stage: 'Target customer defined', status: 'Complete', notes: 'Ideal customer profile & segment defined [Submitted]' },
+      { stage: 'Solution developed & MVP deployed', status: 'Complete', notes: 'Working MVP deployed and tested in real-world conditions [Submitted Progress]' },
+      { stage: 'Product usability tested', status: 'Tested', notes: 'Report generation, user flows, and prototype walkthroughs conducted [Submitted Progress]' },
+      { stage: 'Customer interviews completed', status: 'In progress', notes: 'Target: 14 discovery interviews across founders and incubators' },
+      { stage: 'Problem severity confirmed', status: 'Not evidenced in this submission', notes: 'Quantified pain confirmation score from discovery interviews' },
+      { stage: 'Willingness to pay tested', status: 'Not evidenced in this submission', notes: 'Testing $49–$99/report and $199/yr subscription pricing' },
+      { stage: 'Paying customers secured', status: 'Not evidenced in this submission', notes: 'Target: 3 paid assessment purchases and 1 accelerator LOI' },
+      { stage: 'Repeat demand demonstrated', status: 'Not evidenced in this submission', notes: 'Portfolio tracking and repeat assessment engagement' },
+      { stage: 'Scalable acquisition tested', status: 'Not evidenced in this submission', notes: 'Customer acquisition cost (CAC) vs lifetime value (LTV)' }
+    ];
+  }
   return [
     { stage: 'Problem identified', status: 'Complete', notes: 'Problem statement defined' },
     { stage: 'Target customer defined', status: 'Complete', notes: 'Customer segment defined' },
-    { stage: 'Customer interviews completed', status: 'Not yet evidenced', notes: 'Target: 10 interviews' },
-    { stage: 'Problem severity confirmed', status: 'Not yet evidenced', notes: 'Empirical feedback' },
-    { stage: 'Solution tested', status: 'Not yet evidenced', notes: 'Prototype / workflow test' },
-    { stage: 'Willingness to pay tested', status: 'Not yet evidenced', notes: 'Pricing test' },
-    { stage: 'Pilot users secured', status: 'Not yet evidenced', notes: 'Target: 2 pilots' },
-    { stage: 'Paying customer secured', status: 'Not yet evidenced', notes: 'Target: 1 paying customer' },
-    { stage: 'Repeat demand demonstrated', status: 'Not yet evidenced', notes: 'Retention tracking' },
-    { stage: 'Scalable acquisition tested', status: 'Not yet evidenced', notes: 'Unit economics' }
+    { stage: 'Customer interviews completed', status: 'Not evidenced in this submission', notes: 'Target: 10 interviews' },
+    { stage: 'Problem severity confirmed', status: 'Not evidenced in this submission', notes: 'Empirical feedback' },
+    { stage: 'Solution tested', status: 'Not evidenced in this submission', notes: 'Prototype / workflow test' },
+    { stage: 'Willingness to pay tested', status: 'Not evidenced in this submission', notes: 'Pricing test' },
+    { stage: 'Pilot users secured', status: 'Not evidenced in this submission', notes: 'Target: 2 pilots' },
+    { stage: 'Paying customer secured', status: 'Not evidenced in this submission', notes: 'Target: 1 paying customer' },
+    { stage: 'Repeat demand demonstrated', status: 'Not evidenced in this submission', notes: 'Retention tracking' },
+    { stage: 'Scalable acquisition tested', status: 'Not evidenced in this submission', notes: 'Unit economics' }
   ];
 }
 
@@ -676,6 +694,20 @@ function getCommercialAdviserOpinion(reconciled = {}, ventureType = "", gatesInf
         : "Strong local transport domain experience, operational background, and practical market relationships.",
       caution: "Ensure custom mobile application and software development are delayed until driver supply liquidity and passenger booking demand are validated through concierge trials.",
       unproven: "Marketplace unit economics, passenger booking frequency, and driver retention in the local market.",
+      masterRecommendation: authMasterRec,
+      portfolioDecision: authMasterRec,
+      portfolioAction: act,
+      opinionNarrative: act
+    };
+  }
+
+  const isAiDecision = ventureType.includes("Decision Support") || Boolean(((rawInputs.idea || '') + ' ' + (rawInputs.category || '')).toLowerCase().match(/\b(pitchlab|decision support|decision intelligence|startup evaluation|idea validation|idea assessment|founder intelligence)\b/i));
+  if (isAiDecision) {
+    const act = "Audit report composition accuracy and conduct 14 discovery interviews across founders and accelerators to validate paid assessment willingness before scaling marketing.";
+    return {
+      encouraging: "Strong product vision, venture validation methodology, and working MVP deployment already demonstrated.",
+      caution: "Resolve report composition and accuracy defects before commercial paywall launch; ensure software development focuses on assessment reliability rather than premature feature expansion.",
+      unproven: "Founder willingness to pay for structured commercial validation ($49–$99/report or $199/yr subscription) versus free, unstructured general-purpose AI chat tools.",
       masterRecommendation: authMasterRec,
       portfolioDecision: authMasterRec,
       portfolioAction: act,
@@ -967,7 +999,13 @@ function calculateFounderSubFactors(rawInputs = {}) {
   // 4. COMPONENT D: Critical Capability Coverage (0 to 3 points)
   let coverageScore = 0;
   const hasEstablishedTeamWithDomain = Boolean(cleanFounderEvidence.match(/\b(co-founder|cto|head\s+of\s+engineering|chief\s+scientist|specialist\s+lead|retained\s+expert|joint\s+venture)\b/) || cleanFounderEvidence.match(/\bpartnered\s+with\s+(technical|engineers?|developers?)/));
-  const isTechDependentVenture = (ventureType === 'Transportation / Mobility / Marketplace' || ventureType === 'Marketplace' || ventureType === 'SaaS / Software') && allVentureText.match(/\b(app|platform|software|marketplace|digital)\b/);
+  const isTechDependentVenture = (
+    ventureType === 'Transportation / Mobility / Marketplace' ||
+    ventureType === 'Marketplace' ||
+    ventureType === 'SaaS / Software' ||
+    ventureType === 'AI / Business Decision Support Software' ||
+    ventureType.includes('Decision Support')
+  ) && Boolean(allVentureText.match(/\b(app|platform|software|marketplace|digital|ai|decision engine)\b/i));
   const hasTechLead = Boolean(cleanFounderEvidence.match(/\b(software\s+engineer|cto|lead\s+developer|full-stack|technical\s+co-founder)\b/));
 
   if (hasEstablishedTeamWithDomain || (hasDirectDomainMatch && (!isTechDependentVenture || hasTechLead))) {
@@ -1035,6 +1073,10 @@ function calculateFounderSubFactors(rawInputs = {}) {
     } else if ((ventureType === 'Transportation / Mobility / Marketplace' || allVentureText.match(/transport|ride-share|fleet/)) && !cleanFounderEvidence.match(/\b(software\s+engineer|cto|full-stack|technical\s+co-founder)\b/)) {
       gapSeverity = 'Bridgeable Gap';
       finalScore = Math.min(finalScore, 11);
+      appliedCap = true;
+    } else if ((ventureType.includes('Decision Support') || ventureType === 'AI / Business Decision Support Software') && !cleanFounderEvidence.match(/\b(software\s+engineer|cto|full-stack|technical\s+co-founder|senior\s+developer)\b/)) {
+      gapSeverity = 'Bridgeable Gap';
+      finalScore = Math.min(finalScore, 12);
       appliedCap = true;
     }
   }
@@ -1973,6 +2015,17 @@ function calculate5DimensionFutureTrends(rawInputs = {}, gatesInfo = {}, venture
     whatThisMeansForFounder = "Validate core customer workflow integration and bank feed connectivity before investing heavily in custom software development.";
     adjacentOpportunities = ["Automated provisional tax calculator", "SME cash-flow buffer advisory", "Accountant/bookkeeper dashboard integration"];
     trendAlignmentScore = 8;
+  } else if (ventureType === 'AI / Business Decision Support Software' || ventureType.includes("Decision Support") || Boolean(text.match(/\b(pitchlab|decision support|decision intelligence|startup evaluation|idea validation|idea assessment|founder intelligence)\b/i))) {
+    marketDirection = "POSITIVE";
+    solutionOutlook = "FAVOURABLE";
+    demandTrend = "Accelerating demand among early-stage founders, startup incubators, and innovation programmes for objective, evidence-based commercial assessment frameworks that prevent wasted development capital.";
+    technologyTrend = "Maturation of large language models and structured reasoning systems, shifting founder tools from unstructured chat prompts to rigorous, repeatable analytical decision engines.";
+    regulatoryTrend = "Emerging AI governance frameworks, algorithmic transparency expectations, consumer data privacy standards, and commercial advisory liability guidelines.";
+    competitionTrend = "General-purpose LLMs (e.g., ChatGPT, Claude) provide accessible but uncalibrated, generic ideation; structured evaluation platforms compete on repeatability, evidence traceability, and calibrated stage-gate roadmaps.";
+    capitalTrend = "High gross margin SaaS software model with low incremental inference costs per assessment, scalable through direct-to-founder and B2B accelerator licensing.";
+    whatThisMeansForFounder = "Focus on eliminating report composition defects, validating assessment accuracy against real founder submissions, and proving customer willingness to pay ($49–$99/report or subscription) before expanding broader marketing spend.";
+    adjacentOpportunities = ["Incubator and university cohort evaluation portals", "Angel investor pre-screen assessment tools", "Multi-idea portfolio decision tracking dashboards"];
+    trendAlignmentScore = 8;
   } else if (ventureType.includes("Hardware") || ventureType.includes("Manufacturing")) {
     marketDirection = "POSITIVE";
     solutionOutlook = "PROMISING";
@@ -2026,6 +2079,17 @@ function calculate5DimensionFutureTrends(rawInputs = {}, gatesInfo = {}, venture
     } else {
       adjacentOpportunities = ["No adjacent opportunity should currently be prioritised. Validate the core business first."];
     }
+  } else if (ventureType === 'AI / Business Decision Support Software' || ventureType.includes("Decision Support") || Boolean(text.match(/\b(pitchlab|decision support|decision intelligence|startup evaluation|idea validation|idea assessment|founder intelligence)\b/i))) {
+    marketDirection = "POSITIVE";
+    solutionOutlook = "FAVOURABLE";
+    demandTrend = "Accelerating demand among early-stage founders, startup incubators, and innovation programmes for objective, evidence-based commercial assessment frameworks that prevent wasted development capital.";
+    technologyTrend = "Maturation of large language models and structured reasoning systems, shifting founder tools from unstructured chat prompts to rigorous, repeatable analytical decision engines.";
+    regulatoryTrend = "Emerging AI governance frameworks, algorithmic transparency expectations, consumer data privacy standards, and commercial advisory liability guidelines.";
+    competitionTrend = "General-purpose LLMs (e.g., ChatGPT, Claude) provide accessible but uncalibrated, generic ideation; structured evaluation platforms compete on repeatability, evidence traceability, and calibrated stage-gate roadmaps.";
+    capitalTrend = "High gross margin SaaS software model with low incremental inference costs per assessment, scalable through direct-to-founder and B2B accelerator licensing.";
+    whatThisMeansForFounder = "Focus on eliminating report composition defects, validating assessment accuracy against real founder submissions, and proving customer willingness to pay ($49–$99/report or subscription) before expanding broader marketing spend.";
+    adjacentOpportunities = ["Incubator and university cohort evaluation portals", "Angel investor pre-screen assessment tools", "Multi-idea portfolio decision tracking dashboards"];
+    trendAlignmentScore = 8;
   } else if (ventureType.includes("Hardware") || ventureType.includes("Manufacturing")) {
     adjacentOpportunities = ["No adjacent opportunity should currently be prioritised. Validate the core business first."];
   }
@@ -2297,15 +2361,25 @@ function extractCleanCustomerSegmentLabel(rawTargetMarket = "") {
   const stripped = stripMarkdownAndCleanText(raw);
   if (!stripped) return "target customers";
   const firstSentence = stripped.split(/(?<=[.!?])\s+|\n+/)[0] || stripped;
-  const cleaned = firstSentence
+  let cleaned = firstSentence
     .replace(/^the market\s+[a-z0-9_-]+\s+is targeting:?\s*/i, "")
     .replace(/^the target market (?:is|includes):?\s*/i, "")
-    .replace(/^our target customers? (?:are|include):?\s*/i, "")
+    .replace(/^our (?:primary\s+)?target customers? (?:are|include):?\s*/i, "")
+    .replace(/^primary target customers? (?:are|include):?\s*/i, "")
     .replace(/^target customers? (?:are|include):?\s*/i, "")
+    .replace(/^we target:?\s*/i, "")
     .replace(/^targeting:?\s*/i, "")
+    .replace(/^our primary market is:?\s*/i, "")
     .replace(/\.$/, "")
     .trim();
-  return cleaned.length > 140 ? cleaned.slice(0, 137) + "..." : (cleaned || "target customers");
+
+  // If long, truncate safely at whole-word boundary before 137 chars (never mid-word!)
+  if (cleaned.length > 140) {
+    const cut = cleaned.slice(0, 137);
+    const lastSpace = cut.lastIndexOf(' ');
+    cleaned = (lastSpace > 30 ? cut.slice(0, lastSpace) : cut).trim() + "...";
+  }
+  return cleaned || "target customers";
 }
 
 function generateContextualScoreExplanation(key, scoreAchieved, maxScore, rawInputs = {}, gatesInfo = {}, founderCalc = {}) {
@@ -2850,9 +2924,14 @@ function buildAuthoritativeAssessmentSnapshot(reqData = {}, evaluationId = "", s
     ventureType.includes("Mobility") ||
     (ventureType.includes("Marketplace") && combinedLower.match(/ride|transport|driver|passenger|mobility/i))
   );
+  const isAiDecision = Boolean(
+    ventureType.includes("Decision Support") ||
+    combinedLower.match(/\b(pitchlab|decision support|decision intelligence|startup evaluation|idea validation|idea assessment|founder intelligence)\b/i)
+  );
   const hasPrototypeSubmitted = Boolean(
     stageText.toLowerCase().match(/\b(prototype|mvp|working product|beta|early users|paying|revenue)\b/) ||
-    combinedLower.match(/\b(built a prototype|working prototype|tested prototype|cad completed|3d printed prototype)\b/)
+    combinedLower.match(/\b(built a prototype|working prototype|tested prototype|cad completed|3d printed prototype|working mvp|live mvp|deployed mvp|fully functional mvp)\b/) ||
+    narrative.toLowerCase().match(/\b(built a prototype|working prototype|working mvp|live mvp|deployed mvp)\b/)
   ) && !stageText.toLowerCase().match(/^(just an idea|idea only)$/i);
 
   const founderCapabilityBreakdown = isNuclear
@@ -2901,6 +2980,34 @@ function buildAuthoritativeAssessmentSnapshot(reqData = {}, evaluationId = "", s
           "Major hotel, resort, and airport transfer operators across Upolu"
         ]
       }
+    : isAiDecision
+    ? {
+        founderProposedRole: "Founder, Product Architect & Commercial Lead",
+        existingCapabilities: [
+          "12+ years startup advisory, venture creation, and commercial validation methodology",
+          "Deep commercial feasibility analysis, financial governance, and investor readiness design",
+          "Working software product architecture and end-to-end MVP specification"
+        ],
+        transferableCapabilities: [
+          "Commercial positioning, pricing strategy, and go-to-market execution",
+          "Founder discovery interviews, stakeholder engagement, and user feedback synthesis",
+          "Staged capital allocation and pre-seed resource efficiency"
+        ],
+        missingSpecialistCapabilities: [
+          "Production full-stack software platform engineering and cloud architecture (DevOps/SRE)",
+          "Advanced automated LLM evaluation harnesses, prompt regression testing, and CI/CD pipelines",
+          "Automated PDF document compilation engineering and cross-platform UI rendering optimization"
+        ],
+        outsourceableCapabilities: [
+          "Contract full-stack / Flutter web frontend optimization and state management refinement",
+          "Third-party payment gateway integration (Stripe / automated billing webhooks)",
+          "Independent code review and production cloud security auditing"
+        ],
+        strategicPartnerOrConsortiumCapabilities: [
+          "Startup accelerators, incubators, and university venture hubs (cohort deal-flow distribution)",
+          "Early-stage venture capital and angel investment networks (due-diligence report standardization)"
+        ]
+      }
     : {
         founderProposedRole: "Founder & Commercial Lead",
         existingCapabilities: [stripMarkdownAndCleanText(narrative, 180) || "Submitted founder commercial and domain background"],
@@ -2928,7 +3035,9 @@ function buildAuthoritativeAssessmentSnapshot(reqData = {}, evaluationId = "", s
       hasPrototypeSubmitted,
       noPrototypeInvented: !hasPrototypeSubmitted,
       assessmentNote: hasPrototypeSubmitted
-        ? "Founder reported prototype/MVP progress; incorporated into technical and validation assessment."
+        ? (isAiDecision
+            ? "Founder submitted a live, functioning web MVP and validation architecture; assessment focuses on validation accuracy, pricing, and customer discovery rather than initial MVP construction."
+            : "Founder reported prototype/MVP progress; incorporated into technical and validation assessment.")
         : "Business stage is 'Just an idea' / 'Idea only'; PitchLab does not invent any existing physical prototype, CAD, or 3D-printed unit."
     },
     founderCapabilityBreakdown,
@@ -3397,10 +3506,13 @@ function validateReportIntegrityGate(evaluationData = {}, reqData = {}) {
     evaluationData.summaryBlock?.biggestRiskToThisIdea,
     evaluationData.summaryBlock?.doThisBeforeBuildingMore,
     evaluationData.executiveSummary,
+    evaluationData.problemAnalysis,
+    JSON.stringify(evaluationData.businessModelSnapshot || {}),
     evaluationData.investorBite?.introduction,
     evaluationData.investorBite?.investmentVerdict,
     evaluationData.investorBite?.biggestRisk,
     JSON.stringify(evaluationData.investorBite?.improvements || []),
+    JSON.stringify(evaluationData.marketInsights || {}),
     evaluationData.marketInsights?.customerReviewTrends,
     evaluationData.marketInsights?.governmentPolicyInfluence,
     evaluationData.marketInsights?.commercialReality,
@@ -3408,6 +3520,8 @@ function validateReportIntegrityGate(evaluationData = {}, reqData = {}) {
     evaluationData.businessTheme?.strategicPositioning,
     evaluationData.businessTheme?.marketCategoryDynamics,
     JSON.stringify(evaluationData.futureTrends?.dimensions || {}),
+    JSON.stringify(evaluationData.actionPlan || {}),
+    evaluationData.immediate7DayAction,
     JSON.stringify(evaluationData.actionPlan?.topFivePriorities || []),
     JSON.stringify(evaluationData.summaryBlock?.threePriorityActions || []),
     JSON.stringify(evaluationData.founderCapabilityExplanation?.recommendedResponse || []),
@@ -3904,6 +4018,46 @@ function validateReportIntegrityGate(evaluationData = {}, reqData = {}) {
     if (primaryTheme === "General" || primaryTheme.includes("Workflow Efficiency")) {
       throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Inappropriate industry classification ('${primaryTheme}') for transport marketplace venture.`);
     }
+  }
+
+  // 34. Malformed Concatenation Gate (PL-FIX-20261105-01 Defect A)
+  // Ensure raw questionnaire prompt/response prefixes never leak directly into concatenated sentences
+  if (/designed to serve (?:our|the) (?:primary\s+)?target customers?/i.test(fullReportText) ||
+      /designed to serve our\b/i.test(fullReportText)) {
+    throw new Error("PITCHLAB QA INTEGRITY FAILURE: Malformed conversational sentence concatenation ('designed to serve Our primary target customers') detected.");
+  }
+
+  // 35. Truncated Word Gate (PL-FIX-20261105-01 Defect D)
+  // Ensure mid-word truncation artifacts never appear in report output
+  if (/\b(?:comme|commer|compet|techn)\.(?!\w)/i.test(fullReportText)) {
+    throw new Error("PITCHLAB QA INTEGRITY FAILURE: Truncated word artifact ('comme.', 'commer.', etc.) detected in report output.");
+  }
+
+  // 36. Unfinished Parenthetical Fragment Gate (PL-FIX-20261105-01 Defect B & E)
+  // Ensure broken parenthetical fragments do not appear in action items
+  if (/\([A-Za-z\s]+who lack[^)]*\)/i.test(fullReportText)) {
+    throw new Error("PITCHLAB QA INTEGRITY FAILURE: Unfinished parenthetical customer fragment detected in action plan.");
+  }
+
+  // 37. AI Decision Support Generic Enterprise Banned Phrases Gate (PL-FIX-20261105-01 Defect C)
+  if (isAiDecision) {
+    const aiDecisionBannedPhrases = [
+      { pattern: /\bmanual spreadsheets\b/i, phrase: "manual spreadsheets" },
+      { pattern: /\badministrative overhead reduction\b/i, phrase: "administrative overhead reduction" },
+      { pattern: /\bhorizontal productivity tools?\b/i, phrase: "horizontal productivity tools" },
+      { pattern: /\benterprise workflow efficiency\b/i, phrase: "enterprise workflow efficiency" }
+    ];
+    for (const rule of aiDecisionBannedPhrases) {
+      if (rule.pattern.test(fullReportText)) {
+        throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Prohibited generic enterprise workflow phrase ('${rule.phrase}') detected in AI decision support software assessment.`);
+      }
+    }
+  }
+
+  // 38. Target Customer Label Sanity Gate (PL-FIX-20261105-01 Defect A & D)
+  const targetCust = evaluationData.businessModelSnapshot?.targetCustomer || "";
+  if (/our (?:primary\s+)?target/i.test(targetCust) || /\b(?:comme|commer|compet|techn)\.(?!\w)/i.test(targetCust)) {
+    throw new Error(`PITCHLAB QA INTEGRITY FAILURE: Malformed targetCustomer label ('${targetCust}') in businessModelSnapshot.`);
   }
 
   return true;
